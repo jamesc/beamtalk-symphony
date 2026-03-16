@@ -10,7 +10,6 @@ Supervisor subclass: SymphonySupervisor
 
   /// Builds the child spec list: loads .env, parses WORKFLOW.md, creates clients.
   class children =>
-    // Load config at supervisor start time
     DotEnv load: File cwd ++ "/.env"
 
     wfResult := WorkflowLoader load: "./WORKFLOW.md"
@@ -43,22 +42,10 @@ Supervisor subclass: SymphonySupervisor
 
     specs := #(orchestratorSpec, watcherSpec)
 
-    // Workaround for BT-1417: supervisor bypasses Actor initialize.
-    // Start HttpServer outside supervisor, and defer Orchestrator/Watcher
-    // kickoff via Timer so the supervisor finishes init first.
     port := config serverPort
-    port isNil ifFalse: [HttpServer start: port orchestrator: nil]
+    port isNil ifTrue: [^specs]
 
-    Timer
-      after: 100
-      do: [
-        sup := SymphonySupervisor current
-        orch := sup which: Orchestrator
-        orch isNil
-          ifFalse: [
-            orch startupTerminalCleanup
-            orch scheduleTick: 0
-          ]
-      ]
-
-    specs
+    httpSpec := (HttpServer supervisionSpec withRestart: #permanent) withArgs: #{
+      #port => port
+    }
+    specs add: httpSpec

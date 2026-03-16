@@ -19,20 +19,25 @@ Actor subclass: Orchestrator
 
   /// Spawns a new Orchestrator with the given config and dependencies.
   class start: config linearClient: lc workspaceManager: wm promptTemplate: pt =>
-    orch := self
+    self
       spawnWith: #{
         #config => config,
         #linearClient => lc,
         #workspaceManager => wm,
-        #promptTemplate => pt,
-        #running => #{},
-        #claimed => #(),
-        #retryAttempts => #{},
-        #completed => #(),
-        #codexTotals => TokenUsage new,
-        #codexRateLimits => nil
+        #promptTemplate => pt
       }
-    orch
+
+  /// Lifecycle hook — initializes state maps and starts the poll loop.
+  initialize =>
+    self.running := #{}
+    self.claimed := #()
+    self.retryAttempts := #{}
+    self.completed := #()
+    self.codexTotals := TokenUsage new
+    self.codexRateLimits := nil
+    Logger info: "orchestrator initialized"
+    self startupTerminalCleanup
+    self scheduleTick: 0
 
   // --- Config reload ---
 
