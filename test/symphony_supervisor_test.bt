@@ -8,36 +8,3 @@ TestCase subclass: SymphonySupervisorTest
 
   testIsSupervisor =>
     self assert: SymphonySupervisor isSupervisor
-
-  testConfigureSetsClassState =>
-    Erlang os putenv: "SYMTEST_KEY" value: "key"
-    config := Config fromMap: #{
-      "tracker" => #{"kind" => "linear", "api_key" => "$SYMTEST_KEY", "project_slug" => "test"}
-    }
-    lc := LinearClient new: #{"apiKey" => "test"}
-    wm := WorkspaceManager new: #{"root" => "/tmp/test"}
-    SymphonySupervisor
-      configure: config
-      linearClient: lc
-      workspaceManager: wm
-      promptTemplate: "test prompt"
-      port: 8080
-    self deny: SymphonySupervisor runtimeConfig isNil
-    self assert: SymphonySupervisor runtimePort equals: 8080
-
-  testChildrenIncludesOrchestrator =>
-    Erlang os putenv: "SYMTEST_KEY2" value: "key"
-    config := Config fromMap: #{
-      "tracker" => #{"kind" => "linear", "api_key" => "$SYMTEST_KEY2", "project_slug" => "test"}
-    }
-    lc := LinearClient new: #{"apiKey" => "test"}
-    wm := WorkspaceManager new: #{"root" => "/tmp/test"}
-    SymphonySupervisor
-      configure: config
-      linearClient: lc
-      workspaceManager: wm
-      promptTemplate: "test"
-      port: nil
-    children := [SymphonySupervisor children] on: Error do: [:e | ^self skip: "children failed"]
-    // Should have Orchestrator and WorkflowWatcher (no HttpServer since port is nil)
-    self assert: children size equals: 2

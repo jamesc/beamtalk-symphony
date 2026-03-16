@@ -2,42 +2,49 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // SymphonySupervisor — OTP supervision tree for the Symphony service.
-// Starts Orchestrator, WorkflowWatcher, and optionally HttpServer.
+// Loads WORKFLOW.md config at startup, creates clients, and starts children.
 
 Supervisor subclass: SymphonySupervisor
-  classState: config = nil
-  classState: linearClient = nil
-  classState: workspaceManager = nil
-  classState: promptTemplate = ""
-  classState: serverPort = nil
-
-  class configure: cfg linearClient: lc workspaceManager: wm promptTemplate: pt port: port =>
-    self.config := cfg
-    self.linearClient := lc
-    self.workspaceManager := wm
-    self.promptTemplate := pt
-    self.serverPort := port
-
-  class runtimeConfig => self.config
-  class runtimePort => self.serverPort
 
   class strategy => #oneForOne
 
   class children =>
+    // Load config at supervisor start time
+    DotEnv load: File cwd ++ "/.env"
+
+    wfResult := WorkflowLoader load: "./WORKFLOW.md"
+    wfResult isError ifTrue: [
+      Logger error: "failed to load WORKFLOW.md"
+      ^#()
+    ]
+    wf := wfResult unwrap
+    config := Config fromMap: (wf at: "config")
+    validation := config validate
+    validation isError ifTrue: [
+      Logger error: "config validation failed"
+      ^#()
+    ]
+
+    promptTemplate := wf at: "prompt_template"
+    linearClient := LinearClient fromConfig: config
+    workspaceManager := WorkspaceManager fromConfig: config
+
     specs := #(
       (Orchestrator supervisionSpec
         withRestart: #permanent
         withArgs: #{
-          #config => self.config,
-          #linearClient => self.linearClient,
-          #workspaceManager => self.workspaceManager,
-          #promptTemplate => self.promptTemplate
+          #config => config,
+          #linearClient => linearClient,
+          #workspaceManager => workspaceManager,
+          #promptTemplate => promptTemplate
         }),
       (WorkflowWatcher supervisionSpec
         withRestart: #permanent)
     )
-    self.serverPort isNil
+
+    port := config serverPort
+    port isNil
       ifTrue: [specs]
       ifFalse: [specs add: (HttpServer supervisionSpec
         withRestart: #permanent
-        withArgs: #{#port => self.serverPort})]
+        withArgs: #{#port => port})]
