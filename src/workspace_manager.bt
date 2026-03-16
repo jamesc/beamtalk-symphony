@@ -48,8 +48,8 @@ Object subclass: WorkspaceManager
 
   // --- Containment validation ---
   validateContainment: wsPath =>
-    absRoot := Erlang filename absname: self.root
-    absWs := Erlang filename absname: wsPath
+    absRoot := (File absolutePath: self.root) unwrap
+    absWs := (File absolutePath: wsPath) unwrap
     (absWs startsWith: absRoot ++ "/") ifTrue: [^Result ok: true]
     absWs == absRoot
       ifTrue: [
@@ -168,8 +168,8 @@ Object subclass: WorkspaceManager
   // --- Validation for agent launch ---
   validateCwd: cwd forIssue: identifier =>
     expected := self workspacePath: identifier
-    absExpected := Erlang filename absname: expected
-    absCwd := Erlang filename absname: cwd
+    absExpected := (File absolutePath: expected) unwrap
+    absCwd := (File absolutePath: cwd) unwrap
     absExpected == absCwd
       ifTrue: [Result ok: true]
       ifFalse: [
