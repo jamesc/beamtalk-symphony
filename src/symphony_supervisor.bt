@@ -43,10 +43,9 @@ Supervisor subclass: SymphonySupervisor
 
     specs := #(orchestratorSpec, watcherSpec)
 
+    // Start HttpServer outside supervisor (workaround for BT-1417:
+    // supervisor bypasses initialize, so we start it directly here)
     port := config serverPort
-    port isNil ifTrue: [^specs]
+    port isNil ifFalse: [HttpServer start: port orchestrator: nil]
 
-    httpSpec := (HttpServer supervisionSpec withRestart: #permanent) withArgs: #{
-      #port => port
-    }
-    specs add: httpSpec
+    specs
