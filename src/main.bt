@@ -1,0 +1,15 @@
+// Copyright 2026 symphony authors
+// SPDX-License-Identifier: Apache-2.0
+
+// Main entry point for symphony.
+// Run with: beamtalk run Main run
+// Or load interactively: beamtalk repl
+
+Object subclass: Main
+
+  class run =>
+    self new run
+
+  run =>
+    TranscriptStream current show: "Hello from symphony!"; cr.
+    self
