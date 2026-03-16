@@ -29,22 +29,18 @@ Supervisor subclass: SymphonySupervisor
     linearClient := LinearClient fromConfig: config
     workspaceManager := WorkspaceManager fromConfig: config
 
-    specs := #(
-      (Orchestrator supervisionSpec
-        withRestart: #permanent
-        withArgs: #{
-          #config => config,
-          #linearClient => linearClient,
-          #workspaceManager => workspaceManager,
-          #promptTemplate => promptTemplate
-        }),
-      (WorkflowWatcher supervisionSpec
-        withRestart: #permanent)
-    )
+    orchestratorSpec := (Orchestrator supervisionSpec withRestart: #permanent) withArgs: #{
+      #config => config,
+      #linearClient => linearClient,
+      #workspaceManager => workspaceManager,
+      #promptTemplate => promptTemplate
+    }
+    watcherSpec := WorkflowWatcher supervisionSpec withRestart: #permanent
+
+    specs := #(orchestratorSpec, watcherSpec)
 
     port := config serverPort
-    port isNil
-      ifTrue: [specs]
-      ifFalse: [specs add: (HttpServer supervisionSpec
-        withRestart: #permanent
-        withArgs: #{#port => port})]
+    port isNil ifTrue: [^specs]
+
+    httpSpec := (HttpServer supervisionSpec withRestart: #permanent) withArgs: #{#port => port}
+    specs add: httpSpec
