@@ -1,0 +1,117 @@
+// Integration tests for LinearClient against real Linear API.
+// Requires LINEAR_API_TOKEN in .env and the BTTEST project.
+// Skipped when credentials are unavailable.
+
+TestCase subclass: LinearClientIntegrationTest
+  state: client = nil
+  state: hasToken = false
+
+  setUp =>
+    // Load .env from project root
+    DotEnv load: File cwd ++ "/.env"
+    token := System getEnv: "LINEAR_API_TOKEN"
+    // Check both token and HTTP availability
+    self.hasToken := self checkConnectivity: token
+    self.client := self.hasToken
+      ifTrue: [LinearClient new: #{"apiKey" => token, "projectSlug" => "c3c0717a652a"}]
+      ifFalse: [nil]
+    self
+
+  checkConnectivity: token =>
+    token isNil ifTrue: [^false]
+    // Verify HTTP client works (may not be available in compiled test context)
+    result := [HTTPClient get: "https://api.linear.app/graphql"] on: Error do: [:e | ^false]
+    result isOk
+
+  // --- Candidate fetch ---
+
+  testFetchCandidateIssues =>
+    self.hasToken ifFalse: [^self skip: "LINEAR_API_TOKEN not set"]
+    result := self.client fetchCandidateIssues: #("Todo", "In Progress")
+    self assert: result isOk
+    issues := result unwrap
+    self assert: issues size > 0
+
+  testCandidateIssuesHaveRequiredFields =>
+    self.hasToken ifFalse: [^self skip: "LINEAR_API_TOKEN not set"]
+    issues := (self.client fetchCandidateIssues: #("Todo")) unwrap
+    issues isEmpty ifTrue: [^self skip: "No Todo issues in BTTEST"]
+    issue := issues at: 1
+    self deny: (issue at: "id") isNil
+    self deny: (issue at: "identifier") isNil
+    self deny: (issue at: "title") isNil
+    self deny: (issue at: "state") isNil
+
+  testCandidateLabelsAreLowercase =>
+    self.hasToken ifFalse: [^self skip: "LINEAR_API_TOKEN not set"]
+    issues := (self.client fetchCandidateIssues: #("Todo")) unwrap
+    issues do: [:issue |
+      labels := issue at: "labels"
+      labels do: [:label |
+        self assert: label equals: label lowercase
+      ]
+    ]
+
+  testCandidateBlockersNormalized =>
+    self.hasToken ifFalse: [^self skip: "LINEAR_API_TOKEN not set"]
+    issues := (self.client fetchCandidateIssues: #("Todo")) unwrap
+    // blockers should be a list (possibly empty) for every issue
+    issues do: [:issue |
+      blockers := issue at: "blocked_by"
+      self assert: (blockers isKindOf: List)
+    ]
+
+  testEmptyStatesReturnsEmpty =>
+    self.hasToken ifFalse: [^self skip: "LINEAR_API_TOKEN not set"]
+    result := self.client fetchCandidateIssues: #()
+    self assert: result isOk
+    self assert: result unwrap equals: #()
+
+  // --- State refresh ---
+
+  testFetchIssueStatesByIds =>
+    self.hasToken ifFalse: [^self skip: "LINEAR_API_TOKEN not set"]
+    // First get some issue IDs
+    issues := (self.client fetchCandidateIssues: #("Todo")) unwrap
+    issues isEmpty ifTrue: [^self skip: "No Todo issues in BTTEST"]
+    ids := issues collect: [:i | i at: "id"]
+    // Now refresh their states
+    result := self.client fetchIssueStatesByIds: ids
+    self assert: result isOk
+    refreshed := result unwrap
+    self assert: refreshed size equals: ids size
+    refreshed do: [:r |
+      self deny: (r at: "id") isNil
+      self deny: (r at: "state") isNil
+    ]
+
+  testFetchIssueStatesByIdsEmpty =>
+    self.hasToken ifFalse: [^self skip: "LINEAR_API_TOKEN not set"]
+    result := self.client fetchIssueStatesByIds: #()
+    self assert: result isOk
+    self assert: result unwrap equals: #()
+
+  // --- Terminal fetch ---
+
+  testFetchIssuesByStates =>
+    self.hasToken ifFalse: [^self skip: "LINEAR_API_TOKEN not set"]
+    result := self.client fetchIssuesByStates: #("Done", "Cancelled")
+    self assert: result isOk
+    // May be empty if no terminal issues, but shouldn't error
+
+  testFetchIssuesByStatesEmpty =>
+    self.hasToken ifFalse: [^self skip: "LINEAR_API_TOKEN not set"]
+    result := self.client fetchIssuesByStates: #()
+    self assert: result isOk
+    self assert: result unwrap equals: #()
+
+  // --- Error handling ---
+
+  testInvalidApiKeyReturnsError =>
+    self.hasToken ifFalse: [^self skip: "No connectivity"]
+    badClient := LinearClient new: #{
+      "apiKey" => "invalid_token",
+      "projectSlug" => "c3c0717a652a"
+    }
+    result := [badClient fetchCandidateIssues: #("Todo")] on: Error do: [:e | Result error: e message]
+    self assert: result isError
