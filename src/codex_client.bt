@@ -227,9 +227,41 @@ Actor subclass: CodexClient
     self emitEvent: msg
     self streamUntilDone: deadline
 
+  // --- Token and rate-limit extraction ---
+
+  class extractUsage: msg =>
+    // Look for token usage in common payload shapes
+    params := msg at: "params" ifAbsent: [#{}]
+    // Prefer total_token_usage, fallback to usage
+    usage := params at: "total_token_usage" ifAbsent: [nil]
+    usage := usage isNil
+      ifTrue: [params at: "usage" ifAbsent: [nil]]
+      ifFalse: [usage]
+    usage isNil ifTrue: [^nil]
+    (usage isKindOf: Dictionary) ifFalse: [^nil]
+    #{
+      "input" => (usage at: "input_tokens" ifAbsent: [usage at: "inputTokens" ifAbsent: [0]]),
+      "output" => (usage at: "output_tokens" ifAbsent: [usage at: "outputTokens" ifAbsent: [0]]),
+      "total" => (usage at: "total_tokens" ifAbsent: [usage at: "totalTokens" ifAbsent: [0]])
+    }
+
+  class extractRateLimits: msg =>
+    params := msg at: "params" ifAbsent: [#{}]
+    params at: "rate_limits" ifAbsent: [
+      params at: "rateLimits" ifAbsent: [nil]
+    ]
+
   // --- Event emission ---
 
   emitEvent: msg =>
     self.onEvent isNil ifFalse: [
-      self.onEvent value: msg
+      // Enrich with extracted usage and rate limits
+      event := #{
+        "raw" => msg,
+        "method" => (msg at: "method" ifAbsent: [nil]),
+        "usage" => (CodexClient extractUsage: msg),
+        "rateLimits" => (CodexClient extractRateLimits: msg),
+        "timestamp" => (Erlang erlang monotonic_time: #millisecond)
+      }
+      self.onEvent value: event
     ]

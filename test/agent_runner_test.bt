@@ -1,0 +1,53 @@
+// Tests for AgentRunner — unit tests for prompt building.
+// Full lifecycle tests require a real codex app-server.
+
+TestCase subclass: AgentRunnerTest
+
+  testBuildFirstTurnPrompt =>
+    issue := #{"identifier" => "BT-1", "title" => "Fix bug", "id" => "abc"}
+    lb := "\{"
+    rb := "\}"
+    template := lb ++ lb ++ " issue.identifier " ++ rb ++ rb ++ ": " ++ lb ++ lb ++ " issue.title " ++ rb ++ rb
+    runner := AgentRunner spawnWith: #{
+      #issue => issue,
+      #attempt => nil,
+      #promptTemplate => template,
+      #turnNumber => 1
+    }
+    result := runner buildFirstTurnPrompt
+    self assert: result isOk
+    self assert: result unwrap equals: "BT-1: Fix bug"
+    self assert: runner stop equals: #ok
+
+  testBuildContinuationPrompt =>
+    runner := AgentRunner spawnWith: #{
+      #issue => #{"id" => "x"},
+      #turnNumber => 3
+    }
+    result := runner buildContinuationPrompt
+    self assert: result isOk
+    self assert: (result unwrap includesSubstring: "turn 3")
+    self assert: runner stop equals: #ok
+
+  testBuildPromptFirstTurn =>
+    issue := #{"identifier" => "X-1", "title" => "Task", "id" => "x"}
+    runner := AgentRunner spawnWith: #{
+      #issue => issue,
+      #promptTemplate => "Work on it",
+      #turnNumber => 1,
+      #attempt => nil
+    }
+    result := runner buildPrompt
+    self assert: result isOk
+    self assert: result unwrap equals: "Work on it"
+    self assert: runner stop equals: #ok
+
+  testBuildPromptContinuation =>
+    runner := AgentRunner spawnWith: #{
+      #issue => #{"id" => "x"},
+      #turnNumber => 2
+    }
+    result := runner buildPrompt
+    self assert: result isOk
+    self assert: (result unwrap includesSubstring: "Continue")
+    self assert: runner stop equals: #ok

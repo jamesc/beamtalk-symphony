@@ -1,4 +1,4 @@
-// Tests for CodexClient — unit tests for protocol helpers.
+// Tests for CodexClient — unit tests for protocol helpers and token extraction.
 // Integration tests require a real codex app-server.
 
 TestCase subclass: CodexClientTest
@@ -12,17 +12,12 @@ TestCase subclass: CodexClientTest
     self assert: client stop equals: #ok
 
   testSendAndReadJson =>
-    // Use a subprocess that echoes back JSON
     config := Config fromMap: #{
-      "codex" => #{
-        "command" => "cat",
-        "read_timeout_ms" => 2000
-      }
+      "codex" => #{"command" => "cat", "read_timeout_ms" => 2000}
     }
     client := CodexClient start: "/tmp" config: config onEvent: nil
     launchResult := client launch
     launchResult isOk ifTrue: [
-      // Send a JSON line, cat will echo it back
       client sendJson: #{"id" => 1, "result" => "ok"}
       resp := client readResponse: 1 timeout: 2000
       self assert: resp isOk
@@ -34,17 +29,52 @@ TestCase subclass: CodexClientTest
 
   testReadResponseTimeout =>
     config := Config fromMap: #{
-      "codex" => #{
-        "command" => "sleep 10",
-        "read_timeout_ms" => 500
-      }
+      "codex" => #{"command" => "sleep 10", "read_timeout_ms" => 500}
     }
     client := CodexClient start: "/tmp" config: config onEvent: nil
     launchResult := client launch
     launchResult isOk ifTrue: [
-      // sleep produces no output — should timeout
       resp := client readResponse: 1 timeout: 500
       self assert: resp isError
     ]
     client stopProcess
     self assert: client stop equals: #ok
+
+  // --- Token extraction ---
+
+  testExtractUsageFromTotalTokenUsage =>
+    msg := #{"params" => #{"total_token_usage" => #{
+      "input_tokens" => 100,
+      "output_tokens" => 50,
+      "total_tokens" => 150
+    }}}
+    usage := CodexClient extractUsage: msg
+    self deny: usage isNil
+    self assert: (usage at: "input") equals: 100
+    self assert: (usage at: "output") equals: 50
+    self assert: (usage at: "total") equals: 150
+
+  testExtractUsageFromUsageField =>
+    msg := #{"params" => #{"usage" => #{
+      "inputTokens" => 200,
+      "outputTokens" => 80,
+      "totalTokens" => 280
+    }}}
+    usage := CodexClient extractUsage: msg
+    self deny: usage isNil
+    self assert: (usage at: "input") equals: 200
+    self assert: (usage at: "output") equals: 80
+
+  testExtractUsageReturnsNilWhenMissing =>
+    msg := #{"params" => #{}}
+    self assert: (CodexClient extractUsage: msg) equals: nil
+
+  testExtractRateLimits =>
+    msg := #{"params" => #{"rate_limits" => #{"requests" => 100}}}
+    limits := CodexClient extractRateLimits: msg
+    self deny: limits isNil
+    self assert: (limits at: "requests") equals: 100
+
+  testExtractRateLimitsNilWhenMissing =>
+    msg := #{"params" => #{}}
+    self assert: (CodexClient extractRateLimits: msg) equals: nil
