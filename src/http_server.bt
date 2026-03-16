@@ -74,27 +74,153 @@ Actor subclass: HttpServer
   renderDashboard: snapshot =>
     counts := snapshot at: "counts"
     totals := snapshot at: "codex_totals"
-    running := counts at: "running"
-    retrying := counts at: "retrying"
-    inputTok := totals at: "input_tokens"
-    outputTok := totals at: "output_tokens"
-    totalTok := totals at: "total_tokens"
-    "<!DOCTYPE html><html><head><title>Symphony</title></head><body>"
-      ++ "<h1>Symphony Dashboard</h1>"
-      ++ "<p>Running: "
+    runningCount := counts at: "running"
+    retryingCount := counts at: "retrying"
+    runningList := snapshot at: "running"
+    retryList := snapshot at: "retrying"
+    // rateLimits := snapshot at: "rate_limits" // TODO: display
+    runningRows := runningList isEmpty ifTrue: [
+      ""
+    ] ifFalse: [
+      runningList inject: "" into: [:acc :r | acc ++ (self renderRunningRow: r)]
+    ]
+    retryRows := retryList isEmpty ifTrue: [
+      ""
+    ] ifFalse: [
+      retryList inject: "" into: [:acc :r | acc ++ (self renderRetryRow: r)]
+    ]
+
+    self dashboardHead
+      ++ (self dashboardHeader: runningCount retrying: retryingCount)
+      ++ (self dashboardTokens: totals)
+      ++ (self dashboardRunningTable: runningRows count: runningCount)
+      ++ (self dashboardRetryTable: retryRows count: retryingCount)
+      ++ self dashboardFooter
+
+  dashboardHead =>
+    "<!DOCTYPE html><html><head><meta charset=utf-8><title>Symphony</title>"
+      ++ "<meta http-equiv=refresh content=5>"
+      ++ "<style>"
+      ++ "* \{ margin: 0; padding: 0; box-sizing: border-box; }"
+      ++ "body \{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: #0f1117; color: #e1e4e8; padding: 24px; }"
+      ++ "h1 \{ font-size: 24px; font-weight: 600; margin-bottom: 20px; color: #f0f0f0; }"
+      ++ "h2 \{ font-size: 16px; font-weight: 600; margin: 20px 0 10px; color: #8b949e; text-transform: uppercase; letter-spacing: 0.5px; }"
+      ++ ".stats \{ display: flex; gap: 16px; margin-bottom: 24px; }"
+      ++ ".stat \{ background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 16px 20px; min-width: 140px; }"
+      ++ ".stat-value \{ font-size: 28px; font-weight: 700; color: #f0f0f0; }"
+      ++ ".stat-label \{ font-size: 12px; color: #8b949e; margin-top: 4px; }"
+      ++ ".stat-running .stat-value \{ color: #58a6ff; }"
+      ++ ".stat-retry .stat-value \{ color: #d29922; }"
+      ++ ".stat-tokens .stat-value \{ font-size: 18px; }"
+      ++ "table \{ width: 100%; border-collapse: collapse; margin-bottom: 16px; }"
+      ++ "th \{ text-align: left; padding: 8px 12px; font-size: 12px; color: #8b949e; border-bottom: 1px solid #30363d; text-transform: uppercase; letter-spacing: 0.5px; }"
+      ++ "td \{ padding: 8px 12px; border-bottom: 1px solid #21262d; font-size: 14px; font-family: 'SF Mono', Consolas, monospace; }"
+      ++ ".empty \{ color: #484f58; font-style: italic; padding: 20px; text-align: center; }"
+      ++ ".badge \{ display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 500; }"
+      ++ ".badge-running \{ background: #1f3a5f; color: #58a6ff; }"
+      ++ ".badge-retry \{ background: #3d2e00; color: #d29922; }"
+      ++ ".footer \{ margin-top: 24px; padding-top: 16px; border-top: 1px solid #21262d; font-size: 12px; color: #484f58; }"
+      ++ "a \{ color: #58a6ff; text-decoration: none; }"
+      ++ "a:hover \{ text-decoration: underline; }"
+      ++ "</style></head><body>"
+
+  dashboardHeader: running retrying: retrying =>
+    "<h1>Symphony</h1>"
+      ++ "<div class=stats>"
+      ++ "<div class='stat stat-running'><div class=stat-value>"
       ++ running displayString
-      ++ " | Retrying: "
+      ++ "</div><div class=stat-label>Running</div></div>"
+      ++ "<div class='stat stat-retry'><div class=stat-value>"
       ++ retrying displayString
-      ++ "</p>"
-      ++ "<p>Tokens — in: "
-      ++ inputTok displayString
-      ++ " out: "
-      ++ outputTok displayString
-      ++ " total: "
-      ++ totalTok displayString
-      ++ "</p>"
-      ++ "<p><a href=/api/v1/state>JSON API</a></p>"
-      ++ "</body></html>"
+      ++ "</div><div class=stat-label>Retrying</div></div>"
+      ++ "</div>"
+
+  dashboardTokens: totals =>
+    input := totals at: "input_tokens"
+    output := totals at: "output_tokens"
+    total := totals at: "total_tokens"
+    "<div class=stats>"
+      ++ "<div class='stat stat-tokens'><div class=stat-value>"
+      ++ (self formatNumber: input)
+      ++ "</div><div class=stat-label>Input Tokens</div></div>"
+      ++ "<div class='stat stat-tokens'><div class=stat-value>"
+      ++ (self formatNumber: output)
+      ++ "</div><div class=stat-label>Output Tokens</div></div>"
+      ++ "<div class='stat stat-tokens'><div class=stat-value>"
+      ++ (self formatNumber: total)
+      ++ "</div><div class=stat-label>Total Tokens</div></div>"
+      ++ "</div>"
+
+  dashboardRunningTable: rows count: count =>
+    "<h2>Running Agents ("
+      ++ count displayString
+      ++ ")</h2>"
+      ++ (count == 0
+        ifTrue: ["<div class=empty>No agents running</div>"]
+        ifFalse: [
+          "<table><tr><th>Issue</th><th>State</th><th>Turns</th><th>Last Event</th><th>Tokens</th></tr>"
+            ++ rows
+            ++ "</table>"
+        ])
+
+  dashboardRetryTable: rows count: count =>
+    "<h2>Retry Queue ("
+      ++ count displayString
+      ++ ")</h2>"
+      ++ (count == 0
+        ifTrue: ["<div class=empty>No retries pending</div>"]
+        ifFalse: [
+          "<table><tr><th>Issue</th><th>Attempt</th><th>Error</th></tr>"
+            ++ rows
+            ++ "</table>"
+        ])
+
+  dashboardFooter =>
+    "<div class=footer>Auto-refreshes every 5s · <a href=/api/v1/state>JSON API</a> · <a href=/api/v1/refresh>Trigger Refresh</a></div></body></html>"
+
+  renderRunningRow: r =>
+    identifier := r at: "issue_identifier" ifAbsent: ["?"]
+    state := r at: "state" ifAbsent: ["?"]
+    turns := r at: "turn_count" ifAbsent: [0]
+    lastEvent := r at: "last_event" ifAbsent: ["—"]
+    lastEvent isNil ifTrue: [lastEvent := "—"]
+    tokens := r at: "tokens" ifAbsent: [#{}]
+    total := tokens at: "total_tokens" ifAbsent: [0]
+    "<tr><td><strong>"
+      ++ identifier
+      ++ "</strong></td>"
+      ++ "<td><span class='badge badge-running'>"
+      ++ state
+      ++ "</span></td>"
+      ++ "<td>"
+      ++ turns displayString
+      ++ "</td>"
+      ++ "<td>"
+      ++ lastEvent asString
+      ++ "</td>"
+      ++ "<td>"
+      ++ (self formatNumber: total)
+      ++ "</td></tr>"
+
+  renderRetryRow: r =>
+    identifier := r at: "issue_identifier" ifAbsent: ["?"]
+    attempt := r at: "attempt" ifAbsent: [0]
+    error := r at: "error" ifAbsent: ["—"]
+    error isNil ifTrue: [error := "—"]
+    "<tr><td><strong>"
+      ++ identifier
+      ++ "</strong></td>"
+      ++ "<td><span class='badge badge-retry'>"
+      ++ attempt displayString
+      ++ "</span></td>"
+      ++ "<td>"
+      ++ error asString
+      ++ "</td></tr>"
+
+  formatNumber: n =>
+    n >= 1000000 ifTrue: [^(n / 1000000) displayString ++ "M"]
+    n >= 1000 ifTrue: [^(n / 1000) displayString ++ "K"]
+    n displayString
 
   // --- JSON API ---
 
