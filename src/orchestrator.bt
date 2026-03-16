@@ -1,0 +1,424 @@
+// Copyright 2026 symphony authors
+// SPDX-License-Identifier: Apache-2.0
+
+// Orchestrator — central polling authority for dispatch, concurrency,
+// retries, and reconciliation. Owns all scheduling state.
+
+Actor subclass: Orchestrator
+  state: config = nil
+  state: linearClient = nil
+  state: workspaceManager = nil
+  state: promptTemplate = ""
+  state: running = nil
+  state: claimed = nil
+  state: retryAttempts = nil
+  state: completed = nil
+  state: codexTotals = nil
+  state: codexRateLimits = nil
+  state: pollTimerRef = nil
+
+  class start: config linearClient: lc workspaceManager: wm promptTemplate: pt =>
+    orch := self spawnWith: #{
+      #config => config,
+      #linearClient => lc,
+      #workspaceManager => wm,
+      #promptTemplate => pt,
+      #running => #{},
+      #claimed => #(),
+      #retryAttempts => #{},
+      #completed => #(),
+      #codexTotals => TokenUsage new,
+      #codexRateLimits => nil
+    }
+    orch
+
+  // --- Config reload ---
+
+  reloadConfig: newConfig prompt: newPrompt =>
+    self.config := newConfig
+    self.promptTemplate := newPrompt
+    Logger info: "config reloaded"
+
+  // --- Poll loop ---
+
+  scheduleTick: delayMs =>
+    self.pollTimerRef := Timer after: delayMs do: [self onTick!]
+
+  onTick =>
+    // Step 1: Reconcile running issues
+    self reconcile
+
+    // Step 2: Validate dispatch config
+    validation := self.config validate
+    validation isError ifTrue: [
+      Logger error: "dispatch validation failed" context: #{"reason" => validation error displayString}
+      self scheduleTick: self.config pollIntervalMs
+      ^nil
+    ]
+
+    // Step 3: Fetch candidate issues
+    activeStates := self.config trackerActiveStates
+    fetchResult := self.linearClient fetchCandidateIssues: activeStates
+    fetchResult isError ifTrue: [
+      Logger error: "candidate fetch failed" context: #{"error" => fetchResult error displayString}
+      self scheduleTick: self.config pollIntervalMs
+      ^nil
+    ]
+
+    // Step 4: Sort and dispatch
+    candidates := fetchResult unwrap
+    sorted := CandidateFilter sortForDispatch: candidates
+    eligible := CandidateFilter
+      eligible: sorted
+      running: self.running
+      claimed: self.claimed
+      activeStates: self.config trackerActiveStates
+      terminalStates: self.config trackerTerminalStates
+      maxConcurrent: self.config maxConcurrentAgents
+      maxByState: self.config maxConcurrentAgentsByState
+
+    @expect all
+    eligible do: [:issue | self dispatchIssue: issue attempt: nil]
+
+    // Step 5: Schedule next tick
+    self scheduleTick: self.config pollIntervalMs
+
+  // --- Dispatch ---
+
+  dispatchIssue: issue attempt: attempt =>
+    issueId := issue at: "id"
+    identifier := issue at: "identifier" ifAbsent: [""]
+
+    runner := AgentRunner
+      run: issue
+      attempt: attempt
+      config: self.config
+      workspaceManager: self.workspaceManager
+      linearClient: self.linearClient
+      promptTemplate: self.promptTemplate
+      onEvent: [:event | self onCodexEvent: issueId event: event]
+
+    // Monitor the worker process
+    monitorRef := Erlang erlang monitor: #process arg: runner
+
+    // Track in running map
+    entry := RunningEntry
+      forIssue: issue
+      identifier: identifier
+      startedAt: (Erlang erlang monotonic_time: #millisecond)
+    entry := (entry withWorkerPid: runner) withMonitorRef: monitorRef
+
+    self.running := self.running at: issueId put: entry
+    self.claimed := self.claimed add: issueId
+    self.retryAttempts := self.retryAttempts removeKey: issueId
+
+    Logger info: "dispatched" context: #{
+      "issue_id" => issueId,
+      "issue_identifier" => identifier
+    }
+
+  // --- Codex event handling ---
+
+  onCodexEvent: issueId event: event =>
+    entry := self.running at: issueId ifAbsent: [nil]
+    entry isNil ifTrue: [^nil]
+
+    // Update session info
+    method := event at: "method" ifAbsent: [nil]
+    timestamp := event at: "timestamp" ifAbsent: [nil]
+    session := entry session
+    session := (session withLastEvent: method) withLastTimestamp: timestamp
+    entry := entry withSession: session
+
+    // Update token usage if present
+    usage := event at: "usage" ifAbsent: [nil]
+    usage isNil ifFalse: [
+      input := usage at: "input" ifAbsent: [0]
+      output := usage at: "output" ifAbsent: [0]
+      total := usage at: "total" ifAbsent: [0]
+      oldTokens := entry tokens
+      newTokens := oldTokens applyAbsolute: input output: output total: total
+      entry := entry withTokens: newTokens
+
+      // Accumulate into global totals
+      self.codexTotals := self.codexTotals applyAbsolute:
+        self.codexTotals input + (newTokens input - oldTokens input)
+        output: self.codexTotals output + (newTokens output - oldTokens output)
+        total: self.codexTotals total + (newTokens total - oldTokens total)
+    ]
+
+    // Update rate limits if present
+    rateLimits := event at: "rateLimits" ifAbsent: [nil]
+    rateLimits isNil ifFalse: [self.codexRateLimits := rateLimits]
+
+    self.running := self.running at: issueId put: entry
+
+  // --- Worker exit handling ---
+
+  onWorkerExit: issueId reason: reason =>
+    entry := self.running at: issueId ifAbsent: [nil]
+    entry isNil ifTrue: [^nil]
+
+    // Remove from running
+    self.running := self.running removeKey: issueId
+
+    // Add runtime seconds to totals (codexTotals tracks tokens, not seconds)
+    Logger info: "worker exited" context: #{
+      "issue_id" => issueId,
+      "issue_identifier" => entry identifier,
+      "reason" => reason displayString
+    }
+
+    reason == #normal ifTrue: [
+      // Normal exit — schedule continuation retry
+      self.completed := self.completed add: issueId
+      self scheduleRetry: issueId
+        identifier: entry identifier
+        attempt: 1
+        delayMs: RetryAttempt continuationDelayMs
+        error: nil
+    ] ifFalse: [
+      // Abnormal exit — exponential backoff retry
+      nextAttempt := entry retryAttempt isNil
+        ifTrue: [1]
+        ifFalse: [entry retryAttempt + 1]
+      delayMs := RetryAttempt backoffMs: nextAttempt maxMs: self.config maxRetryBackoffMs
+      self scheduleRetry: issueId
+        identifier: entry identifier
+        attempt: nextAttempt
+        delayMs: delayMs
+        error: reason displayString
+    ]
+
+  // --- Retry queue ---
+
+  scheduleRetry: issueId identifier: identifier attempt: attempt delayMs: delayMs error: error =>
+    // Cancel existing retry timer
+    existing := self.retryAttempts at: issueId ifAbsent: [nil]
+    existing isNil ifFalse: [
+      existing timerRef isNil ifFalse: [
+        Erlang erlang cancel_timer: existing timerRef
+      ]
+    ]
+
+    dueAt := (Erlang erlang monotonic_time: #millisecond) + delayMs
+    timerRef := Timer after: delayMs do: [self onRetryTimer: issueId]
+
+    entry := RetryAttempt new: #{
+      #issueId => issueId,
+      #identifier => identifier,
+      #attempt => attempt,
+      #dueAtMs => dueAt,
+      #timerRef => timerRef,
+      #error => error
+    }
+    self.retryAttempts := self.retryAttempts at: issueId put: entry
+
+    Logger info: "retry scheduled" context: #{
+      "issue_id" => issueId,
+      "issue_identifier" => identifier,
+      "attempt" => attempt displayString,
+      "delay_ms" => delayMs displayString
+    }
+
+  onRetryTimer: issueId =>
+    retryEntry := self.retryAttempts at: issueId ifAbsent: [nil]
+    retryEntry isNil ifTrue: [^nil]
+    self.retryAttempts := self.retryAttempts removeKey: issueId
+
+    // Fetch active candidates
+    fetchResult := self.linearClient fetchCandidateIssues: self.config trackerActiveStates
+    fetchResult isError ifTrue: [
+      // Re-schedule retry
+      self scheduleRetry: issueId
+        identifier: retryEntry identifier
+        attempt: retryEntry attempt + 1
+        delayMs: (RetryAttempt backoffMs: retryEntry attempt + 1 maxMs: self.config maxRetryBackoffMs)
+        error: "retry poll failed"
+      ^nil
+    ]
+
+    candidates := fetchResult unwrap
+    issue := candidates detect: [:i | (i at: "id") == issueId] ifNone: [nil]
+    issue isNil ifTrue: [
+      // Issue no longer eligible — release claim
+      self.claimed := self.claimed reject: [:id | id == issueId]
+      Logger info: "claim released" context: #{"issue_id" => issueId}
+      ^nil
+    ]
+
+    // Check slots
+    availableSlots := self.config maxConcurrentAgents - self.running size
+    availableSlots <= 0 ifTrue: [
+      self scheduleRetry: issueId
+        identifier: (issue at: "identifier" ifAbsent: [""])
+        attempt: retryEntry attempt + 1
+        delayMs: (RetryAttempt backoffMs: retryEntry attempt + 1 maxMs: self.config maxRetryBackoffMs)
+        error: "no available orchestrator slots"
+      ^nil
+    ]
+
+    // Dispatch
+    self dispatchIssue: issue attempt: retryEntry attempt
+
+  // --- Reconciliation ---
+
+  reconcile =>
+    self.running isEmpty ifTrue: [^nil]
+    self reconcileStalls
+    self reconcileStates
+
+  reconcileStalls =>
+    stallTimeoutMs := self.config codexStallTimeoutMs
+    stallTimeoutMs <= 0 ifTrue: [^nil]
+
+    // Collect stalled issue IDs (can't mutate running during iteration)
+    stallTimeout := stallTimeoutMs
+    stalledIds := self.running keys select: [:issueId |
+      entry := self.running at: issueId
+      lastTs := entry session lastTimestamp
+      elapsed := lastTs isNil
+        ifTrue: [entry elapsedMs]
+        ifFalse: [(Erlang erlang monotonic_time: #millisecond) - lastTs]
+      elapsed > stallTimeout
+    ]
+
+    @expect all
+    stalledIds do: [:issueId |
+      entry := self.running at: issueId
+      Logger warn: "stall detected" context: #{
+        "issue_id" => issueId,
+        "issue_identifier" => entry identifier
+      }
+      self terminateWorker: issueId cleanup: false
+    ]
+
+  reconcileStates =>
+    runningIds := self.running keys
+    runningIds isEmpty ifTrue: [^nil]
+
+    refreshResult := self.linearClient fetchIssueStatesByIds: runningIds
+    refreshResult isError ifTrue: [
+      Logger debug: "state refresh failed, keeping workers"
+      ^nil
+    ]
+
+    refreshed := refreshResult unwrap
+    terminalStates := self.config trackerTerminalStates
+    activeStates := self.config trackerActiveStates
+
+    @expect all
+    refreshed do: [:issueData |
+      issueId := issueData at: "id" ifAbsent: [nil]
+      issueId isNil ifTrue: [^nil]
+      state := issueData at: "state" ifAbsent: [nil]
+      state isNil ifTrue: [^nil]
+
+      isTerminal := terminalStates anySatisfy: [:s | s lowercase == state lowercase]
+      isTerminal ifTrue: [
+        // Terminal — stop worker and clean workspace
+        entry := self.running at: issueId ifAbsent: [nil]
+        entry isNil ifFalse: [
+          self terminateWorker: issueId cleanup: true
+          self.workspaceManager removeWorkspace: entry identifier
+        ]
+        ^nil
+      ]
+
+      isActive := activeStates anySatisfy: [:s | s lowercase == state lowercase]
+      isActive ifTrue: [
+        // Still active — update snapshot
+        entry := self.running at: issueId ifAbsent: [nil]
+        entry isNil ifFalse: [
+          updatedIssue := entry issue at: "state" put: state
+          self.running := self.running at: issueId put: (entry withIssue: updatedIssue)
+        ]
+      ] ifFalse: [
+        // Neither active nor terminal — stop without cleanup
+        self terminateWorker: issueId cleanup: false
+      ]
+    ]
+
+  terminateWorker: issueId cleanup: cleanup =>
+    entry := self.running at: issueId ifAbsent: [nil]
+    entry isNil ifTrue: [^nil]
+
+    // Kill the worker process
+    entry workerPid isNil ifFalse: [
+      entry workerPid kill
+    ]
+
+    // Remove from running
+    self.running := self.running removeKey: issueId
+    self.claimed := self.claimed reject: [:id | id == issueId]
+
+    Logger info: "worker terminated" context: #{
+      "issue_id" => issueId,
+      "issue_identifier" => entry identifier,
+      "cleanup" => cleanup displayString
+    }
+
+  // --- Startup terminal cleanup ---
+
+  startupTerminalCleanup =>
+    terminalStates := self.config trackerTerminalStates
+    fetchResult := self.linearClient fetchIssuesByStates: terminalStates
+    fetchResult isError ifTrue: [
+      Logger warn: "startup terminal cleanup fetch failed"
+      ^nil
+    ]
+    issues := fetchResult unwrap
+    issues do: [:issue |
+      identifier := issue at: "identifier" ifAbsent: [nil]
+      identifier isNil ifFalse: [
+        self.workspaceManager removeWorkspace: identifier
+      ]
+    ]
+    Logger info: "startup cleanup done" context: #{"removed" => issues size displayString}
+
+  // --- Runtime snapshot ---
+
+  getSnapshot =>
+    runningList := self.running values collect: [:entry |
+      #{
+        "issue_id" => (entry issue at: "id" ifAbsent: [""]),
+        "issue_identifier" => entry identifier,
+        "state" => (entry issue at: "state" ifAbsent: [""]),
+        "session_id" => entry session sessionId,
+        "turn_count" => entry session turnCount,
+        "last_event" => entry session lastEvent,
+        "last_message" => entry session lastMessage,
+        "started_at" => entry startedAt,
+        "last_event_at" => entry session lastTimestamp,
+        "tokens" => #{
+          "input_tokens" => entry tokens input,
+          "output_tokens" => entry tokens output,
+          "total_tokens" => entry tokens total
+        }
+      }
+    ]
+
+    retryList := self.retryAttempts values collect: [:entry |
+      #{
+        "issue_id" => entry issueId,
+        "issue_identifier" => entry identifier,
+        "attempt" => entry attempt,
+        "due_at_ms" => entry dueAtMs,
+        "error" => entry error
+      }
+    ]
+
+    #{
+      "counts" => #{
+        "running" => self.running size,
+        "retrying" => self.retryAttempts size
+      },
+      "running" => runningList,
+      "retrying" => retryList,
+      "codex_totals" => #{
+        "input_tokens" => self.codexTotals input,
+        "output_tokens" => self.codexTotals output,
+        "total_tokens" => self.codexTotals total
+      },
+      "rate_limits" => self.codexRateLimits
+    }

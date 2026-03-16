@@ -1,0 +1,87 @@
+// Tests for Orchestrator — unit tests for state management, snapshots,
+// and retry logic. Full dispatch tests require real subprocess infrastructure.
+
+TestCase subclass: OrchestratorTest
+
+  testStartCreatesActor =>
+    Erlang os putenv: "ORCH_TEST_KEY" value: "test_key"
+    config := Config fromMap: #{
+      "tracker" => #{
+        "kind" => "linear",
+        "api_key" => "$ORCH_TEST_KEY",
+        "project_slug" => "test"
+      }
+    }
+    lc := LinearClient new: #{"apiKey" => "test"}
+    wm := WorkspaceManager new: #{"root" => "/tmp/test"}
+    orch := Orchestrator start: config linearClient: lc workspaceManager: wm promptTemplate: "test"
+    self assert: orch isAlive
+    self assert: orch stop equals: #ok
+
+  testGetSnapshotEmpty =>
+    Erlang os putenv: "ORCH_TEST_KEY2" value: "test_key"
+    config := Config fromMap: #{
+      "tracker" => #{"kind" => "linear", "api_key" => "$ORCH_TEST_KEY2", "project_slug" => "test"}
+    }
+    lc := LinearClient new: #{"apiKey" => "test"}
+    wm := WorkspaceManager new: #{"root" => "/tmp/test"}
+    orch := Orchestrator start: config linearClient: lc workspaceManager: wm promptTemplate: "test"
+    snapshot := orch getSnapshot
+    counts := snapshot at: "counts"
+    self assert: (counts at: "running") equals: 0
+    self assert: (counts at: "retrying") equals: 0
+    self assert: (snapshot at: "running") size equals: 0
+    self assert: (snapshot at: "retrying") size equals: 0
+    totals := snapshot at: "codex_totals"
+    self assert: (totals at: "input_tokens") equals: 0
+    self assert: (snapshot at: "rate_limits") equals: nil
+    self assert: orch stop equals: #ok
+
+  testReloadConfig =>
+    Erlang os putenv: "ORCH_TEST_KEY3" value: "test_key"
+    config := Config fromMap: #{
+      "tracker" => #{"kind" => "linear", "api_key" => "$ORCH_TEST_KEY3", "project_slug" => "test"},
+      "polling" => #{"interval_ms" => 30000}
+    }
+    lc := LinearClient new: #{"apiKey" => "test"}
+    wm := WorkspaceManager new: #{"root" => "/tmp/test"}
+    orch := Orchestrator start: config linearClient: lc workspaceManager: wm promptTemplate: "old prompt"
+
+    newConfig := Config fromMap: #{
+      "tracker" => #{"kind" => "linear", "api_key" => "$ORCH_TEST_KEY3", "project_slug" => "test"},
+      "polling" => #{"interval_ms" => 5000}
+    }
+    orch reloadConfig: newConfig prompt: "new prompt"
+    // No crash — config reload accepted
+    self assert: orch isAlive
+    self assert: orch stop equals: #ok
+
+  // --- Retry backoff ---
+
+  testRetryBackoffCalculation =>
+    // Verify the backoff formula via RetryAttempt (used by Orchestrator)
+    self assert: (RetryAttempt backoffMs: 1 maxMs: 300000) equals: 10000
+    self assert: (RetryAttempt backoffMs: 2 maxMs: 300000) equals: 20000
+    self assert: (RetryAttempt backoffMs: 6 maxMs: 300000) equals: 300000
+
+  testContinuationDelay =>
+    self assert: RetryAttempt continuationDelayMs equals: 1000
+
+  // --- Snapshot structure ---
+
+  testSnapshotStructure =>
+    Erlang os putenv: "ORCH_TEST_KEY4" value: "test_key"
+    config := Config fromMap: #{
+      "tracker" => #{"kind" => "linear", "api_key" => "$ORCH_TEST_KEY4", "project_slug" => "test"}
+    }
+    lc := LinearClient new: #{"apiKey" => "test"}
+    wm := WorkspaceManager new: #{"root" => "/tmp/test"}
+    orch := Orchestrator start: config linearClient: lc workspaceManager: wm promptTemplate: "test"
+    snapshot := orch getSnapshot
+    // Verify all expected keys exist
+    self assert: (snapshot includesKey: "counts")
+    self assert: (snapshot includesKey: "running")
+    self assert: (snapshot includesKey: "retrying")
+    self assert: (snapshot includesKey: "codex_totals")
+    self assert: (snapshot includesKey: "rate_limits")
+    self assert: orch stop equals: #ok
