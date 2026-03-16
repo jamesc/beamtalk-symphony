@@ -14,10 +14,11 @@ Object subclass: PromptRenderer
     self new initShared
 
   initShared =>
-    self.openVar := "\{\{ "
-    self.closeVar := " \}\}"
-    self.openTag := "\{% "
-    self.closeTag := " %\}"
+    // Match without spaces — trim handles both {{ x }} and {{x}}
+    self.openVar := "\{\{"
+    self.closeVar := "\}\}"
+    self.openTag := "\{%"
+    self.closeTag := "%\}"
     self
 
   class render: template issue: issue attempt: attempt =>
@@ -40,14 +41,14 @@ Object subclass: PromptRenderer
   // --- If/Endif ---
 
   processIfs: text vars: vars =>
-    ifOpen := self.openTag ++ "if "
+    ifOpen := self.openTag ++ " if "
     result := text
     (result includesSubstring: ifOpen) ifFalse: [^result]
     self processOneIf: result vars: vars
 
   processOneIf: text vars: vars =>
-    ifOpen := self.openTag ++ "if "
-    ifClose := self.openTag ++ "endif" ++ self.closeTag
+    ifOpen := self.openTag ++ " if "
+    ifClose := self.openTag ++ " endif " ++ self.closeTag
     startIdx := text indexOf: ifOpen
     startIdx isNil ifTrue: [^text]
     afterStart := text drop: startIdx + ifOpen size - 1
@@ -81,13 +82,13 @@ Object subclass: PromptRenderer
   // --- For/Endfor ---
 
   processFors: text vars: vars =>
-    forOpen := self.openTag ++ "for "
+    forOpen := self.openTag ++ " for "
     (text includesSubstring: forOpen) ifFalse: [^text]
     self processOneFor: text vars: vars
 
   processOneFor: text vars: vars =>
-    forOpen := self.openTag ++ "for "
-    forClose := self.openTag ++ "endfor" ++ self.closeTag
+    forOpen := self.openTag ++ " for "
+    forClose := self.openTag ++ " endfor " ++ self.closeTag
     startIdx := text indexOf: forOpen
     startIdx isNil ifTrue: [^text]
     afterStart := text drop: startIdx + forOpen size - 1

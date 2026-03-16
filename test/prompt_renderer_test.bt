@@ -4,7 +4,7 @@ TestCase subclass: PromptRendererTest
 
   // Helper to build template strings with braces
   var: name =>
-    "\{\{ " ++ name ++ " \}\}"
+    "\{\{" ++ name ++ "\}\}"
 
   ifOpen: name =>
     "\{% if " ++ name ++ " %\}"
