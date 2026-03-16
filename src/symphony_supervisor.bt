@@ -43,9 +43,22 @@ Supervisor subclass: SymphonySupervisor
 
     specs := #(orchestratorSpec, watcherSpec)
 
-    // Start HttpServer outside supervisor (workaround for BT-1417:
-    // supervisor bypasses initialize, so we start it directly here)
+    // Workaround for BT-1417: supervisor bypasses Actor initialize.
+    // Start HttpServer outside supervisor, and defer Orchestrator/Watcher
+    // kickoff via Timer so the supervisor finishes init first.
     port := config serverPort
     port isNil ifFalse: [HttpServer start: port orchestrator: nil]
+
+    Timer
+      after: 100
+      do: [
+        sup := SymphonySupervisor current
+        orch := sup which: Orchestrator
+        orch isNil
+          ifFalse: [
+            orch startupTerminalCleanup
+            orch scheduleTick: 0
+          ]
+      ]
 
     specs
