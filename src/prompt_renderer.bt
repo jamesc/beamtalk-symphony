@@ -14,12 +14,10 @@ Object subclass: PromptRenderer
     self new initShared
 
   initShared =>
-    lb := Erlang erlang list_to_binary: #(123)
-    rb := Erlang erlang list_to_binary: #(125)
-    self.openVar := lb ++ lb ++ " "
-    self.closeVar := " " ++ rb ++ rb
-    self.openTag := lb ++ "% "
-    self.closeTag := " %" ++ rb
+    self.openVar := "\{\{ "
+    self.closeVar := " \}\}"
+    self.openTag := "\{% "
+    self.closeTag := " %\}"
     self
 
   class render: template issue: issue attempt: attempt =>

@@ -210,20 +210,20 @@ Object subclass: Config
       ifTrue: [varExpr drop: 1]
       ifFalse: [varExpr]
     name isEmpty ifTrue: [^nil]
-    val := Erlang os getenv: name
-    val == false ifTrue: [^nil]
+    val := System getEnv: name
+    val isNil ifTrue: [^nil]
     val isEmpty ifTrue: [^nil]
     val
 
   expandHome: path =>
     (path startsWith: "~/") ifTrue: [
-      home := Erlang os getenv: "HOME"
-      home == false ifTrue: [^path]
+      home := System getEnv: "HOME"
+      home isNil ifTrue: [^path]
       ^home ++ (path drop: 1)
     ]
     path == "~" ifTrue: [
-      home := Erlang os getenv: "HOME"
-      home == false ifTrue: [^path]
+      home := System getEnv: "HOME"
+      home isNil ifTrue: [^path]
       ^home
     ]
     path

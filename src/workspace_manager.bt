@@ -118,16 +118,24 @@ Object subclass: WorkspaceManager
     self runHook: self.hooksBeforeRemove inDir: wsPath
 
   runHook: script inDir: dir =>
-    cmd := "cd " ++ dir ++ " && sh -c " ++ (self shellQuote: script)
-    result := [
-      Erlang os cmd: cmd
+    // Use sh -c with cd prefix since Subprocess doesn't take dir: on basic open
+    cmd := "cd " ++ dir ++ " && " ++ script
+    procResult := [
+      Subprocess open: "/bin/sh" args: #("-c", cmd)
     ] on: Error do: [:e |
       ^Result error: #{"kind" => "hook_error", "detail" => e message}
     ]
-    Result ok: result
-
-  shellQuote: str =>
-    "'" ++ (str replaceAll: "'" with: "'\\''") ++ "'"
+    procResult isError ifTrue: [
+      ^Result error: #{"kind" => "hook_error", "detail" => procResult error}
+    ]
+    proc := procResult unwrap
+    // Read all output and wait for exit
+    output := (proc lines asList) join: (String fromCodePoint: 10)
+    exitCode := proc exitCode
+    proc close
+    exitCode == 0
+      ifTrue: [Result ok: output]
+      ifFalse: [Result error: #{"kind" => "hook_error", "exit_code" => exitCode, "output" => output}]
 
   // --- Cleanup ---
 

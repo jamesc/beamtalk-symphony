@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // RunningEntry — tracks a running agent session in the orchestrator.
-// Value object (immutable, returns new self on mutation).
+// Uses Object (not Value) due to 20-field codegen limit in Value subclass.
 
 Object subclass: RunningEntry
   state: workerPid = nil

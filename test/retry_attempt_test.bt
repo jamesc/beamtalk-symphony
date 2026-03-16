@@ -1,4 +1,4 @@
-// Tests for RetryAttempt
+// Tests for RetryAttempt (Value subclass)
 
 TestCase subclass: RetryAttemptTest
 
@@ -11,13 +11,13 @@ TestCase subclass: RetryAttemptTest
     self assert: entry timerRef equals: nil
     self assert: entry error equals: nil
 
-  testNewWithOpts =>
+  testNewWithMap =>
     entry := RetryAttempt new: #{
-      "issueId" => "abc123",
-      "identifier" => "BT-456",
-      "attempt" => 3,
-      "dueAtMs" => 99999,
-      "error" => "turn failed"
+      #issueId => "abc123",
+      #identifier => "BT-456",
+      #attempt => 3,
+      #dueAtMs => 99999,
+      #error => "turn failed"
     }
     self assert: entry issueId equals: "abc123"
     self assert: entry identifier equals: "BT-456"
@@ -31,23 +31,16 @@ TestCase subclass: RetryAttemptTest
     self assert: updated timerRef equals: #some_ref
 
   testBackoffMs =>
-    // attempt 1: min(10000 * 1, 300000) = 10000
     self assert: (RetryAttempt backoffMs: 1 maxMs: 300000) equals: 10000
-    // attempt 2: min(10000 * 2, 300000) = 20000
     self assert: (RetryAttempt backoffMs: 2 maxMs: 300000) equals: 20000
-    // attempt 3: min(10000 * 4, 300000) = 40000
     self assert: (RetryAttempt backoffMs: 3 maxMs: 300000) equals: 40000
-    // attempt 4: min(10000 * 8, 300000) = 80000
     self assert: (RetryAttempt backoffMs: 4 maxMs: 300000) equals: 80000
-    // attempt 5: min(10000 * 16, 300000) = 160000
     self assert: (RetryAttempt backoffMs: 5 maxMs: 300000) equals: 160000
-    // attempt 6: min(10000 * 32, 300000) = 300000 (capped)
+    // Capped at max
     self assert: (RetryAttempt backoffMs: 6 maxMs: 300000) equals: 300000
-    // attempt 7: still capped
     self assert: (RetryAttempt backoffMs: 7 maxMs: 300000) equals: 300000
 
   testBackoffMsWithSmallCap =>
-    // Cap at 50000
     self assert: (RetryAttempt backoffMs: 1 maxMs: 50000) equals: 10000
     self assert: (RetryAttempt backoffMs: 3 maxMs: 50000) equals: 40000
     self assert: (RetryAttempt backoffMs: 4 maxMs: 50000) equals: 50000

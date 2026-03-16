@@ -10,14 +10,12 @@ Object subclass: DotEnv
 
   load: path =>
     result := [Erlang file read_file: path] on: Error do: [:e | ^Result ok: 0]
-    tag := Erlang erlang element: 1 arg: result
+    {tag, content} := result
     tag == #error ifTrue: [^Result ok: 0]
-    content := Erlang erlang element: 2 arg: result
     self parseAndLoad: content
 
   parseAndLoad: content =>
     lines := content lines
-    // Use inject to count loaded vars (block mutations don't propagate)
     count := lines inject: 0 into: [:acc :line | self loadLine: line count: acc]
     Result ok: count
 

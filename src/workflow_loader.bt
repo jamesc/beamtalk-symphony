@@ -10,15 +10,13 @@ Object subclass: WorkflowLoader
     self new load: path
 
   load: path =>
-    readResult := [Erlang file read_file: path] on: Error do: [:e |
+    result := [Erlang file read_file: path] on: Error do: [:e |
       ^Result error: #{"kind" => "missing_workflow_file", "path" => path}
     ]
-    // Erlang file:read_file returns {ok, Binary} or {error, Reason}
-    tag := Erlang erlang element: 1 arg: readResult
+    {tag, content} := result
     tag == #error ifTrue: [
       ^Result error: #{"kind" => "missing_workflow_file", "path" => path}
     ]
-    content := Erlang erlang element: 2 arg: readResult
     self parse: content
 
   parse: content =>
@@ -35,10 +33,10 @@ Object subclass: WorkflowLoader
 
     // Find closing ---
     rest := lines rest
-    result := self extractFrontMatter: rest
-    result
+    self extractFrontMatter: rest
 
   extractFrontMatter: rest =>
+    nl := String fromCodePoint: 10
     // Find closing --- index using inject (block mutations don't propagate)
     closingIdx := rest inject: #(0, 1) into: [:acc :line |
       found := acc at: 1
@@ -52,17 +50,16 @@ Object subclass: WorkflowLoader
     closingIdx := closingIdx at: 1
 
     closingIdx == 0 ifTrue: [
-      ^Result ok: #{"config" => #{}, "prompt_template" => (rest join: (String fromCodePoint: 10)) trim}
+      ^Result ok: #{"config" => #{}, "prompt_template" => (rest join: nl) trim}
     ]
 
     // Extract YAML (1 to closingIdx-1)
-    yamlEndIdx := closingIdx - 1
-    yamlLines := rest take: yamlEndIdx
-    yamlText := yamlLines join: (String fromCodePoint: 10)
+    yamlLines := rest take: closingIdx - 1
+    yamlText := yamlLines join: nl
 
     // Extract prompt body (after closing ---)
     bodyLines := rest drop: closingIdx
-    promptBody := (bodyLines join: (String fromCodePoint: 10)) trim
+    promptBody := (bodyLines join: nl) trim
 
     // Parse YAML
     yamlText trim isEmpty ifTrue: [

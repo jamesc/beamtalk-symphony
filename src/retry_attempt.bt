@@ -2,44 +2,15 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // RetryAttempt — scheduled retry state for an issue in the orchestrator.
-// Value object (immutable, returns new self on mutation).
+// Auto-generates getters, withX: setters, keyword constructor, and value equality.
 
-Object subclass: RetryAttempt
+Value subclass: RetryAttempt
   state: issueId = ""
   state: identifier = ""
   state: attempt = 1
   state: dueAtMs = 0
   state: timerRef = nil
   state: error = nil
-
-  class new: opts =>
-    (self new) initWith: opts
-
-  initWith: opts =>
-    self.issueId := opts at: "issueId" ifAbsent: [""]
-    self.identifier := opts at: "identifier" ifAbsent: [""]
-    self.attempt := opts at: "attempt" ifAbsent: [1]
-    self.dueAtMs := opts at: "dueAtMs" ifAbsent: [0]
-    self.timerRef := opts at: "timerRef" ifAbsent: [nil]
-    self.error := opts at: "error" ifAbsent: [nil]
-    self
-
-  issueId => self.issueId
-  identifier => self.identifier
-  attempt => self.attempt
-  dueAtMs => self.dueAtMs
-  timerRef => self.timerRef
-  error => self.error
-
-  withTimerRef: ref =>
-    RetryAttempt new: #{
-      "issueId" => self.issueId,
-      "identifier" => self.identifier,
-      "attempt" => self.attempt,
-      "dueAtMs" => self.dueAtMs,
-      "timerRef" => ref,
-      "error" => self.error
-    }
 
   class backoffMs: attempt maxMs: maxMs =>
     // Exponential backoff: min(10000 * 2^(attempt-1), maxMs)

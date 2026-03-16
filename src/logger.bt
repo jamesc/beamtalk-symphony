@@ -50,4 +50,8 @@ Object subclass: Logger
     #{"session_id" => sessionId}
 
   class issueContext: issue session: sessionId =>
-    #{"issue_id" => "x", "session_id" => sessionId}
+    #{
+      "issue_id" => (issue at: "id" ifAbsent: [""]),
+      "issue_identifier" => (issue at: "identifier" ifAbsent: [""]),
+      "session_id" => sessionId
+    }

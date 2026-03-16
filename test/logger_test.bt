@@ -29,6 +29,12 @@ TestCase subclass: LoggerTest
     ctx := Logger sessionContext: "thread1-turn1"
     self assert: (ctx at: "session_id") equals: "thread1-turn1"
 
+  testIssueAndSessionContext =>
+    issue := #{"id" => "abc", "identifier" => "BT-42"}
+    ctx := Logger issueContext: issue session: "s1"
+    self assert: (ctx at: "issue_id") equals: "abc"
+    self assert: (ctx at: "session_id") equals: "s1"
+
   testTimestamp =>
     ts := Logger timestamp
     self assert: (ts isKindOf: String)

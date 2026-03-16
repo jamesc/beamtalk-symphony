@@ -1,29 +1,22 @@
 // Tests for PromptRenderer
 
 TestCase subclass: PromptRendererTest
-  state: lb = ""
-  state: rb = ""
-
-  setUp =>
-    self.lb := Erlang erlang list_to_binary: #(123)
-    self.rb := Erlang erlang list_to_binary: #(125)
-    self
 
   // Helper to build template strings with braces
   var: name =>
-    self.lb ++ self.lb ++ " " ++ name ++ " " ++ self.rb ++ self.rb
+    "\{\{ " ++ name ++ " \}\}"
 
   ifOpen: name =>
-    self.lb ++ "% if " ++ name ++ " %" ++ self.rb
+    "\{% if " ++ name ++ " %\}"
 
   ifClose =>
-    self.lb ++ "% endif %" ++ self.rb
+    "\{% endif %\}"
 
   forOpen: expr =>
-    self.lb ++ "% for " ++ expr ++ " %" ++ self.rb
+    "\{% for " ++ expr ++ " %\}"
 
   forClose =>
-    self.lb ++ "% endfor %" ++ self.rb
+    "\{% endfor %\}"
 
   testRendersIssueFields =>
     template := "Work on " ++ (self var: "issue.identifier") ++ ": " ++ (self var: "issue.title")
