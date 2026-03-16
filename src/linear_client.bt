@@ -193,27 +193,24 @@ Object subclass: LinearClient
     result isError ifTrue: [^result]
 
     data := result unwrap
-    nodes := data at: "nodes" ifAbsent: [#()]
+    issues := data at: "issues" ifAbsent: [#{}]
+    nodes := issues at: "nodes" ifAbsent: [#()]
     normalized := nodes
       collect: [:node |
-        node isNil
-          ifTrue: [nil]
-          ifFalse: [
-            #{
-              "id" => (node at: "id" ifAbsent: [nil]),
-              "identifier" => (node at: "identifier" ifAbsent: [nil]),
-              "state" => ((node at: "state" ifAbsent: [
-                #{}
-              ]) at: "name" ifAbsent: [nil])
-            }
-          ]
+        #{
+          "id" => (node at: "id" ifAbsent: [nil]),
+          "identifier" => (node at: "identifier" ifAbsent: [nil]),
+          "state" => ((node at: "state" ifAbsent: [
+            #{}
+          ]) at: "name" ifAbsent: [nil])
+        }
       ]
-    Result ok: (normalized reject: [:n | n isNil])
+    Result ok: normalized
 
   stateRefreshQuery =>
     "query($ids: [ID!]!) \{
-      nodes(ids: $ids) \{
-        ... on Issue \{
+      issues(filter: \{ id: \{ in: $ids } }) \{
+        nodes \{
           id identifier
           state \{ name }
         }

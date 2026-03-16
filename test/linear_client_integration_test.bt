@@ -7,23 +7,13 @@ TestCase subclass: LinearClientIntegrationTest
   state: hasToken = false
 
   setUp =>
-    // Load .env from project root
     DotEnv load: File cwd ++ "/.env"
     token := System getEnv: "LINEAR_API_TOKEN"
-    // Check both token and HTTP availability
-    self.hasToken := self checkConnectivity: token
+    self.hasToken := token isNil not
     self.client := self.hasToken ifTrue: [
       LinearClient new: #{"apiKey" => token, "projectSlug" => "c3c0717a652a"}
     ] ifFalse: [nil]
     self
-
-  checkConnectivity: token =>
-    token isNil ifTrue: [^false]
-    // Verify HTTP client works (may not be available in compiled test context)
-    result := [
-      HTTPClient get: "https://api.linear.app/graphql"
-    ] on: Error do: [:e | ^false]
-    result isOk
 
   // --- Candidate fetch ---
   testFetchCandidateIssues =>

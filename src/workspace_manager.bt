@@ -48,26 +48,29 @@ Object subclass: WorkspaceManager
 
   // --- Containment validation ---
   validateContainment: wsPath =>
-    (File absolutePath: self.root) andThen: [:absRoot |
-      (File absolutePath: wsPath) andThen: [:absWs |
-        self checkContainment: absRoot workspace: absWs
+    (File absolutePath: self.root)
+      andThen: [:absRoot |
+        (File absolutePath: wsPath) andThen: [:absWs |
+          self checkContainment: absRoot workspace: absWs
+        ]
       ]
-    ]
 
   checkContainment: absRoot workspace: absWs =>
     (absWs startsWith: absRoot ++ "/") ifTrue: [^Result ok: true]
-    absWs == absRoot ifTrue: [
-      ^Result error: #{
+    absWs == absRoot
+      ifTrue: [
+        ^Result error: #{
+          "kind" => "invalid_workspace_path",
+          "detail" => "workspace path equals root"
+        }
+      ]
+    Result
+      error: #{
         "kind" => "invalid_workspace_path",
-        "detail" => "workspace path equals root"
+        "detail" => "workspace path outside root",
+        "workspace" => absWs,
+        "root" => absRoot
       }
-    ]
-    Result error: #{
-      "kind" => "invalid_workspace_path",
-      "detail" => "workspace path outside root",
-      "workspace" => absWs,
-      "root" => absRoot
-    }
 
   // --- Create or reuse ---
 
@@ -171,19 +174,21 @@ Object subclass: WorkspaceManager
   // --- Validation for agent launch ---
   validateCwd: cwd forIssue: identifier =>
     expected := self workspacePath: identifier
-    (File absolutePath: expected) andThen: [:absExpected |
-      (File absolutePath: cwd) andThen: [:absCwd |
-        self checkCwd: absExpected actual: absCwd
+    (File absolutePath: expected)
+      andThen: [:absExpected |
+        (File absolutePath: cwd) andThen: [:absCwd |
+          self checkCwd: absExpected actual: absCwd
+        ]
       ]
-    ]
 
   checkCwd: absExpected actual: absCwd =>
     absExpected == absCwd
       ifTrue: [Result ok: true]
       ifFalse: [
-        Result error: #{
-          "kind" => "invalid_workspace_cwd",
-          "expected" => absExpected,
-          "actual" => absCwd
-        }
+        Result
+          error: #{
+            "kind" => "invalid_workspace_cwd",
+            "expected" => absExpected,
+            "actual" => absCwd
+          }
       ]
