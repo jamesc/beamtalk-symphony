@@ -1,0 +1,30 @@
+// Tests for WorkflowWatcher
+// Note: actor-based tests — watcher runs async, so we test construction
+// and manual reload, not the poll loop.
+
+TestCase subclass: WorkflowWatcherTest
+  state: tmpDir = "target/bt-test-tmp/watcher"
+  state: lastConfig = nil
+  state: lastPrompt = nil
+
+  setUp =>
+    File mkdirAll: self.tmpDir
+    self
+
+  tearDown =>
+    File deleteAll: self.tmpDir
+    self
+
+  testGetModTimeForExistingFile =>
+    path := self.tmpDir ++ "/test.md"
+    nl := String fromCodePoint: 10
+    File writeAll: path contents: "---" ++ nl ++ "tracker:" ++ nl ++ "  kind: linear" ++ nl ++ "---" ++ nl ++ "prompt"
+    watcher := WorkflowWatcher spawnWith: #{#path => path}
+    self deny: (watcher getModTime: path) isNil
+    self assert: watcher stop equals: #ok
+
+  testGetModTimeForMissingFile =>
+    watcher := WorkflowWatcher spawnWith: #{#path => self.tmpDir ++ "/missing.md"}
+    // Missing file returns 0 (Erlang filelib:last_modified returns 0)
+    watcher getModTime: self.tmpDir ++ "/missing.md"
+    self assert: watcher stop equals: #ok

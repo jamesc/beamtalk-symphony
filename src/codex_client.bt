@@ -1,0 +1,235 @@
+// Copyright 2026 symphony authors
+// SPDX-License-Identifier: Apache-2.0
+
+// CodexClient — manages a codex app-server subprocess and the JSON-RPC-like
+// line protocol over stdio. Handles session startup handshake, request/response
+// matching, and line buffering.
+
+Actor subclass: CodexClient
+  state: proc = nil
+  state: nextId = 1
+  state: workspacePath = nil
+  state: config = nil
+  state: onEvent = nil
+
+  class start: workspacePath config: config onEvent: callback =>
+    client := self spawnWith: #{
+      #workspacePath => workspacePath,
+      #config => config,
+      #onEvent => callback
+    }
+    client
+
+  // --- Subprocess lifecycle ---
+
+  launch =>
+    cmd := "cd " ++ self.workspacePath ++ " && " ++ self.config codexCommand
+    procResult := [
+      Subprocess open: "/bin/bash" args: #("-lc", cmd)
+    ] on: Error do: [:e |
+      ^Result error: #{"kind" => "codex_not_found", "detail" => e message}
+    ]
+    procResult isError ifTrue: [
+      ^Result error: #{"kind" => "codex_not_found", "detail" => procResult error displayString}
+    ]
+    self.proc := procResult unwrap
+    Result ok: self
+
+  stopProcess =>
+    self.proc isNil ifFalse: [
+  
+      self.proc close
+  
+      self.proc stop
+      self.proc := nil
+    ]
+
+  // --- JSON-RPC protocol ---
+
+  sendRequest: method params: params =>
+    id := self.nextId
+    self.nextId := self.nextId + 1
+    msg := #{"id" => id, "method" => method, "params" => params}
+    self sendJson: msg
+    id
+
+  sendNotification: method params: params =>
+    msg := #{"method" => method, "params" => params}
+    self sendJson: msg
+
+  sendJson: msg =>
+    line := Json generate: msg
+
+    self.proc writeLine: line
+
+  readResponse: expectedId timeout: timeoutMs =>
+    // Read lines until we get a response matching expectedId
+    deadline := (Erlang erlang monotonic_time: #millisecond) + timeoutMs
+    self readUntilResponse: expectedId deadline: deadline
+
+  readUntilResponse: expectedId deadline: deadline =>
+    remaining := deadline - (Erlang erlang monotonic_time: #millisecond)
+    remaining <= 0 ifTrue: [
+      ^Result error: #{"kind" => "response_timeout", "id" => expectedId}
+    ]
+    readTimeout := remaining > 1000 ifTrue: [1000] ifFalse: [remaining]
+
+    line := self.proc readLine: readTimeout
+    line isNil ifTrue: [
+      // Check if process exited
+  
+      exitCode := self.proc exitCode
+      exitCode isNil ifFalse: [
+        ^Result error: #{"kind" => "port_exit", "exit_code" => exitCode}
+      ]
+      // No line yet, keep trying
+      ^self readUntilResponse: expectedId deadline: deadline
+    ]
+    // Try to parse as JSON
+    parsed := [Json parse: line] on: Error do: [:e | nil]
+    parsed isNil ifTrue: [
+      // Non-JSON line (stderr leak or garbage), skip
+      ^self readUntilResponse: expectedId deadline: deadline
+    ]
+    parsedMsg := parsed unwrap
+    // Check if this is our response
+    msgId := parsedMsg at: "id" ifAbsent: [nil]
+    msgId == expectedId ifTrue: [^Result ok: parsedMsg]
+    // It's a notification or different response — emit as event
+    self emitEvent: parsedMsg
+    self readUntilResponse: expectedId deadline: deadline
+
+  // --- Session startup handshake ---
+
+  startSession =>
+    launchResult := self launch
+    launchResult isError ifTrue: [^launchResult]
+
+    readTimeout := self.config codexReadTimeoutMs
+
+    // Step 1: initialize request
+    initId := self sendRequest: "initialize" params: #{
+      "clientInfo" => #{"name" => "symphony", "version" => "1.0"},
+      "capabilities" => #{}
+    }
+    initResp := self readResponse: initId timeout: readTimeout
+    initResp isError ifTrue: [
+      self stopProcess
+      ^Result error: #{"kind" => "startup_failed", "step" => "initialize", "detail" => initResp error}
+    ]
+
+    // Step 2: initialized notification
+    self sendNotification: "initialized" params: #{}
+
+    // Step 3: thread/start request
+    threadId := self sendRequest: "thread/start" params: #{
+      "cwd" => self.workspacePath
+    }
+    threadResp := self readResponse: threadId timeout: readTimeout
+    threadResp isError ifTrue: [
+      self stopProcess
+      ^Result error: #{"kind" => "startup_failed", "step" => "thread/start", "detail" => threadResp error}
+    ]
+
+    // Extract thread ID from response
+    threadData := threadResp unwrap
+    threadResult := threadData at: "result" ifAbsent: [#{}]
+    thread := threadResult at: "thread" ifAbsent: [#{}]
+    tid := thread at: "id" ifAbsent: [nil]
+
+    Result ok: #{"threadId" => tid}
+
+  // --- Turn management ---
+
+  startTurn: threadId prompt: prompt title: title =>
+    readTimeout := self.config codexReadTimeoutMs
+    turnId := self sendRequest: "turn/start" params: #{
+      "threadId" => threadId,
+      "input" => #(#{"type" => "text", "text" => prompt}),
+      "cwd" => self.workspacePath,
+      "title" => title
+    }
+    turnResp := self readResponse: turnId timeout: readTimeout
+    turnResp isError ifTrue: [^turnResp]
+
+    turnData := turnResp unwrap
+    turnResult := turnData at: "result" ifAbsent: [#{}]
+    turn := turnResult at: "turn" ifAbsent: [#{}]
+    tuid := turn at: "id" ifAbsent: [nil]
+
+    Result ok: #{"turnId" => tuid}
+
+  streamTurn: turnTimeoutMs =>
+    // Read events until turn completes, fails, or times out
+    deadline := (Erlang erlang monotonic_time: #millisecond) + turnTimeoutMs
+    self streamUntilDone: deadline
+
+  streamUntilDone: deadline =>
+    remaining := deadline - (Erlang erlang monotonic_time: #millisecond)
+    remaining <= 0 ifTrue: [
+      ^Result error: #{"kind" => "turn_timeout"}
+    ]
+    readTimeout := remaining > 1000 ifTrue: [1000] ifFalse: [remaining]
+
+    line := self.proc readLine: readTimeout
+    line isNil ifTrue: [
+  
+      exitCode := self.proc exitCode
+      exitCode isNil ifFalse: [
+        ^Result error: #{"kind" => "port_exit", "exit_code" => exitCode}
+      ]
+      ^self streamUntilDone: deadline
+    ]
+    parsed := [Json parse: line] on: Error do: [:e | nil]
+    parsed isNil ifTrue: [^self streamUntilDone: deadline]
+    msg := parsed unwrap
+    self handleStreamMessage: msg deadline: deadline
+
+  handleStreamMessage: msg deadline: deadline =>
+    method := msg at: "method" ifAbsent: [nil]
+
+    // Check for turn completion
+    method == "turn/completed" ifTrue: [
+      self emitEvent: msg
+      ^Result ok: #{"status" => "completed", "message" => msg}
+    ]
+    method == "turn/failed" ifTrue: [
+      self emitEvent: msg
+      ^Result error: #{"kind" => "turn_failed", "message" => msg}
+    ]
+    method == "turn/cancelled" ifTrue: [
+      self emitEvent: msg
+      ^Result error: #{"kind" => "turn_cancelled", "message" => msg}
+    ]
+
+    // Handle approval requests — auto-approve
+    id := msg at: "id" ifAbsent: [nil]
+    (method == "item/approval/request") ifTrue: [
+      self sendJson: #{"id" => id, "result" => #{"approved" => true}}
+      self emitEvent: msg
+      ^self streamUntilDone: deadline
+    ]
+
+    // Handle user input required — hard failure
+    (method == "item/tool/requestUserInput") ifTrue: [
+      self emitEvent: msg
+      ^Result error: #{"kind" => "turn_input_required", "message" => msg}
+    ]
+
+    // Handle unsupported tool calls
+    (method == "item/tool/call") ifTrue: [
+      self sendJson: #{"id" => id, "result" => #{"success" => false, "error" => "unsupported_tool_call"}}
+      self emitEvent: msg
+      ^self streamUntilDone: deadline
+    ]
+
+    // Any other message — emit as event and continue
+    self emitEvent: msg
+    self streamUntilDone: deadline
+
+  // --- Event emission ---
+
+  emitEvent: msg =>
+    self.onEvent isNil ifFalse: [
+      self.onEvent value: msg
+    ]

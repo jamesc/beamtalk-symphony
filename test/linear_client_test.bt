@@ -1,5 +1,5 @@
-// Tests for LinearClient — unit tests for construction and error helpers.
-// Integration tests require network access and a valid API key.
+// Tests for LinearClient — unit tests for construction, error helpers,
+// and normalization. Integration tests require network + valid API key.
 
 TestCase subclass: LinearClientTest
 
@@ -30,3 +30,85 @@ TestCase subclass: LinearClientTest
   testErrorKindForNonDictError =>
     err := Result error: "simple string"
     self assert: (LinearClient errorKind: err) equals: "unknown"
+
+  // --- Normalization ---
+
+  testNormalizeIssue =>
+    client := LinearClient new: #{}
+    node := #{
+      "id" => "abc123",
+      "identifier" => "BT-42",
+      "title" => "Fix the bug",
+      "description" => "Something is broken",
+      "priority" => 2,
+      "url" => "https://linear.app/issue/BT-42",
+      "createdAt" => "2026-01-15T10:00:00Z",
+      "updatedAt" => "2026-01-16T10:00:00Z",
+      "state" => #{"name" => "Todo"},
+      "branchName" => "fix-bug",
+      "labels" => #{"nodes" => #(#{"name" => "Bug"}, #{"name" => "URGENT"})},
+      "inverseRelations" => #{"nodes" => #()}
+    }
+    issue := client normalizeIssue: node
+    self assert: (issue at: "id") equals: "abc123"
+    self assert: (issue at: "identifier") equals: "BT-42"
+    self assert: (issue at: "title") equals: "Fix the bug"
+    self assert: (issue at: "state") equals: "Todo"
+    self assert: (issue at: "priority") equals: 2
+    self assert: (issue at: "branch_name") equals: "fix-bug"
+
+  testNormalizeLabelsToLowercase =>
+    client := LinearClient new: #{}
+    node := #{
+      "id" => "x", "identifier" => "X-1", "title" => "T",
+      "state" => #{"name" => "Todo"},
+      "labels" => #{"nodes" => #(#{"name" => "Bug"}, #{"name" => "URGENT"})}
+    }
+    issue := client normalizeIssue: node
+    labels := issue at: "labels"
+    self assert: (labels includes: "bug")
+    self assert: (labels includes: "urgent")
+    self deny: (labels includes: "Bug")
+
+  testNormalizeBlockers =>
+    client := LinearClient new: #{}
+    node := #{
+      "id" => "x", "identifier" => "X-1", "title" => "T",
+      "state" => #{"name" => "Todo"},
+      "inverseRelations" => #{"nodes" => #(
+        #{"type" => "blocks", "relatedIssue" => #{"id" => "y", "identifier" => "Y-1", "state" => #{"name" => "In Progress"}}},
+        #{"type" => "related", "relatedIssue" => #{"id" => "z", "identifier" => "Z-1", "state" => #{"name" => "Done"}}}
+      )}
+    }
+    issue := client normalizeIssue: node
+    blockers := issue at: "blocked_by"
+    self assert: blockers size equals: 1
+    self assert: ((blockers at: 1) at: "identifier") equals: "Y-1"
+
+  testNormalizePriorityNonIntegerBecomesNil =>
+    client := LinearClient new: #{}
+    node := #{
+      "id" => "x", "identifier" => "X-1", "title" => "T",
+      "state" => #{"name" => "Todo"},
+      "priority" => "high"
+    }
+    issue := client normalizeIssue: node
+    self assert: (issue at: "priority") equals: nil
+
+  testFetchCandidateIssuesEmptyStates =>
+    client := LinearClient new: #{}
+    result := client fetchCandidateIssues: #()
+    self assert: result isOk
+    self assert: result unwrap equals: #()
+
+  testFetchIssueStatesByIdsEmpty =>
+    client := LinearClient new: #{}
+    result := client fetchIssueStatesByIds: #()
+    self assert: result isOk
+    self assert: result unwrap equals: #()
+
+  testFetchIssuesByStatesEmpty =>
+    client := LinearClient new: #{}
+    result := client fetchIssuesByStates: #()
+    self assert: result isOk
+    self assert: result unwrap equals: #()

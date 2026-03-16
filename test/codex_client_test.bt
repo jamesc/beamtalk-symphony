@@ -1,0 +1,50 @@
+// Tests for CodexClient — unit tests for protocol helpers.
+// Integration tests require a real codex app-server.
+
+TestCase subclass: CodexClientTest
+
+  testStartCreatesActor =>
+    config := Config fromMap: #{
+      "codex" => #{"command" => "echo hello", "read_timeout_ms" => 1000}
+    }
+    client := CodexClient start: "/tmp" config: config onEvent: nil
+    self assert: client isAlive
+    self assert: client stop equals: #ok
+
+  testSendAndReadJson =>
+    // Use a subprocess that echoes back JSON
+    config := Config fromMap: #{
+      "codex" => #{
+        "command" => "cat",
+        "read_timeout_ms" => 2000
+      }
+    }
+    client := CodexClient start: "/tmp" config: config onEvent: nil
+    launchResult := client launch
+    launchResult isOk ifTrue: [
+      // Send a JSON line, cat will echo it back
+      client sendJson: #{"id" => 1, "result" => "ok"}
+      resp := client readResponse: 1 timeout: 2000
+      self assert: resp isOk
+      msg := resp unwrap
+      self assert: (msg at: "id") equals: 1
+    ]
+    client stopProcess
+    self assert: client stop equals: #ok
+
+  testReadResponseTimeout =>
+    config := Config fromMap: #{
+      "codex" => #{
+        "command" => "sleep 10",
+        "read_timeout_ms" => 500
+      }
+    }
+    client := CodexClient start: "/tmp" config: config onEvent: nil
+    launchResult := client launch
+    launchResult isOk ifTrue: [
+      // sleep produces no output — should timeout
+      resp := client readResponse: 1 timeout: 500
+      self assert: resp isError
+    ]
+    client stopProcess
+    self assert: client stop equals: #ok

@@ -1,0 +1,61 @@
+// Copyright 2026 symphony authors
+// SPDX-License-Identifier: Apache-2.0
+
+// WorkflowWatcher — monitors WORKFLOW.md for changes and notifies a callback
+// with the new config + prompt when the file changes.
+
+Actor subclass: WorkflowWatcher
+  state: path = nil
+  state: lastModified = nil
+  state: pollIntervalMs = 5000
+  state: onReload = nil
+
+  class start: path onReload: callback =>
+    watcher := self spawnWith: #{
+      #path => path,
+      #onReload => callback,
+      #pollIntervalMs => 5000
+    }
+    watcher schedulePoll!
+    watcher
+
+  schedulePoll =>
+    Timer after: self.pollIntervalMs do: [self checkForChanges!]
+
+  checkForChanges =>
+    modTime := self getModTime: self.path
+    changed := self.lastModified isNil ifTrue: [
+      self.lastModified := modTime
+      false
+    ] ifFalse: [
+      modTime /= self.lastModified
+    ]
+
+    changed ifTrue: [
+      self.lastModified := modTime
+      self doReload
+    ]
+
+    self schedulePoll!
+
+  doReload =>
+    result := WorkflowLoader load: self.path
+    result isOk ifTrue: [
+      wf := result unwrap
+      config := Config fromMap: (wf at: "config")
+      prompt := wf at: "prompt_template"
+      Logger info: "workflow reloaded" context: #{"path" => self.path}
+      self.onReload isNil ifFalse: [
+        self.onReload value: config value: prompt
+      ]
+    ] ifFalse: [
+      Logger error: "workflow reload failed" context: #{
+        "path" => self.path,
+        "error" => result error displayString
+      }
+    ]
+
+  getModTime: filePath =>
+    // Returns modification time or nil
+    result := [Erlang filelib last_modified: filePath] on: Error do: [:e | nil]
+    result == 0 ifTrue: [nil] ifFalse: [result]
