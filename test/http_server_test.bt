@@ -17,8 +17,7 @@ TestCase subclass: HttpServerTest
     self.srv isNil ifFalse: [self.srv stop]
     self
 
-  baseUrl =>
-    "http://localhost:" ++ self.srv actualPort displayString
+  baseUrl => "http://localhost:" ++ self.srv actualPort displayString
 
   testStartAndPort =>
     self.srv isNil ifTrue: [^self skip: "HTTPServer not available"]
