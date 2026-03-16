@@ -3,7 +3,6 @@
 
 /// TokenUsage — immutable token counters (input/output/total) with delta
 /// tracking relative to last reported values.
-
 Value subclass: TokenUsage
   state: input = 0
   state: output = 0

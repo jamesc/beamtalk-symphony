@@ -3,23 +3,17 @@
 
 /// WorkflowLoader — parses WORKFLOW.md into a YAML config dictionary
 /// and a Markdown prompt template body.
-
 Object subclass: WorkflowLoader
 
   /// Reads and parses a WORKFLOW.md file, returning config and prompt_template.
   class load: path => self new load: path
 
   load: path =>
-    result := [
-      Erlang file read_file: path
-    ] on: Error do: [:e |
+    result := File readAll: path
+    result isError ifTrue: [
       ^Result error: #{"kind" => "missing_workflow_file", "path" => path}
     ]
-    {tag, content} := result
-    tag == #error ifTrue: [
-      ^Result error: #{"kind" => "missing_workflow_file", "path" => path}
-    ]
-    self parse: content
+    self parse: result unwrap
 
   parse: content =>
     lines := content lines

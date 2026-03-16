@@ -3,7 +3,6 @@
 
 /// Main — entry point for Symphony.
 /// Starts the SymphonySupervisor and kicks off the orchestrator poll loop.
-
 Object subclass: Main
 
   class run => self new run

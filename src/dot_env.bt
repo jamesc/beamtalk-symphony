@@ -2,17 +2,15 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /// DotEnv — loads KEY=VALUE pairs from a .env file into the process environment.
-
 Object subclass: DotEnv
 
   /// Reads the .env file at path and sets each KEY=VALUE in the OS environment.
   class load: path => self new load: path
 
   load: path =>
-    result := [Erlang file read_file: path] on: Error do: [:e | ^Result ok: 0]
-    {tag, content} := result
-    tag == #error ifTrue: [^Result ok: 0]
-    self parseAndLoad: content
+    result := File readAll: path
+    result isError ifTrue: [^Result ok: 0]
+    self parseAndLoad: result unwrap
 
   parseAndLoad: content =>
     lines := content lines
@@ -28,5 +26,5 @@ Object subclass: DotEnv
     key := (trimmed take: eqIdx - 1) trim
     val := trimmed drop: eqIdx
     key isEmpty ifTrue: [^acc]
-    Erlang os putenv: key value: val
+    System setEnv: key value: val
     acc + 1

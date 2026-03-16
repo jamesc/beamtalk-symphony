@@ -4,7 +4,6 @@
 /// SymphonySupervisor — OTP supervision tree for the Symphony service.
 /// Loads WORKFLOW.md config at startup, creates clients, and starts
 /// Orchestrator, WorkflowWatcher, and optionally HttpServer.
-
 Supervisor subclass: SymphonySupervisor
 
   class strategy => #oneForOne

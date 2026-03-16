@@ -3,7 +3,6 @@
 
 /// CandidateFilter — pure computation helpers for dispatch eligibility,
 /// sorting by priority/age, and per-state concurrency control.
-
 Object subclass: CandidateFilter
   state: activeStates = nil
   state: terminalStates = nil

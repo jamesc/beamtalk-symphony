@@ -4,7 +4,6 @@
 /// AgentRunner — full worker lifecycle for a single issue attempt.
 /// Manages workspace creation, prompt rendering, codex session,
 /// multi-turn loop, hook execution, and event forwarding.
-
 Actor subclass: AgentRunner
   state: issue = nil
   state: attempt = nil
@@ -39,7 +38,7 @@ Actor subclass: AgentRunner
       ifTrue: [
         Logger
           error: "agent run failed"
-          context: #{
+          metadata: #{
             "issue_identifier" => (self.issue at: "identifier" ifAbsent: [""]),
             "error" => result error displayString
           }
@@ -88,6 +87,7 @@ Actor subclass: AgentRunner
     turnLoopResult
 
   // --- Turn loop ---
+
   /// Executes the prompt-send-stream cycle for the current turn, then recurses.
   runTurnLoop: wsPath maxTurns: maxTurns =>
     // Build prompt for this turn
@@ -167,7 +167,7 @@ Actor subclass: AgentRunner
     result := self.workspaceManager runAfterRun: wsPath
     result isError
       ifTrue: [
-        Logger warn: "after_run hook failed" context: #{
+        Logger warn: "after_run hook failed" metadata: #{
           "error" => result error displayString
         }
       ]

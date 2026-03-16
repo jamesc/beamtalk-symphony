@@ -3,7 +3,6 @@
 
 /// RunningEntry — immutable value tracking a running agent session.
 /// Composes SessionInfo and TokenUsage alongside worker metadata.
-
 Value subclass: RunningEntry
   state: workerPid = nil
   state: monitorRef = nil
@@ -27,7 +26,7 @@ Value subclass: RunningEntry
 
   elapsedMs =>
     self startedAt isNil ifTrue: [^0]
-    now := Erlang erlang monotonic_time: #millisecond
-    now - self startedAt
+    now := DateTime now asTimestamp
+    (now - self startedAt) * 1000
 
   elapsedSeconds => self elapsedMs / 1000.0

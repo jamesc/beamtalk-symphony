@@ -3,7 +3,6 @@
 
 /// RetryAttempt — immutable value tracking a scheduled retry for an issue.
 /// Holds issueId, attempt counter, due time, timer ref, and last error.
-
 Value subclass: RetryAttempt
   state: issueId = ""
   state: identifier = ""
@@ -14,9 +13,7 @@ Value subclass: RetryAttempt
 
   /// Computes exponential backoff delay: min(10s * 2^(attempt-1), maxMs).
   class backoffMs: attempt maxMs: maxMs =>
-    // Exponential backoff: min(10000 * 2^(attempt-1), maxMs)
-    power := Erlang erlang bsl: 1 arg: attempt - 1
-    delay := 10000 * power
+    delay := 10000 * (2 raisedTo: attempt - 1)
     delay > maxMs ifTrue: [maxMs] ifFalse: [delay]
 
   class continuationDelayMs => 1000

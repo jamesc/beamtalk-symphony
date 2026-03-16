@@ -3,7 +3,6 @@
 
 /// Config — typed getters over workflow YAML config with defaults,
 /// $VAR environment variable resolution, and dispatch preflight validation.
-
 Object subclass: Config
   state: raw = nil
 
@@ -83,9 +82,7 @@ Object subclass: Config
       nested: "workspace"
       key: "root"
       default: nil
-    raw isNil ifTrue: [
-      ^Erlang filename basedir: #user_cache app: "symphony_workspaces"
-    ]
+    raw isNil ifTrue: [^File tempDirectory ++ "/symphony_workspaces"]
     (raw isKindOf: String)
       ifTrue: [
         (raw startsWith: "$")
@@ -231,6 +228,7 @@ Object subclass: Config
     self coerceInt: val default: nil
 
   // --- Validation ---
+
   /// Checks that all required config fields are present and valid for dispatch.
   validate =>
     kind := self trackerKind

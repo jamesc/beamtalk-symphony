@@ -3,7 +3,6 @@
 
 /// WorkspaceManager — manages per-issue workspace directories with path
 /// sanitization, containment validation, lifecycle hooks, and cleanup.
-
 Object subclass: WorkspaceManager
   state: root = ""
   state: hooksAfterCreate = nil
@@ -39,10 +38,9 @@ Object subclass: WorkspaceManager
 
   // --- Path derivation ---
   sanitizeIdentifier: identifier =>
-    chars := identifier collect: [:ch |
+    identifier collect: [:ch |
       (ch matchesRegex: "[A-Za-z0-9._-]") ifTrue: [ch] ifFalse: ["_"]
     ]
-    chars join
 
   workspacePath: identifier =>
     key := self sanitizeIdentifier: identifier
@@ -69,6 +67,7 @@ Object subclass: WorkspaceManager
       }
 
   // --- Create or reuse ---
+
   /// Creates or reuses a workspace directory for the issue, running after_create hook.
   createForIssue: identifier =>
     wsPath := self workspacePath: identifier
@@ -115,6 +114,7 @@ Object subclass: WorkspaceManager
       }
 
   // --- Hook execution ---
+
   /// Runs the before_run hook script in the workspace directory.
   runBeforeRun: wsPath =>
     self.hooksBeforeRun isNil ifTrue: [^Result ok: true]
@@ -129,10 +129,11 @@ Object subclass: WorkspaceManager
     self runHook: self.hooksBeforeRemove inDir: wsPath
 
   runHook: script inDir: dir =>
-    // Use sh -c with cd prefix since Subprocess doesn't take dir: on basic open
-    cmd := "cd " ++ dir ++ " && " ++ script
     procResult := [
-      Subprocess open: "/bin/sh" args: #("-c", cmd)
+      Subprocess
+        open: "/bin/sh"
+        args: #("-c", script)
+        dir: dir
     ] on: Error do: [:e |
       ^Result error: #{"kind" => "hook_error", "detail" => e message}
     ]
@@ -155,6 +156,7 @@ Object subclass: WorkspaceManager
       ]
 
   // --- Cleanup ---
+
   /// Runs the before_remove hook and deletes the workspace directory.
   removeWorkspace: identifier =>
     wsPath := self workspacePath: identifier

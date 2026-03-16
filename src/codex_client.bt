@@ -4,7 +4,6 @@
 /// CodexClient — manages a codex app-server subprocess over stdio.
 /// Handles JSON-RPC protocol, session startup handshake,
 /// request/response matching, and turn streaming.
-
 Actor subclass: CodexClient
   state: proc = nil
   state: nextId = 1
@@ -22,6 +21,7 @@ Actor subclass: CodexClient
     client
 
   // --- Token and rate-limit extraction ---
+
   /// Extracts token usage counters from a codex event message, or nil.
   class extractUsage: msg =>
     // Look for token usage in common payload shapes
@@ -52,9 +52,11 @@ Actor subclass: CodexClient
 
   // --- Subprocess lifecycle ---
   launch =>
-    cmd := "cd " ++ self.workspacePath ++ " && " ++ self.config codexCommand
     procResult := [
-      Subprocess open: "/bin/bash" args: #("-lc", cmd)
+      Subprocess
+        open: "/bin/bash"
+        args: #("-lc", self.config codexCommand)
+        dir: self.workspacePath
     ] on: Error do: [:e |
       ^Result error: #{"kind" => "codex_not_found", "detail" => e message}
     ]
@@ -96,11 +98,11 @@ Actor subclass: CodexClient
 
   readResponse: expectedId timeout: timeoutMs =>
     // Read lines until we get a response matching expectedId
-    deadline := (Erlang erlang monotonic_time: #millisecond) + timeoutMs
+    deadline := (DateTime now asTimestamp * 1000) + timeoutMs
     self readUntilResponse: expectedId deadline: deadline
 
   readUntilResponse: expectedId deadline: deadline =>
-    remaining := deadline - (Erlang erlang monotonic_time: #millisecond)
+    remaining := deadline - (DateTime now asTimestamp * 1000)
     remaining <= 0 ifTrue: [
       ^Result error: #{"kind" => "response_timeout", "id" => expectedId}
     ]
@@ -133,6 +135,7 @@ Actor subclass: CodexClient
     self readUntilResponse: expectedId deadline: deadline
 
   // --- Session startup handshake ---
+
   /// Launches the subprocess and performs the initialize/thread-start handshake.
   startSession =>
     launchResult := self launch
@@ -187,6 +190,7 @@ Actor subclass: CodexClient
     Result ok: #{"threadId" => tid}
 
   // --- Turn management ---
+
   /// Sends a turn/start request with the given prompt and waits for acknowledgement.
   startTurn: threadId prompt: prompt title: title =>
     readTimeout := self.config codexReadTimeoutMs
@@ -211,11 +215,11 @@ Actor subclass: CodexClient
   /// Streams events until the turn completes, fails, or times out.
   streamTurn: turnTimeoutMs =>
     // Read events until turn completes, fails, or times out
-    deadline := (Erlang erlang monotonic_time: #millisecond) + turnTimeoutMs
+    deadline := (DateTime now asTimestamp * 1000) + turnTimeoutMs
     self streamUntilDone: deadline
 
   streamUntilDone: deadline =>
-    remaining := deadline - (Erlang erlang monotonic_time: #millisecond)
+    remaining := deadline - (DateTime now asTimestamp * 1000)
     remaining <= 0 ifTrue: [^Result error: #{"kind" => "turn_timeout"}]
     readTimeout := remaining > 1000 ifTrue: [1000] ifFalse: [remaining]
 
@@ -298,7 +302,7 @@ Actor subclass: CodexClient
           "method" => (msg at: "method" ifAbsent: [nil]),
           "usage" => (CodexClient extractUsage: msg),
           "rateLimits" => (CodexClient extractRateLimits: msg),
-          "timestamp" => (Erlang erlang monotonic_time: #millisecond)
+          "timestamp" => (DateTime now asTimestamp * 1000)
         }
         self.onEvent value: event
       ]

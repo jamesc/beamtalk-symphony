@@ -4,7 +4,6 @@
 /// LinearClient — GraphQL client for the Linear issue tracker API.
 /// Handles transport, auth, error mapping, paginated candidate fetch,
 /// state refresh, and issue normalization.
-
 Object subclass: LinearClient
   state: endpoint = "https://api.linear.app/graphql"
   state: apiKey = ""
@@ -16,9 +15,9 @@ Object subclass: LinearClient
   /// Creates a LinearClient from a Config object, extracting endpoint and credentials.
   class fromConfig: config =>
     apiKey := config trackerApiKey
-    apiKey isNil ifTrue: [apiKey := ""]
+    apiKey := apiKey isNil ifTrue: [""] ifFalse: [apiKey]
     slug := config trackerProjectSlug
-    slug isNil ifTrue: [slug := ""]
+    slug := slug isNil ifTrue: [""] ifFalse: [slug]
     self
       new: #{
         "endpoint" => config trackerEndpoint,
@@ -50,6 +49,7 @@ Object subclass: LinearClient
   projectSlug => self.projectSlug
 
   // --- Core GraphQL transport ---
+
   /// Executes a GraphQL query against the Linear API and returns parsed data.
   query: queryStr variables: vars =>
     body := Json generate: #{"query" => queryStr, "variables" => vars}
@@ -115,6 +115,7 @@ Object subclass: LinearClient
     Result ok: data
 
   // --- Candidate issue fetch (BT-1376) ---
+
   /// Fetches all issues in active states for the configured project, with pagination.
   fetchCandidateIssues: activeStates =>
     activeStates isEmpty ifTrue: [^Result ok: #()]
@@ -184,6 +185,7 @@ Object subclass: LinearClient
     }"
 
   // --- Issue state refresh (BT-1377) ---
+
   /// Fetches current state names for a list of issue IDs (used for reconciliation).
   fetchIssueStatesByIds: ids =>
     ids isEmpty ifTrue: [^Result ok: #()]
@@ -219,6 +221,7 @@ Object subclass: LinearClient
     }"
 
   // --- Terminal issues fetch (BT-1377) ---
+
   /// Fetches issues in the given states (used for startup terminal cleanup).
   fetchIssuesByStates: stateNames =>
     stateNames isEmpty ifTrue: [^Result ok: #()]

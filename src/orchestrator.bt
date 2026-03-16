@@ -4,7 +4,6 @@
 /// Orchestrator — central polling authority for the Symphony pipeline.
 /// Owns the poll loop, dispatch, reconciliation, retry queue,
 /// and global token accounting.
-
 Actor subclass: Orchestrator
   state: config = nil
   state: linearClient = nil
@@ -36,6 +35,7 @@ Actor subclass: Orchestrator
     orch
 
   // --- Config reload ---
+
   /// Hot-swaps config and prompt template without restarting running agents.
   reloadConfig: newConfig prompt: newPrompt =>
     self.config := newConfig
@@ -55,7 +55,7 @@ Actor subclass: Orchestrator
     validation := self.config validate
     validation isError
       ifTrue: [
-        Logger error: "dispatch validation failed" context: #{
+        Logger error: "dispatch validation failed" metadata: #{
           "reason" => validation error displayString
         }
         self scheduleTick: self.config pollIntervalMs
@@ -67,7 +67,7 @@ Actor subclass: Orchestrator
     fetchResult := self.linearClient fetchCandidateIssues: activeStates
     fetchResult isError
       ifTrue: [
-        Logger error: "candidate fetch failed" context: #{
+        Logger error: "candidate fetch failed" metadata: #{
           "error" => fetchResult error displayString
         }
         self scheduleTick: self.config pollIntervalMs
@@ -93,6 +93,7 @@ Actor subclass: Orchestrator
     self scheduleTick: self.config pollIntervalMs
 
   // --- Dispatch ---
+
   /// Spawns an AgentRunner for the issue and tracks it in the running map.
   dispatchIssue: issue attempt: attempt =>
     issueId := issue at: "id"
@@ -114,19 +115,20 @@ Actor subclass: Orchestrator
     entry := RunningEntry
       forIssue: issue
       identifier: identifier
-      startedAt: (Erlang erlang monotonic_time: #millisecond)
+      startedAt: (DateTime now asTimestamp * 1000)
     entry := (entry withWorkerPid: runner) withMonitorRef: monitorRef
 
     self.running := self.running at: issueId put: entry
     self.claimed := self.claimed add: issueId
     self.retryAttempts := self.retryAttempts removeKey: issueId
 
-    Logger info: "dispatched" context: #{
+    Logger info: "dispatched" metadata: #{
       "issue_id" => issueId,
       "issue_identifier" => identifier
     }
 
   // --- Codex event handling ---
+
   /// Processes a codex stream event, updating session info and token counters.
   onCodexEvent: issueId event: event =>
     entry := self.running at: issueId ifAbsent: [nil]
@@ -167,6 +169,7 @@ Actor subclass: Orchestrator
     self.running := self.running at: issueId put: entry
 
   // --- Worker exit handling ---
+
   /// Handles worker process exit — schedules continuation or backoff retry.
   onWorkerExit: issueId reason: reason =>
     entry := self.running at: issueId ifAbsent: [nil]
@@ -178,7 +181,7 @@ Actor subclass: Orchestrator
     // Add runtime seconds to totals (codexTotals tracks tokens, not seconds)
     Logger
       info: "worker exited"
-      context: #{
+      metadata: #{
         "issue_id" => issueId,
         "issue_identifier" => entry identifier,
         "reason" => reason displayString
@@ -220,7 +223,7 @@ Actor subclass: Orchestrator
         ]
       ]
 
-    dueAt := (Erlang erlang monotonic_time: #millisecond) + delayMs
+    dueAt := (DateTime now asTimestamp * 1000) + delayMs
     timerRef := Timer after: delayMs do: [self onRetryTimer: issueId]
 
     entry := RetryAttempt
@@ -236,7 +239,7 @@ Actor subclass: Orchestrator
 
     Logger
       info: "retry scheduled"
-      context: #{
+      metadata: #{
         "issue_id" => issueId,
         "issue_identifier" => identifier,
         "attempt" => attempt displayString,
@@ -268,7 +271,7 @@ Actor subclass: Orchestrator
       ifTrue: [
         // Issue no longer eligible — release claim
         self.claimed := self.claimed reject: [:id | id == issueId]
-        Logger info: "claim released" context: #{"issue_id" => issueId}
+        Logger info: "claim released" metadata: #{"issue_id" => issueId}
         ^nil
       ]
 
@@ -289,6 +292,7 @@ Actor subclass: Orchestrator
     self dispatchIssue: issue attempt: retryEntry attempt
 
   // --- Reconciliation ---
+
   /// Checks for stalled workers and terminal/inactive issue states.
   reconcile =>
     self.running isEmpty ifTrue: [^nil]
@@ -307,7 +311,7 @@ Actor subclass: Orchestrator
         lastTs := entry session lastTimestamp
         elapsed := lastTs isNil ifTrue: [
           entry elapsedMs
-        ] ifFalse: [(Erlang erlang monotonic_time: #millisecond) - lastTs]
+        ] ifFalse: [(DateTime now asTimestamp * 1000) - lastTs]
         elapsed > stallTimeout
       ]
 
@@ -315,7 +319,7 @@ Actor subclass: Orchestrator
     stalledIds
       do: [:issueId |
         entry := self.running at: issueId
-        Logger warn: "stall detected" context: #{
+        Logger warn: "stall detected" metadata: #{
           "issue_id" => issueId,
           "issue_identifier" => entry identifier
         }
@@ -392,13 +396,14 @@ Actor subclass: Orchestrator
 
     Logger
       info: "worker terminated"
-      context: #{
+      metadata: #{
         "issue_id" => issueId,
         "issue_identifier" => entry identifier,
         "cleanup" => cleanup displayString
       }
 
   // --- Startup terminal cleanup ---
+
   /// Removes workspaces for issues already in terminal states at boot.
   startupTerminalCleanup =>
     terminalStates := self.config trackerTerminalStates
@@ -416,11 +421,12 @@ Actor subclass: Orchestrator
           self.workspaceManager removeWorkspace: identifier
         ]
       ]
-    Logger info: "startup cleanup done" context: #{
+    Logger info: "startup cleanup done" metadata: #{
       "removed" => issues size displayString
     }
 
   // --- Runtime snapshot ---
+
   /// Returns a serializable snapshot of running agents, retries, and token totals.
   getSnapshot =>
     runningList := self.running values

@@ -3,7 +3,6 @@
 
 /// SessionInfo — immutable value holding codex session IDs, event history,
 /// and turn count for a running agent.
-
 Value subclass: SessionInfo
   state: sessionId = nil
   state: threadId = nil

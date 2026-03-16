@@ -4,7 +4,6 @@
 /// PromptRenderer — Liquid-compatible template rendering for agent prompts.
 /// Supports {{ var }} interpolation, {% if %}/{% endif %},
 /// and {% for %}/{% endfor %} control flow.
-
 Object subclass: PromptRenderer
   state: openVar = ""
   state: closeVar = ""
@@ -158,11 +157,7 @@ Object subclass: PromptRenderer
     endIdx isNil ifTrue: [^text]
     varExpr := (afterStart take: endIdx - 1) trim
     rawVal := self resolveVar: varExpr vars: vars
-    valStr := rawVal isNil ifTrue: [
-      ""
-    ] ifFalse: [
-      (rawVal isKindOf: String) ifTrue: [rawVal] ifFalse: [rawVal displayString]
-    ]
+    valStr := rawVal isNil ifTrue: [""] ifFalse: [rawVal asString]
     prefix := text take: startIdx - 1
     suffix := afterStart drop: endIdx + self.closeVar size - 1
     prefix ++ valStr ++ suffix

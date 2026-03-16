@@ -3,7 +3,6 @@
 
 /// HttpServer — optional observability HTTP server exposing a dashboard
 /// and JSON API for monitoring running agents and token usage.
-
 Actor subclass: HttpServer
   state: server = nil
   state: port = 0
@@ -20,7 +19,7 @@ Actor subclass: HttpServer
   doStart =>
     handler := [:req | self handleRequest: req]
     self.server := HTTPServer start: self.port handler: handler
-    Logger info: "http server started" context: #{
+    Logger info: "http server started" metadata: #{
       "port" => self.server port displayString
     }
 
@@ -54,6 +53,7 @@ Actor subclass: HttpServer
     Json generate: #{"error" => #{"code" => code, "message" => message}}
 
   // --- Dashboard ---
+
   /// Renders the HTML dashboard with current agent counts and token totals.
   handleDashboard =>
     snapshot := self getSnapshot
@@ -86,6 +86,7 @@ Actor subclass: HttpServer
       ++ "</body></html>"
 
   // --- JSON API ---
+
   /// Returns the full orchestrator snapshot as JSON.
   handleState =>
     snapshot := self getSnapshot

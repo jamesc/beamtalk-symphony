@@ -3,7 +3,6 @@
 
 /// WorkflowWatcher — polls WORKFLOW.md for modification time changes
 /// and triggers a config/prompt reload callback on change.
-
 Actor subclass: WorkflowWatcher
   state: path = nil
   state: lastModified = nil
@@ -46,11 +45,11 @@ Actor subclass: WorkflowWatcher
         wf := result unwrap
         config := Config fromMap: (wf at: "config")
         prompt := wf at: "prompt_template"
-        Logger info: "workflow reloaded" context: #{"path" => self.path}
+        Logger info: "workflow reloaded" metadata: #{"path" => self.path}
         self.onReload isNil ifFalse: [self.onReload value: config value: prompt]
       ]
       ifFalse: [
-        Logger error: "workflow reload failed" context: #{
+        Logger error: "workflow reload failed" metadata: #{
           "path" => self.path,
           "error" => result error displayString
         }
