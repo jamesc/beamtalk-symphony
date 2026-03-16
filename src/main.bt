@@ -1,14 +1,14 @@
 // Copyright 2026 symphony authors
 // SPDX-License-Identifier: Apache-2.0
 
-// Main — entry point for Symphony.
-// In script mode (beamtalk run Main run): loads config and starts supervisor.
-// In service mode (beamtalk run .): SymphonySupervisor starts via [application].
+/// Main — entry point for Symphony.
+/// Starts the SymphonySupervisor and kicks off the orchestrator poll loop.
 
 Object subclass: Main
 
   class run => self new run
 
+  /// Starts the supervisor tree and triggers initial terminal cleanup and polling.
   run =>
     // SymphonySupervisor.children loads WORKFLOW.md and creates clients itself.
     // Main just starts the supervisor and kicks off the orchestrator.

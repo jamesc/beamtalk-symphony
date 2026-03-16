@@ -1,8 +1,8 @@
 // Copyright 2026 symphony authors
 // SPDX-License-Identifier: Apache-2.0
 
-// Logger — thin wrapper around Erlang logger for structured logging
-// with Symphony-specific context helpers.
+/// Logger — thin wrapper around Erlang logger for structured logging
+/// with Symphony-specific context helpers.
 
 Object subclass: Logger
 
@@ -26,6 +26,7 @@ Object subclass: Logger
     Erlang logger debug: message metadata: ctx
 
   // --- Context helpers ---
+  /// Builds a metadata dictionary with issue_id and issue_identifier.
   class issueContext: issue =>
     #{
       "issue_id" => (issue at: "id" ifAbsent: [""]),

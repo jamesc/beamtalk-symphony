@@ -1,8 +1,8 @@
 // Copyright 2026 symphony authors
 // SPDX-License-Identifier: Apache-2.0
 
-// RunningEntry — tracks a running agent session in the orchestrator.
-// Composes SessionInfo and TokenUsage for a clean value-type design.
+/// RunningEntry — immutable value tracking a running agent session.
+/// Composes SessionInfo and TokenUsage alongside worker metadata.
 
 Value subclass: RunningEntry
   state: workerPid = nil
@@ -14,6 +14,7 @@ Value subclass: RunningEntry
   state: retryAttempt = nil
   state: startedAt = nil
 
+  /// Creates a fresh RunningEntry with empty session and token counters.
   class forIssue: issue identifier: identifier startedAt: startedAt =>
     RunningEntry
       new: #{

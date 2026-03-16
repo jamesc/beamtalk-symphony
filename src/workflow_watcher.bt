@@ -1,8 +1,8 @@
 // Copyright 2026 symphony authors
 // SPDX-License-Identifier: Apache-2.0
 
-// WorkflowWatcher — monitors WORKFLOW.md for changes and notifies a callback
-// with the new config + prompt when the file changes.
+/// WorkflowWatcher — polls WORKFLOW.md for modification time changes
+/// and triggers a config/prompt reload callback on change.
 
 Actor subclass: WorkflowWatcher
   state: path = nil
@@ -10,6 +10,7 @@ Actor subclass: WorkflowWatcher
   state: pollIntervalMs = 5000
   state: onReload = nil
 
+  /// Starts polling the given path for changes, calling callback on reload.
   class start: path onReload: callback =>
     watcher := self spawnWith: #{
       #path => path,

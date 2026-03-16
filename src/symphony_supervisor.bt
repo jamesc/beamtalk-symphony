@@ -1,13 +1,15 @@
 // Copyright 2026 symphony authors
 // SPDX-License-Identifier: Apache-2.0
 
-// SymphonySupervisor — OTP supervision tree for the Symphony service.
-// Loads WORKFLOW.md config at startup, creates clients, and starts children.
+/// SymphonySupervisor — OTP supervision tree for the Symphony service.
+/// Loads WORKFLOW.md config at startup, creates clients, and starts
+/// Orchestrator, WorkflowWatcher, and optionally HttpServer.
 
 Supervisor subclass: SymphonySupervisor
 
   class strategy => #oneForOne
 
+  /// Builds the child spec list: loads .env, parses WORKFLOW.md, creates clients.
   class children =>
     // Load config at supervisor start time
     DotEnv load: File cwd ++ "/.env"

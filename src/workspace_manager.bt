@@ -1,8 +1,8 @@
 // Copyright 2026 symphony authors
 // SPDX-License-Identifier: Apache-2.0
 
-// WorkspaceManager — manages per-issue workspace directories with path
-// sanitization, containment validation, hook execution, and cleanup.
+/// WorkspaceManager — manages per-issue workspace directories with path
+/// sanitization, containment validation, lifecycle hooks, and cleanup.
 
 Object subclass: WorkspaceManager
   state: root = ""
@@ -14,6 +14,7 @@ Object subclass: WorkspaceManager
 
   class new: opts => (self new) initWith: opts
 
+  /// Creates a WorkspaceManager from a Config, extracting root and hook settings.
   class fromConfig: config =>
     self
       new: #{
@@ -68,6 +69,7 @@ Object subclass: WorkspaceManager
       }
 
   // --- Create or reuse ---
+  /// Creates or reuses a workspace directory for the issue, running after_create hook.
   createForIssue: identifier =>
     wsPath := self workspacePath: identifier
     containment := self validateContainment: wsPath
@@ -113,6 +115,7 @@ Object subclass: WorkspaceManager
       }
 
   // --- Hook execution ---
+  /// Runs the before_run hook script in the workspace directory.
   runBeforeRun: wsPath =>
     self.hooksBeforeRun isNil ifTrue: [^Result ok: true]
     self runHook: self.hooksBeforeRun inDir: wsPath
@@ -152,6 +155,7 @@ Object subclass: WorkspaceManager
       ]
 
   // --- Cleanup ---
+  /// Runs the before_remove hook and deletes the workspace directory.
   removeWorkspace: identifier =>
     wsPath := self workspacePath: identifier
     (File isDirectory: wsPath) ifFalse: [^Result ok: true]

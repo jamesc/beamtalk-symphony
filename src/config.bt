@@ -1,12 +1,13 @@
 // Copyright 2026 symphony authors
 // SPDX-License-Identifier: Apache-2.0
 
-// Config — typed getters over workflow YAML config with defaults,
-// $VAR env resolution, and dispatch preflight validation.
+/// Config — typed getters over workflow YAML config with defaults,
+/// $VAR environment variable resolution, and dispatch preflight validation.
 
 Object subclass: Config
   state: raw = nil
 
+  /// Creates a Config from a parsed YAML dictionary.
   class fromMap: map => (self new) initWithMap: map
 
   initWithMap: map =>
@@ -230,6 +231,7 @@ Object subclass: Config
     self coerceInt: val default: nil
 
   // --- Validation ---
+  /// Checks that all required config fields are present and valid for dispatch.
   validate =>
     kind := self trackerKind
     kind isNil ifTrue: [

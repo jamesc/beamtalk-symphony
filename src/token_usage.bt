@@ -1,7 +1,8 @@
 // Copyright 2026 symphony authors
 // SPDX-License-Identifier: Apache-2.0
 
-// TokenUsage — token counters for a codex session, with delta tracking.
+/// TokenUsage — immutable token counters (input/output/total) with delta
+/// tracking relative to last reported values.
 
 Value subclass: TokenUsage
   state: input = 0
@@ -11,11 +12,11 @@ Value subclass: TokenUsage
   state: lastReportedOutput = 0
   state: lastReportedTotal = 0
 
-  // Apply absolute totals from a thread/tokenUsage/updated event.
-  // Computes deltas relative to last reported values.
+  /// Applies absolute token totals from a codex event, replacing current values.
   applyAbsolute: newInput output: newOutput total: newTotal =>
     ((self withInput: newInput) withOutput: newOutput) withTotal: newTotal
 
+  /// Snapshots current values as the last-reported baseline for delta computation.
   markReported =>
     ((self withLastReportedInput: self input) withLastReportedOutput: self output) withLastReportedTotal: self total
 

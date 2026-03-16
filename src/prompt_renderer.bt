@@ -1,8 +1,9 @@
 // Copyright 2026 symphony authors
 // SPDX-License-Identifier: Apache-2.0
 
-// PromptRenderer — strict template rendering with issue and attempt variables.
-// Supports double-brace var interpolation, if/endif, for/endfor syntax.
+/// PromptRenderer — Liquid-compatible template rendering for agent prompts.
+/// Supports {{ var }} interpolation, {% if %}/{% endif %},
+/// and {% for %}/{% endfor %} control flow.
 
 Object subclass: PromptRenderer
   state: openVar = ""
@@ -12,6 +13,7 @@ Object subclass: PromptRenderer
 
   class shared => self new initShared
 
+  /// Renders a prompt template with issue and attempt variables, returning Result.
   class render: template issue: issue attempt: attempt =>
     renderer := self shared
     renderer

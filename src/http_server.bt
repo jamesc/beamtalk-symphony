@@ -1,8 +1,8 @@
 // Copyright 2026 symphony authors
 // SPDX-License-Identifier: Apache-2.0
 
-// HttpServer — optional observability HTTP server with dashboard and JSON API.
-// Wraps stdlib HTTPServer with Symphony-specific routing.
+/// HttpServer — optional observability HTTP server exposing a dashboard
+/// and JSON API for monitoring running agents and token usage.
 
 Actor subclass: HttpServer
   state: server = nil
@@ -11,6 +11,7 @@ Actor subclass: HttpServer
 
   class supervisionPolicy => #permanent
 
+  /// Starts the HTTP server on the given port, backed by the orchestrator for state.
   class start: port orchestrator: orch =>
     srv := self spawnWith: #{#port => port, #orchestrator => orch}
     srv doStart!
@@ -53,6 +54,7 @@ Actor subclass: HttpServer
     Json generate: #{"error" => #{"code" => code, "message" => message}}
 
   // --- Dashboard ---
+  /// Renders the HTML dashboard with current agent counts and token totals.
   handleDashboard =>
     snapshot := self getSnapshot
     html := self renderDashboard: snapshot
@@ -84,6 +86,7 @@ Actor subclass: HttpServer
       ++ "</body></html>"
 
   // --- JSON API ---
+  /// Returns the full orchestrator snapshot as JSON.
   handleState =>
     snapshot := self getSnapshot
     self respond: 200 body: (Json generate: snapshot)
@@ -110,6 +113,7 @@ Actor subclass: HttpServer
       ]
     self respond: 200 body: (Json generate: found)
 
+  /// Triggers an immediate poll/reconcile cycle on the orchestrator.
   handleRefresh =>
     self.orchestrator isNil ifFalse: [self.orchestrator onTick!]
     body := Json generate: #{

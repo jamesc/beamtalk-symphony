@@ -1,10 +1,11 @@
 // Copyright 2026 symphony authors
 // SPDX-License-Identifier: Apache-2.0
 
-// DotEnv — loads KEY=VALUE pairs from a .env file into the process environment.
+/// DotEnv — loads KEY=VALUE pairs from a .env file into the process environment.
 
 Object subclass: DotEnv
 
+  /// Reads the .env file at path and sets each KEY=VALUE in the OS environment.
   class load: path => self new load: path
 
   load: path =>

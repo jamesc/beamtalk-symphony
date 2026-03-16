@@ -1,9 +1,9 @@
 // Copyright 2026 symphony authors
 // SPDX-License-Identifier: Apache-2.0
 
-// AgentRunner — wraps the full worker attempt lifecycle:
-// workspace creation → prompt rendering → codex session → multi-turn loop
-// → hook execution → event forwarding to orchestrator.
+/// AgentRunner — full worker lifecycle for a single issue attempt.
+/// Manages workspace creation, prompt rendering, codex session,
+/// multi-turn loop, hook execution, and event forwarding.
 
 Actor subclass: AgentRunner
   state: issue = nil
@@ -17,6 +17,7 @@ Actor subclass: AgentRunner
   state: threadId = nil
   state: turnNumber = 0
 
+  /// Spawns a new AgentRunner and starts the run lifecycle asynchronously.
   class run: issue attempt: attempt config: config workspaceManager: wm linearClient: lc promptTemplate: pt onEvent: callback =>
     runner := self
       spawnWith: #{
@@ -87,6 +88,7 @@ Actor subclass: AgentRunner
     turnLoopResult
 
   // --- Turn loop ---
+  /// Executes the prompt-send-stream cycle for the current turn, then recurses.
   runTurnLoop: wsPath maxTurns: maxTurns =>
     // Build prompt for this turn
     prompt := self buildPrompt

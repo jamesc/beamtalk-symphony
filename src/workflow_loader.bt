@@ -1,11 +1,12 @@
 // Copyright 2026 symphony authors
 // SPDX-License-Identifier: Apache-2.0
 
-// WorkflowLoader — reads WORKFLOW.md and splits into YAML front matter config
-// and Markdown prompt body.
+/// WorkflowLoader — parses WORKFLOW.md into a YAML config dictionary
+/// and a Markdown prompt template body.
 
 Object subclass: WorkflowLoader
 
+  /// Reads and parses a WORKFLOW.md file, returning config and prompt_template.
   class load: path => self new load: path
 
   load: path =>

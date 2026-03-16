@@ -1,9 +1,9 @@
 // Copyright 2026 symphony authors
 // SPDX-License-Identifier: Apache-2.0
 
-// CodexClient — manages a codex app-server subprocess and the JSON-RPC-like
-// line protocol over stdio. Handles session startup handshake, request/response
-// matching, and line buffering.
+/// CodexClient — manages a codex app-server subprocess over stdio.
+/// Handles JSON-RPC protocol, session startup handshake,
+/// request/response matching, and turn streaming.
 
 Actor subclass: CodexClient
   state: proc = nil
@@ -12,6 +12,7 @@ Actor subclass: CodexClient
   state: config = nil
   state: onEvent = nil
 
+  /// Spawns a new CodexClient actor bound to the given workspace directory.
   class start: workspacePath config: config onEvent: callback =>
     client := self spawnWith: #{
       #workspacePath => workspacePath,
@@ -21,6 +22,7 @@ Actor subclass: CodexClient
     client
 
   // --- Token and rate-limit extraction ---
+  /// Extracts token usage counters from a codex event message, or nil.
   class extractUsage: msg =>
     // Look for token usage in common payload shapes
     params := msg at: "params" ifAbsent: [#{}]
@@ -43,6 +45,7 @@ Actor subclass: CodexClient
       ])
     }
 
+  /// Extracts rate limit info from a codex event message, or nil.
   class extractRateLimits: msg =>
     params := msg at: "params" ifAbsent: [#{}]
     params at: "rate_limits" ifAbsent: [params at: "rateLimits" ifAbsent: [nil]]
@@ -130,6 +133,7 @@ Actor subclass: CodexClient
     self readUntilResponse: expectedId deadline: deadline
 
   // --- Session startup handshake ---
+  /// Launches the subprocess and performs the initialize/thread-start handshake.
   startSession =>
     launchResult := self launch
     launchResult isError ifTrue: [^launchResult]
@@ -183,6 +187,7 @@ Actor subclass: CodexClient
     Result ok: #{"threadId" => tid}
 
   // --- Turn management ---
+  /// Sends a turn/start request with the given prompt and waits for acknowledgement.
   startTurn: threadId prompt: prompt title: title =>
     readTimeout := self.config codexReadTimeoutMs
     turnId := self
@@ -203,6 +208,7 @@ Actor subclass: CodexClient
 
     Result ok: #{"turnId" => tuid}
 
+  /// Streams events until the turn completes, fails, or times out.
   streamTurn: turnTimeoutMs =>
     // Read events until turn completes, fails, or times out
     deadline := (Erlang erlang monotonic_time: #millisecond) + turnTimeoutMs

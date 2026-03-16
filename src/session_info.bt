@@ -1,7 +1,8 @@
 // Copyright 2026 symphony authors
 // SPDX-License-Identifier: Apache-2.0
 
-// SessionInfo — codex app-server session state for a running agent.
+/// SessionInfo — immutable value holding codex session IDs, event history,
+/// and turn count for a running agent.
 
 Value subclass: SessionInfo
   state: sessionId = nil

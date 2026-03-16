@@ -1,8 +1,9 @@
 // Copyright 2026 symphony authors
 // SPDX-License-Identifier: Apache-2.0
 
-// Orchestrator — central polling authority for dispatch, concurrency,
-// retries, and reconciliation. Owns all scheduling state.
+/// Orchestrator — central polling authority for the Symphony pipeline.
+/// Owns the poll loop, dispatch, reconciliation, retry queue,
+/// and global token accounting.
 
 Actor subclass: Orchestrator
   state: config = nil
@@ -17,6 +18,7 @@ Actor subclass: Orchestrator
   state: codexRateLimits = nil
   state: pollTimerRef = nil
 
+  /// Spawns a new Orchestrator with the given config and dependencies.
   class start: config linearClient: lc workspaceManager: wm promptTemplate: pt =>
     orch := self
       spawnWith: #{
@@ -34,6 +36,7 @@ Actor subclass: Orchestrator
     orch
 
   // --- Config reload ---
+  /// Hot-swaps config and prompt template without restarting running agents.
   reloadConfig: newConfig prompt: newPrompt =>
     self.config := newConfig
     self.promptTemplate := newPrompt
@@ -43,6 +46,7 @@ Actor subclass: Orchestrator
   scheduleTick: delayMs =>
     self.pollTimerRef := Timer after: delayMs do: [self onTick!]
 
+  /// Main poll tick: reconcile, fetch candidates, filter, dispatch, reschedule.
   onTick =>
     // Step 1: Reconcile running issues
     self reconcile
@@ -89,6 +93,7 @@ Actor subclass: Orchestrator
     self scheduleTick: self.config pollIntervalMs
 
   // --- Dispatch ---
+  /// Spawns an AgentRunner for the issue and tracks it in the running map.
   dispatchIssue: issue attempt: attempt =>
     issueId := issue at: "id"
     identifier := issue at: "identifier" ifAbsent: [""]
@@ -122,6 +127,7 @@ Actor subclass: Orchestrator
     }
 
   // --- Codex event handling ---
+  /// Processes a codex stream event, updating session info and token counters.
   onCodexEvent: issueId event: event =>
     entry := self.running at: issueId ifAbsent: [nil]
     entry isNil ifTrue: [^nil]
@@ -161,6 +167,7 @@ Actor subclass: Orchestrator
     self.running := self.running at: issueId put: entry
 
   // --- Worker exit handling ---
+  /// Handles worker process exit — schedules continuation or backoff retry.
   onWorkerExit: issueId reason: reason =>
     entry := self.running at: issueId ifAbsent: [nil]
     entry isNil ifTrue: [^nil]
@@ -282,6 +289,7 @@ Actor subclass: Orchestrator
     self dispatchIssue: issue attempt: retryEntry attempt
 
   // --- Reconciliation ---
+  /// Checks for stalled workers and terminal/inactive issue states.
   reconcile =>
     self.running isEmpty ifTrue: [^nil]
     self reconcileStalls
@@ -391,6 +399,7 @@ Actor subclass: Orchestrator
       }
 
   // --- Startup terminal cleanup ---
+  /// Removes workspaces for issues already in terminal states at boot.
   startupTerminalCleanup =>
     terminalStates := self.config trackerTerminalStates
     fetchResult := self.linearClient fetchIssuesByStates: terminalStates
@@ -412,6 +421,7 @@ Actor subclass: Orchestrator
     }
 
   // --- Runtime snapshot ---
+  /// Returns a serializable snapshot of running agents, retries, and token totals.
   getSnapshot =>
     runningList := self.running values
       collect: [:entry |
