@@ -1,0 +1,38 @@
+// Tests for SessionInfo (Value subclass)
+
+TestCase subclass: SessionInfoTest
+
+  testDefaults =>
+    s := SessionInfo new
+    self assert: s sessionId equals: nil
+    self assert: s threadId equals: nil
+    self assert: s turnCount equals: 0
+
+  testWithSetters =>
+    s := ((SessionInfo new) withSessionId: "s1") withThreadId: "t1"
+    s := (s withTurnId: "u1") withCodexPid: "pid1"
+    self assert: s sessionId equals: "s1"
+    self assert: s threadId equals: "t1"
+    self assert: s turnId equals: "u1"
+    self assert: s codexPid equals: "pid1"
+
+  testWithEvent =>
+    s := ((SessionInfo new) withLastEvent: "turn_completed") withLastMessage: "done"
+    s := s withLastTimestamp: 12345
+    self assert: s lastEvent equals: "turn_completed"
+    self assert: s lastMessage equals: "done"
+    self assert: s lastTimestamp equals: 12345
+
+  testIncrementTurnCount =>
+    s := SessionInfo new
+    self assert: s turnCount equals: 0
+    s2 := s incrementTurnCount
+    self assert: s2 turnCount equals: 1
+    s3 := s2 incrementTurnCount
+    self assert: s3 turnCount equals: 2
+
+  testImmutability =>
+    s := SessionInfo new
+    s withSessionId: "changed"
+    // Original unchanged
+    self assert: s sessionId equals: nil

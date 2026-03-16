@@ -44,7 +44,7 @@ TestCase subclass: CandidateFilterTest
 
   testIneligibleIfAlreadyRunning =>
     issue := #{"id" => "1", "identifier" => "X-1", "title" => "T", "state" => "Todo"}
-    entry := RunningEntry new: #{"issue" => issue}
+    entry := RunningEntry new: #{#issue => issue}
     result := CandidateFilter
       eligible: #(issue)
       running: #{"1" => entry}
@@ -94,7 +94,7 @@ TestCase subclass: CandidateFilterTest
   testGlobalConcurrencyLimit =>
     issue1 := #{"id" => "1", "identifier" => "X-1", "title" => "T1", "state" => "Todo"}
     issue2 := #{"id" => "2", "identifier" => "X-2", "title" => "T2", "state" => "Todo"}
-    entry := RunningEntry new: #{"issue" => issue1}
+    entry := RunningEntry new: #{#issue => issue1}
     result := CandidateFilter
       eligible: #(issue2)
       running: #{"1" => entry}
@@ -108,7 +108,7 @@ TestCase subclass: CandidateFilterTest
   testPerStateConcurrencyLimit =>
     issue1 := #{"id" => "1", "identifier" => "X-1", "title" => "T1", "state" => "Todo"}
     issue2 := #{"id" => "2", "identifier" => "X-2", "title" => "T2", "state" => "Todo"}
-    entry := RunningEntry new: #{"issue" => issue1}
+    entry := RunningEntry new: #{#issue => issue1}
     result := CandidateFilter
       eligible: #(issue2)
       running: #{"1" => entry}
