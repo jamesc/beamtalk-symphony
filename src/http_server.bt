@@ -14,8 +14,11 @@ Actor subclass: HttpServer
   class start: port orchestrator: orch =>
     self spawnWith: #{#port => port, #orchestrator => orch}
 
-  /// Lifecycle hook — called automatically after spawn. Starts the HTTP listener.
+  /// Lifecycle hook — defers HTTP listener startup via async cast.
   initialize =>
+    Timer after: 1 do: [self doStart!]
+
+  doStart =>
     handler := [:req | self handleRequest: req]
     self.server := HTTPServer start: self.port handler: handler
     Logger info: "http server started" metadata: #{
