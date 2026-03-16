@@ -79,16 +79,8 @@ Actor subclass: HttpServer
     runningList := snapshot at: "running"
     retryList := snapshot at: "retrying"
     // rateLimits := snapshot at: "rate_limits" // TODO: display
-    runningRows := runningList isEmpty ifTrue: [
-      ""
-    ] ifFalse: [
-      runningList inject: "" into: [:acc :r | acc ++ (self renderRunningRow: r)]
-    ]
-    retryRows := retryList isEmpty ifTrue: [
-      ""
-    ] ifFalse: [
-      retryList inject: "" into: [:acc :r | acc ++ (self renderRetryRow: r)]
-    ]
+    runningRows := self renderRunningRows: runningList
+    retryRows := self renderRetryRows: retryList
 
     self dashboardHead
       ++ (self dashboardHeader: runningCount retrying: retryingCount)
@@ -177,6 +169,25 @@ Actor subclass: HttpServer
 
   dashboardFooter =>
     "<div class=footer>Auto-refreshes every 5s · <a href=/api/v1/state>JSON API</a> · <a href=/api/v1/refresh>Trigger Refresh</a></div></body></html>"
+
+  renderRunningRows: list =>
+    list isEmpty ifTrue: [^""]
+    // Build rows one at a time to avoid self-capture in block
+    self renderRunningRowsFrom: list accumulated: ""
+
+  renderRunningRowsFrom: list accumulated: acc =>
+    list isEmpty ifTrue: [^acc]
+    row := self renderRunningRow: list first
+    self renderRunningRowsFrom: list rest accumulated: acc ++ row
+
+  renderRetryRows: list =>
+    list isEmpty ifTrue: [^""]
+    self renderRetryRowsFrom: list accumulated: ""
+
+  renderRetryRowsFrom: list accumulated: acc =>
+    list isEmpty ifTrue: [^acc]
+    row := self renderRetryRow: list first
+    self renderRetryRowsFrom: list rest accumulated: acc ++ row
 
   renderRunningRow: r =>
     identifier := r at: "issue_identifier" ifAbsent: ["?"]
