@@ -5,4 +5,7 @@
 name = "symphony"
 version = "0.1.0"
 
+[application]
+supervisor = "SymphonySupervisor"
+
 [dependencies]

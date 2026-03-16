@@ -1,0 +1,112 @@
+// Copyright 2026 symphony authors
+// SPDX-License-Identifier: Apache-2.0
+
+// HttpServer — optional observability HTTP server with dashboard and JSON API.
+// Wraps stdlib HTTPServer with Symphony-specific routing.
+
+Actor subclass: HttpServer
+  state: server = nil
+  state: port = 0
+  state: orchestrator = nil
+
+  class supervisionPolicy => #permanent
+
+  class start: port orchestrator: orch =>
+    srv := self spawnWith: #{#port => port, #orchestrator => orch}
+    srv doStart!
+    srv
+
+  doStart =>
+    handler := [:req | self handleRequest: req]
+    self.server := HTTPServer start: self.port handler: handler
+    Logger info: "http server started" context: #{"port" => self.server port displayString}
+
+  actualPort => self.server port
+
+  // --- Request routing ---
+
+  handleRequest: req =>
+    method := req method
+    path := req path
+    method == "GET" ifTrue: [^self handleGet: path]
+    method == "POST" ifTrue: [^self handlePost: path]
+    self respond: 405 body: (self errorJson: "method_not_allowed" msg: "Method not allowed")
+
+  handleGet: path =>
+    path == "/" ifTrue: [^self handleDashboard]
+    path == "/api/v1/state" ifTrue: [^self handleState]
+    (path startsWith: "/api/v1/") ifTrue: [^self handleIssueDetail: (path drop: 8)]
+    self respond: 404 body: (self errorJson: "not_found" msg: "Not found")
+
+  handlePost: path =>
+    path == "/api/v1/refresh" ifTrue: [^self handleRefresh]
+    self respond: 404 body: (self errorJson: "not_found" msg: "Not found")
+
+  // --- Response helpers ---
+
+  respond: status body: body =>
+    HTTPResponse new: #{#status => status, #body => body}
+
+  errorJson: code msg: message =>
+    Json generate: #{"error" => #{"code" => code, "message" => message}}
+
+  // --- Dashboard ---
+
+  handleDashboard =>
+    snapshot := self getSnapshot
+    html := self renderDashboard: snapshot
+    self respond: 200 body: html
+
+  renderDashboard: snapshot =>
+    counts := snapshot at: "counts"
+    totals := snapshot at: "codex_totals"
+    running := counts at: "running"
+    retrying := counts at: "retrying"
+    inputTok := totals at: "input_tokens"
+    outputTok := totals at: "output_tokens"
+    totalTok := totals at: "total_tokens"
+    "<!DOCTYPE html><html><head><title>Symphony</title></head><body>" ++
+    "<h1>Symphony Dashboard</h1>" ++
+    "<p>Running: " ++ running displayString ++ " | Retrying: " ++ retrying displayString ++ "</p>" ++
+    "<p>Tokens — in: " ++ inputTok displayString ++
+    " out: " ++ outputTok displayString ++
+    " total: " ++ totalTok displayString ++ "</p>" ++
+    "<p><a href=/api/v1/state>JSON API</a></p>" ++
+    "</body></html>"
+
+  // --- JSON API ---
+
+  handleState =>
+    snapshot := self getSnapshot
+    self respond: 200 body: (Json generate: snapshot)
+
+  handleIssueDetail: identifier =>
+    identifier isEmpty ifTrue: [
+      ^self respond: 404 body: (self errorJson: "not_found" msg: "Not found")
+    ]
+    snapshot := self getSnapshot
+    runningList := snapshot at: "running"
+    found := runningList detect: [:r | (r at: "issue_identifier") == identifier] ifNone: [nil]
+    found isNil ifTrue: [
+      retryList := snapshot at: "retrying"
+      found := retryList detect: [:r | (r at: "issue_identifier") == identifier] ifNone: [nil]
+    ]
+    found isNil ifTrue: [
+      ^self respond: 404 body: (self errorJson: "issue_not_found" msg: "Issue not found")
+    ]
+    self respond: 200 body: (Json generate: found)
+
+  handleRefresh =>
+    self.orchestrator isNil ifFalse: [
+      self.orchestrator onTick!
+    ]
+    body := Json generate: #{"queued" => true, "operations" => #("poll", "reconcile")}
+    self respond: 202 body: body
+
+  // --- Helpers ---
+
+  getSnapshot =>
+    self.orchestrator isNil ifTrue: [
+      ^#{"counts" => #{"running" => 0, "retrying" => 0}, "running" => #(), "retrying" => #(), "codex_totals" => #{"input_tokens" => 0, "output_tokens" => 0, "total_tokens" => 0}, "rate_limits" => nil}
+    ]
+    self.orchestrator getSnapshot

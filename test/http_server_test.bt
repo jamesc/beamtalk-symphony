@@ -1,0 +1,57 @@
+// Tests for HttpServer — dashboard and JSON API.
+
+TestCase subclass: HttpServerTest
+  state: srv = nil
+
+  tearDown =>
+    self.srv isNil ifFalse: [self.srv stop]
+    self
+
+  testStartAndPort =>
+    self.srv := HttpServer start: 0 orchestrator: nil
+    self assert: self.srv actualPort > 0
+    self assert: self.srv isAlive
+
+  testDashboard =>
+    self.srv := HttpServer start: 0 orchestrator: nil
+    url := "http://localhost:" ++ self.srv actualPort displayString ++ "/"
+    resp := (HTTPClient get: url) unwrap
+    @expect type
+    self assert: resp status equals: 200
+    @expect type
+    self assert: (resp body includesSubstring: "Symphony")
+
+  testApiState =>
+    self.srv := HttpServer start: 0 orchestrator: nil
+    url := "http://localhost:" ++ self.srv actualPort displayString ++ "/api/v1/state"
+    resp := (HTTPClient get: url) unwrap
+    @expect type
+    self assert: resp status equals: 200
+    @expect type
+    json := resp bodyAsJson
+    counts := json at: "counts"
+    self assert: (counts at: "running") equals: 0
+
+  testApiIssueNotFound =>
+    self.srv := HttpServer start: 0 orchestrator: nil
+    url := "http://localhost:" ++ self.srv actualPort displayString ++ "/api/v1/NONEXISTENT-99"
+    resp := (HTTPClient get: url) unwrap
+    @expect type
+    self assert: resp status equals: 404
+
+  testApiRefresh =>
+    self.srv := HttpServer start: 0 orchestrator: nil
+    url := "http://localhost:" ++ self.srv actualPort displayString ++ "/api/v1/refresh"
+    resp := (HTTPClient post: url body: "") unwrap
+    @expect type
+    self assert: resp status equals: 202
+    @expect type
+    json := resp bodyAsJson
+    self assert: (json at: "queued") equals: true
+
+  testNotFound =>
+    self.srv := HttpServer start: 0 orchestrator: nil
+    url := "http://localhost:" ++ self.srv actualPort displayString ++ "/nonexistent"
+    resp := (HTTPClient get: url) unwrap
+    @expect type
+    self assert: resp status equals: 404

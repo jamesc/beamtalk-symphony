@@ -1,0 +1,43 @@
+// Copyright 2026 symphony authors
+// SPDX-License-Identifier: Apache-2.0
+
+// SymphonySupervisor — OTP supervision tree for the Symphony service.
+// Starts Orchestrator, WorkflowWatcher, and optionally HttpServer.
+
+Supervisor subclass: SymphonySupervisor
+  classState: config = nil
+  classState: linearClient = nil
+  classState: workspaceManager = nil
+  classState: promptTemplate = ""
+  classState: serverPort = nil
+
+  class configure: cfg linearClient: lc workspaceManager: wm promptTemplate: pt port: port =>
+    self.config := cfg
+    self.linearClient := lc
+    self.workspaceManager := wm
+    self.promptTemplate := pt
+    self.serverPort := port
+
+  class runtimeConfig => self.config
+  class runtimePort => self.serverPort
+
+  class strategy => #oneForOne
+
+  class children =>
+    specs := #(
+      (Orchestrator supervisionSpec
+        withRestart: #permanent
+        withArgs: #{
+          #config => self.config,
+          #linearClient => self.linearClient,
+          #workspaceManager => self.workspaceManager,
+          #promptTemplate => self.promptTemplate
+        }),
+      (WorkflowWatcher supervisionSpec
+        withRestart: #permanent)
+    )
+    self.serverPort isNil
+      ifTrue: [specs]
+      ifFalse: [specs add: (HttpServer supervisionSpec
+        withRestart: #permanent
+        withArgs: #{#port => self.serverPort})]

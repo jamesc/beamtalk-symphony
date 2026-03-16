@@ -1,9 +1,10 @@
 // Copyright 2026 symphony authors
 // SPDX-License-Identifier: Apache-2.0
 
-// Main entry point for symphony.
-// Run with: beamtalk run Main run
-// Or load interactively: beamtalk repl
+// Main — entry point for Symphony.
+// Loads config from WORKFLOW.md, validates, configures the supervisor tree.
+// Used in script mode: beamtalk run Main run
+// Service mode (beamtalk run .) uses SymphonySupervisor directly.
 
 Object subclass: Main
 
@@ -11,5 +12,54 @@ Object subclass: Main
     self new run
 
   run =>
-    TranscriptStream current show: "Hello from symphony!"; cr.
-    self
+    // Step 1: Load .env for local development
+    DotEnv load: File cwd ++ "/.env"
+
+    // Step 2: Load and parse WORKFLOW.md
+    workflowPath := "./WORKFLOW.md"
+    wfResult := WorkflowLoader load: workflowPath
+    wfResult isError ifTrue: [
+      Logger error: "failed to load workflow" context: #{
+        "path" => workflowPath,
+        "error" => wfResult error displayString
+      }
+      ^nil
+    ]
+    wf := wfResult unwrap
+
+    // Step 3: Create config and validate
+    config := Config fromMap: (wf at: "config")
+    validation := config validate
+    validation isError ifTrue: [
+      Logger error: "config validation failed" context: #{
+        "error" => validation error displayString
+      }
+      ^nil
+    ]
+
+    promptTemplate := wf at: "prompt_template"
+
+    // Step 4: Create clients
+    linearClient := LinearClient fromConfig: config
+    workspaceManager := WorkspaceManager fromConfig: config
+
+    // Step 5: Configure and start supervisor
+    SymphonySupervisor
+      configure: config
+      linearClient: linearClient
+      workspaceManager: workspaceManager
+      promptTemplate: promptTemplate
+      port: config serverPort
+
+    supervisor := SymphonySupervisor supervise
+
+    Logger info: "symphony started" context: #{
+      "workflow" => workflowPath
+    }
+
+    // Step 6: Start orchestrator operations
+    orchestrator := supervisor which: Orchestrator
+    orchestrator startupTerminalCleanup
+    orchestrator scheduleTick: 0
+
+    supervisor
