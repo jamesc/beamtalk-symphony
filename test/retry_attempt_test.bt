@@ -1,0 +1,56 @@
+// Tests for RetryAttempt
+
+TestCase subclass: RetryAttemptTest
+
+  testNewWithDefaults =>
+    entry := RetryAttempt new
+    self assert: entry issueId equals: ""
+    self assert: entry identifier equals: ""
+    self assert: entry attempt equals: 1
+    self assert: entry dueAtMs equals: 0
+    self assert: entry timerRef equals: nil
+    self assert: entry error equals: nil
+
+  testNewWithOpts =>
+    entry := RetryAttempt new: #{
+      "issueId" => "abc123",
+      "identifier" => "BT-456",
+      "attempt" => 3,
+      "dueAtMs" => 99999,
+      "error" => "turn failed"
+    }
+    self assert: entry issueId equals: "abc123"
+    self assert: entry identifier equals: "BT-456"
+    self assert: entry attempt equals: 3
+    self assert: entry dueAtMs equals: 99999
+    self assert: entry error equals: "turn failed"
+
+  testWithTimerRef =>
+    entry := RetryAttempt new
+    updated := entry withTimerRef: #some_ref
+    self assert: updated timerRef equals: #some_ref
+
+  testBackoffMs =>
+    // attempt 1: min(10000 * 1, 300000) = 10000
+    self assert: (RetryAttempt backoffMs: 1 maxMs: 300000) equals: 10000
+    // attempt 2: min(10000 * 2, 300000) = 20000
+    self assert: (RetryAttempt backoffMs: 2 maxMs: 300000) equals: 20000
+    // attempt 3: min(10000 * 4, 300000) = 40000
+    self assert: (RetryAttempt backoffMs: 3 maxMs: 300000) equals: 40000
+    // attempt 4: min(10000 * 8, 300000) = 80000
+    self assert: (RetryAttempt backoffMs: 4 maxMs: 300000) equals: 80000
+    // attempt 5: min(10000 * 16, 300000) = 160000
+    self assert: (RetryAttempt backoffMs: 5 maxMs: 300000) equals: 160000
+    // attempt 6: min(10000 * 32, 300000) = 300000 (capped)
+    self assert: (RetryAttempt backoffMs: 6 maxMs: 300000) equals: 300000
+    // attempt 7: still capped
+    self assert: (RetryAttempt backoffMs: 7 maxMs: 300000) equals: 300000
+
+  testBackoffMsWithSmallCap =>
+    // Cap at 50000
+    self assert: (RetryAttempt backoffMs: 1 maxMs: 50000) equals: 10000
+    self assert: (RetryAttempt backoffMs: 3 maxMs: 50000) equals: 40000
+    self assert: (RetryAttempt backoffMs: 4 maxMs: 50000) equals: 50000
+
+  testContinuationDelayMs =>
+    self assert: RetryAttempt continuationDelayMs equals: 1000

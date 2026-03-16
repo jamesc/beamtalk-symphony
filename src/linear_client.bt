@@ -1,0 +1,45 @@
+// Copyright 2026 symphony authors
+// SPDX-License-Identifier: Apache-2.0
+
+// LinearClient — GraphQL client for the Linear issue tracker API.
+// Handles transport, auth, and error mapping.
+
+Object subclass: LinearClient
+  state: endpoint = "https://api.linear.app/graphql"
+  state: apiKey = ""
+  state: projectSlug = ""
+  state: timeout = 30000
+
+  class new: opts =>
+    (self new) initWith: opts
+
+  initWith: opts =>
+    self.endpoint := opts at: "endpoint" ifAbsent: ["https://api.linear.app/graphql"]
+    self.apiKey := opts at: "apiKey" ifAbsent: [""]
+    self.projectSlug := opts at: "projectSlug" ifAbsent: [""]
+    self.timeout := opts at: "timeout" ifAbsent: [30000]
+    self
+
+  class fromConfig: config =>
+    apiKey := config trackerApiKey
+    apiKey isNil ifTrue: [apiKey := ""]
+    slug := config trackerProjectSlug
+    slug isNil ifTrue: [slug := ""]
+    self new: #{
+      "endpoint" => config trackerEndpoint,
+      "apiKey" => apiKey,
+      "projectSlug" => slug,
+      "timeout" => 30000
+    }
+
+  endpoint => self.endpoint
+  apiKey => self.apiKey
+  projectSlug => self.projectSlug
+
+  // --- Error helpers ---
+
+  class errorKind: result =>
+    result isError ifFalse: [^nil]
+    err := result error
+    (err isKindOf: Dictionary) ifTrue: [^err at: "kind" ifAbsent: ["unknown"]]
+    "unknown"

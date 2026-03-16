@@ -1,0 +1,153 @@
+// Copyright 2026 symphony authors
+// SPDX-License-Identifier: Apache-2.0
+
+// CandidateFilter — pure computation helpers for dispatch eligibility,
+// sorting, and concurrency control.
+
+Object subclass: CandidateFilter
+  state: activeStates = nil
+  state: terminalStates = nil
+  state: maxByState = nil
+
+  class eligible: issues
+    running: running
+    claimed: claimed
+    activeStates: activeStates
+    terminalStates: terminalStates
+    maxConcurrent: maxConcurrent
+    maxByState: maxByState =>
+
+    filter := (self new) initStates: activeStates terminal: terminalStates byState: maxByState
+    filter doFilter: issues
+      running: running
+      claimed: claimed
+      maxConcurrent: maxConcurrent
+
+  initStates: active terminal: terminal byState: byState =>
+    self.activeStates := active
+    self.terminalStates := terminal
+    self.maxByState := byState
+    self
+
+  doFilter: issues running: running claimed: claimed maxConcurrent: maxConcurrent =>
+    runningCount := running size
+    availableGlobal := maxConcurrent - runningCount
+    availableGlobal <= 0 ifTrue: [^#()]
+
+    runningByState := self countRunningByState: running
+
+    // Use inject to accumulate results while tracking slots and state counts
+    acc := #{"result" => #(), "slots" => 0, "byState" => runningByState}
+    finalAcc := issues inject: acc into: [:a :issue |
+      self accumulate: a issue: issue running: running claimed: claimed available: availableGlobal
+    ]
+    finalAcc at: "result"
+
+  accumulate: acc issue: issue running: running claimed: claimed available: availableGlobal =>
+    slotsUsed := acc at: "slots"
+    slotsUsed >= availableGlobal ifTrue: [^acc]
+    runningByState := acc at: "byState"
+    (self isEligible: issue running: running claimed: claimed runningByState: runningByState) ifFalse: [^acc]
+    // Add to result
+    newResult := (acc at: "result") add: issue
+    newSlots := slotsUsed + 1
+    st := (issue at: "state" ifAbsent: [""]) lowercase
+    cur := runningByState at: st ifAbsent: [0]
+    newByState := runningByState at: st put: cur + 1
+    #{"result" => newResult, "slots" => newSlots, "byState" => newByState}
+
+  countRunningByState: running =>
+    running values inject: #{} into: [:acc :entry |
+      entryIssue := entry issue
+      entryIssue isNil ifTrue: [acc] ifFalse: [
+        st := (entryIssue at: "state" ifAbsent: [""]) lowercase
+        cur := acc at: st ifAbsent: [0]
+        acc at: st put: cur + 1
+      ]
+    ]
+
+  isEligible: issue running: running claimed: claimed runningByState: runningByState =>
+    id := issue at: "id" ifAbsent: [nil]
+    id isNil ifTrue: [^false]
+    identifier := issue at: "identifier" ifAbsent: [nil]
+    identifier isNil ifTrue: [^false]
+    title := issue at: "title" ifAbsent: [nil]
+    title isNil ifTrue: [^false]
+    state := issue at: "state" ifAbsent: [nil]
+    state isNil ifTrue: [^false]
+
+    stateLower := state lowercase
+    isActive := self.activeStates anySatisfy: [:s | s lowercase == stateLower]
+    isActive ifFalse: [^false]
+
+    isTerminal := self.terminalStates anySatisfy: [:s | s lowercase == stateLower]
+    isTerminal ifTrue: [^false]
+
+    (running includesKey: id) ifTrue: [^false]
+    (claimed includes: id) ifTrue: [^false]
+
+    // Per-state concurrency check
+    self.maxByState isEmpty ifFalse: [
+      stateLimit := self.maxByState at: stateLower ifAbsent: [nil]
+      stateLimit isNil ifFalse: [
+        stateCount := runningByState at: stateLower ifAbsent: [0]
+        stateCount >= stateLimit ifTrue: [^false]
+      ]
+    ]
+
+    // Blocker rule for Todo state
+    stateLower == "todo" ifTrue: [
+      blockers := issue at: "blocked_by" ifAbsent: [#()]
+      blockers isEmpty ifFalse: [
+        hasNonTerminal := blockers anySatisfy: [:b |
+          bState := b at: "state" ifAbsent: [nil]
+          bState isNil ifTrue: [true] ifFalse: [
+            (self isTerminalState: bState) not
+          ]
+        ]
+        hasNonTerminal ifTrue: [^false]
+      ]
+    ]
+
+    true
+
+  isTerminalState: state =>
+    stateLower := state lowercase
+    self.terminalStates anySatisfy: [:s | s lowercase == stateLower]
+
+  class sortForDispatch: issues =>
+    (self new) doSort: issues
+
+  doSort: issues =>
+    // sort: expects boolean comparator (a < b), not three-way
+    issues sort: [:a :b | self shouldComeBefore: a than: b]
+
+  shouldComeBefore: a than: b =>
+    pA := a at: "priority" ifAbsent: [nil]
+    pB := b at: "priority" ifAbsent: [nil]
+
+    // nil priority sorts last
+    pA isNil ifTrue: [
+      pB isNil ifFalse: [^false]
+    ] ifFalse: [
+      pB isNil ifTrue: [^true]
+      pA < pB ifTrue: [^true]
+      pA > pB ifTrue: [^false]
+    ]
+
+    // created_at oldest first
+    cA := a at: "created_at" ifAbsent: [nil]
+    cB := b at: "created_at" ifAbsent: [nil]
+    cA isNil ifFalse: [
+      cB isNil ifFalse: [
+        cA < cB ifTrue: [^true]
+        cA > cB ifTrue: [^false]
+      ]
+    ]
+
+    // identifier lexicographic
+    iA := a at: "identifier" ifAbsent: [""]
+    iB := b at: "identifier" ifAbsent: [""]
+    iA < iB ifTrue: [^true]
+    iA > iB ifTrue: [^false]
+    false

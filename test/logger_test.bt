@@ -1,0 +1,35 @@
+// Tests for Logger
+
+TestCase subclass: LoggerTest
+
+  testInfoReturnsMessage =>
+    line := Logger info: "service started"
+    self assert: line equals: "service started"
+
+  testWarnReturnsMessage =>
+    line := Logger warn: "something unusual"
+    self assert: line equals: "something unusual"
+
+  testErrorReturnsMessage =>
+    line := Logger error: "failed hard"
+    self assert: line equals: "failed hard"
+
+  testInfoWithContextReturnsMessage =>
+    ctx := #{"issue_id" => "abc123"}
+    line := Logger info: "dispatched" context: ctx
+    self assert: line equals: "dispatched"
+
+  testIssueContext =>
+    issue := #{"id" => "abc", "identifier" => "BT-42"}
+    ctx := Logger issueContext: issue
+    self assert: (ctx at: "issue_id") equals: "abc"
+    self assert: (ctx at: "issue_identifier") equals: "BT-42"
+
+  testSessionContext =>
+    ctx := Logger sessionContext: "thread1-turn1"
+    self assert: (ctx at: "session_id") equals: "thread1-turn1"
+
+  testTimestamp =>
+    ts := Logger timestamp
+    self assert: (ts isKindOf: String)
+    self assert: ts size > 0

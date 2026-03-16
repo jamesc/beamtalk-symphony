@@ -1,0 +1,175 @@
+// Tests for Config
+
+TestCase subclass: ConfigTest
+
+  testDefaultsWhenEmpty =>
+    config := Config fromMap: #{}
+    self assert: config trackerKind equals: nil
+    self assert: config trackerEndpoint equals: ""
+    self assert: config pollIntervalMs equals: 30000
+    self assert: config maxConcurrentAgents equals: 10
+    self assert: config maxRetryBackoffMs equals: 300000
+    self assert: config maxTurns equals: 20
+    self assert: config codexCommand equals: "codex app-server"
+    self assert: config codexTurnTimeoutMs equals: 3600000
+    self assert: config codexReadTimeoutMs equals: 5000
+    self assert: config codexStallTimeoutMs equals: 300000
+    self assert: config hooksAfterCreate equals: nil
+    self assert: config hooksTimeoutMs equals: 60000
+    self assert: config serverPort equals: nil
+
+  testTrackerDefaults =>
+    config := Config fromMap: #{"tracker" => #{"kind" => "linear"}}
+    self assert: config trackerKind equals: "linear"
+    self assert: config trackerEndpoint equals: "https://api.linear.app/graphql"
+    self assert: config trackerActiveStates equals: #("Todo", "In Progress")
+    self assert: config trackerTerminalStates size equals: 5
+
+  testTrackerProjectSlug =>
+    config := Config fromMap: #{
+      "tracker" => #{"kind" => "linear", "project_slug" => "my-project"}
+    }
+    self assert: config trackerProjectSlug equals: "my-project"
+
+  testApiKeyLiteral =>
+    config := Config fromMap: #{
+      "tracker" => #{"kind" => "linear", "api_key" => "lin_api_abc123"}
+    }
+    self assert: config trackerApiKey equals: "lin_api_abc123"
+
+  testApiKeyEnvResolution =>
+    Erlang os putenv: "TEST_LINEAR_KEY" value: "resolved_key"
+    config := Config fromMap: #{
+      "tracker" => #{"kind" => "linear", "api_key" => "$TEST_LINEAR_KEY"}
+    }
+    self assert: config trackerApiKey equals: "resolved_key"
+
+  testApiKeyEmptyEnvTreatedAsMissing =>
+    Erlang os putenv: "TEST_EMPTY_KEY" value: ""
+    config := Config fromMap: #{
+      "tracker" => #{"kind" => "linear", "api_key" => "$TEST_EMPTY_KEY"}
+    }
+    self assert: config trackerApiKey equals: nil
+
+  testCodexSettings =>
+    config := Config fromMap: #{
+      "codex" => #{
+        "command" => "my-codex",
+        "turn_timeout_ms" => 5000,
+        "read_timeout_ms" => 1000,
+        "stall_timeout_ms" => 2000
+      }
+    }
+    self assert: config codexCommand equals: "my-codex"
+    self assert: config codexTurnTimeoutMs equals: 5000
+    self assert: config codexReadTimeoutMs equals: 1000
+    self assert: config codexStallTimeoutMs equals: 2000
+
+  testIntegerCoercionFromString =>
+    config := Config fromMap: #{
+      "polling" => #{"interval_ms" => "15000"}
+    }
+    self assert: config pollIntervalMs equals: 15000
+
+  testMaxConcurrentAgentsByState =>
+    config := Config fromMap: #{
+      "agent" => #{
+        "max_concurrent_agents_by_state" => #{
+          "Todo" => 2,
+          "In Progress" => 5,
+          "invalid" => -1,
+          "bad" => "not_a_number"
+        }
+      }
+    }
+    byState := config maxConcurrentAgentsByState
+    self assert: (byState at: "todo") equals: 2
+    self assert: (byState at: "in progress") equals: 5
+    // Invalid values filtered out
+    self deny: (byState includesKey: "invalid")
+    self deny: (byState includesKey: "bad")
+
+  testHooksConfig =>
+    config := Config fromMap: #{
+      "hooks" => #{
+        "after_create" => "git clone ...",
+        "before_run" => "git pull",
+        "after_run" => "cleanup.sh",
+        "before_remove" => "archive.sh",
+        "timeout_ms" => 30000
+      }
+    }
+    self assert: config hooksAfterCreate equals: "git clone ..."
+    self assert: config hooksBeforeRun equals: "git pull"
+    self assert: config hooksAfterRun equals: "cleanup.sh"
+    self assert: config hooksBeforeRemove equals: "archive.sh"
+    self assert: config hooksTimeoutMs equals: 30000
+
+  testServerPort =>
+    config := Config fromMap: #{"server" => #{"port" => 8080}}
+    self assert: config serverPort equals: 8080
+
+  testServerPortNilWhenMissing =>
+    config := Config fromMap: #{}
+    self assert: config serverPort equals: nil
+
+  // --- Validation ---
+
+  testValidateOk =>
+    Erlang os putenv: "TEST_VALID_KEY" value: "some_key"
+    config := Config fromMap: #{
+      "tracker" => #{
+        "kind" => "linear",
+        "api_key" => "$TEST_VALID_KEY",
+        "project_slug" => "my-proj"
+      }
+    }
+    result := config validate
+    self assert: result isOk
+
+  testValidateMissingKind =>
+    config := Config fromMap: #{}
+    result := config validate
+    self assert: result isError
+    self assert: (result error at: "check") equals: "tracker.kind"
+
+  testValidateUnsupportedKind =>
+    config := Config fromMap: #{"tracker" => #{"kind" => "jira"}}
+    result := config validate
+    self assert: result isError
+    self assert: ((result error at: "reason") includesSubstring: "unsupported")
+
+  testValidateMissingApiKey =>
+    config := Config fromMap: #{
+      "tracker" => #{"kind" => "linear", "project_slug" => "p"}
+    }
+    result := config validate
+    self assert: result isError
+    self assert: (result error at: "check") equals: "tracker.api_key"
+
+  testValidateMissingProjectSlug =>
+    Erlang os putenv: "TEST_SLUG_KEY" value: "key123"
+    config := Config fromMap: #{
+      "tracker" => #{"kind" => "linear", "api_key" => "$TEST_SLUG_KEY"}
+    }
+    result := config validate
+    self assert: result isError
+    self assert: (result error at: "check") equals: "tracker.project_slug"
+
+  testValidateEmptyCodexCommand =>
+    Erlang os putenv: "TEST_CMD_KEY" value: "key"
+    config := Config fromMap: #{
+      "tracker" => #{
+        "kind" => "linear",
+        "api_key" => "$TEST_CMD_KEY",
+        "project_slug" => "p"
+      },
+      "codex" => #{"command" => ""}
+    }
+    result := config validate
+    self assert: result isError
+    self assert: (result error at: "check") equals: "codex.command"
+
+  testNonPositiveHooksTimeoutFallsBackToDefault =>
+    config := Config fromMap: #{"hooks" => #{"timeout_ms" => -100}}
+    self assert: config hooksTimeoutMs equals: 60000

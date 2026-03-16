@@ -1,0 +1,84 @@
+// Copyright 2026 symphony authors
+// SPDX-License-Identifier: Apache-2.0
+
+// WorkflowLoader — reads WORKFLOW.md and splits into YAML front matter config
+// and Markdown prompt body.
+
+Object subclass: WorkflowLoader
+
+  class load: path =>
+    self new load: path
+
+  load: path =>
+    readResult := [Erlang file read_file: path] on: Error do: [:e |
+      ^Result error: #{"kind" => "missing_workflow_file", "path" => path}
+    ]
+    // Erlang file:read_file returns {ok, Binary} or {error, Reason}
+    tag := Erlang erlang element: 1 arg: readResult
+    tag == #error ifTrue: [
+      ^Result error: #{"kind" => "missing_workflow_file", "path" => path}
+    ]
+    content := Erlang erlang element: 2 arg: readResult
+    self parse: content
+
+  parse: content =>
+    lines := content lines
+    lines isEmpty ifTrue: [
+      ^Result ok: #{"config" => #{}, "prompt_template" => ""}
+    ]
+
+    // Check for front matter delimiter
+    firstLine := lines first trim
+    (firstLine == "---") ifFalse: [
+      ^Result ok: #{"config" => #{}, "prompt_template" => content trim}
+    ]
+
+    // Find closing ---
+    rest := lines rest
+    result := self extractFrontMatter: rest
+    result
+
+  extractFrontMatter: rest =>
+    // Find closing --- index using inject (block mutations don't propagate)
+    closingIdx := rest inject: #(0, 1) into: [:acc :line |
+      found := acc at: 1
+      idx := acc at: 2
+      found == 0 ifTrue: [
+        line trim == "---" ifTrue: [#(idx, idx + 1)] ifFalse: [#(0, idx + 1)]
+      ] ifFalse: [
+        #(found, idx + 1)
+      ]
+    ]
+    closingIdx := closingIdx at: 1
+
+    closingIdx == 0 ifTrue: [
+      ^Result ok: #{"config" => #{}, "prompt_template" => (rest join: (String fromCodePoint: 10)) trim}
+    ]
+
+    // Extract YAML (1 to closingIdx-1)
+    yamlEndIdx := closingIdx - 1
+    yamlLines := rest take: yamlEndIdx
+    yamlText := yamlLines join: (String fromCodePoint: 10)
+
+    // Extract prompt body (after closing ---)
+    bodyLines := rest drop: closingIdx
+    promptBody := (bodyLines join: (String fromCodePoint: 10)) trim
+
+    // Parse YAML
+    yamlText trim isEmpty ifTrue: [
+      ^Result ok: #{"config" => #{}, "prompt_template" => promptBody}
+    ]
+
+    yamlResult := Yaml parse: yamlText
+    yamlResult isError ifTrue: [
+      ^Result error: #{"kind" => "workflow_parse_error", "detail" => yamlResult error}
+    ]
+
+    config := yamlResult unwrap
+
+    // Validate config is a map/dictionary
+    (config isKindOf: Dictionary) ifFalse: [
+      ^Result error: #{"kind" => "workflow_front_matter_not_a_map", "detail" => config class name}
+    ]
+
+    Result ok: #{"config" => config, "prompt_template" => promptBody}

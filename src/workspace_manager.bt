@@ -1,0 +1,153 @@
+// Copyright 2026 symphony authors
+// SPDX-License-Identifier: Apache-2.0
+
+// WorkspaceManager — manages per-issue workspace directories with path
+// sanitization, containment validation, hook execution, and cleanup.
+
+Object subclass: WorkspaceManager
+  state: root = ""
+  state: hooksAfterCreate = nil
+  state: hooksBeforeRun = nil
+  state: hooksAfterRun = nil
+  state: hooksBeforeRemove = nil
+  state: hooksTimeoutMs = 60000
+
+  class new: opts =>
+    (self new) initWith: opts
+
+  initWith: opts =>
+    self.root := opts at: "root" ifAbsent: ["/tmp/symphony_workspaces"]
+    self.hooksAfterCreate := opts at: "hooksAfterCreate" ifAbsent: [nil]
+    self.hooksBeforeRun := opts at: "hooksBeforeRun" ifAbsent: [nil]
+    self.hooksAfterRun := opts at: "hooksAfterRun" ifAbsent: [nil]
+    self.hooksBeforeRemove := opts at: "hooksBeforeRemove" ifAbsent: [nil]
+    self.hooksTimeoutMs := opts at: "hooksTimeoutMs" ifAbsent: [60000]
+    self
+
+  class fromConfig: config =>
+    self new: #{
+      "root" => config workspaceRoot,
+      "hooksAfterCreate" => config hooksAfterCreate,
+      "hooksBeforeRun" => config hooksBeforeRun,
+      "hooksAfterRun" => config hooksAfterRun,
+      "hooksBeforeRemove" => config hooksBeforeRemove,
+      "hooksTimeoutMs" => config hooksTimeoutMs
+    }
+
+  root => self.root
+
+  // --- Path derivation ---
+
+  sanitizeIdentifier: identifier =>
+    chars := identifier collect: [:ch |
+      (ch matchesRegex: "[A-Za-z0-9._-]")
+        ifTrue: [ch]
+        ifFalse: ["_"]
+    ]
+    chars join
+
+  workspacePath: identifier =>
+    key := self sanitizeIdentifier: identifier
+    self.root ++ "/" ++ key
+
+  // --- Containment validation ---
+
+  validateContainment: wsPath =>
+    absRoot := Erlang filename absname: self.root
+    absWs := Erlang filename absname: wsPath
+    (absWs startsWith: absRoot ++ "/") ifTrue: [^Result ok: true]
+    absWs == absRoot ifTrue: [
+      ^Result error: #{"kind" => "invalid_workspace_path", "detail" => "workspace path equals root"}
+    ]
+    Result error: #{
+      "kind" => "invalid_workspace_path",
+      "detail" => "workspace path outside root",
+      "workspace" => absWs,
+      "root" => absRoot
+    }
+
+  // --- Create or reuse ---
+
+  createForIssue: identifier =>
+    wsPath := self workspacePath: identifier
+    containment := self validateContainment: wsPath
+    containment isError ifTrue: [^containment]
+
+    alreadyExists := File isDirectory: wsPath
+    alreadyExists ifFalse: [
+      mkResult := File mkdirAll: wsPath
+      mkResult isError ifTrue: [
+        ^Result error: #{"kind" => "workspace_create_error", "detail" => mkResult error}
+      ]
+    ]
+
+    createdNow := alreadyExists not
+
+    // Run after_create hook if newly created
+    createdNow ifTrue: [
+      self.hooksAfterCreate isNil ifFalse: [
+        hookResult := self runHook: self.hooksAfterCreate inDir: wsPath
+        hookResult isError ifTrue: [
+          File deleteAll: wsPath
+          ^Result error: #{
+            "kind" => "hook_after_create_failed",
+            "detail" => hookResult error
+          }
+        ]
+      ]
+    ]
+
+    Result ok: #{
+      "path" => wsPath,
+      "workspace_key" => (self sanitizeIdentifier: identifier),
+      "created_now" => createdNow
+    }
+
+  // --- Hook execution ---
+
+  runBeforeRun: wsPath =>
+    self.hooksBeforeRun isNil ifTrue: [^Result ok: true]
+    self runHook: self.hooksBeforeRun inDir: wsPath
+
+  runAfterRun: wsPath =>
+    self.hooksAfterRun isNil ifTrue: [^Result ok: true]
+    self runHook: self.hooksAfterRun inDir: wsPath
+
+  runBeforeRemove: wsPath =>
+    self.hooksBeforeRemove isNil ifTrue: [^Result ok: true]
+    self runHook: self.hooksBeforeRemove inDir: wsPath
+
+  runHook: script inDir: dir =>
+    cmd := "cd " ++ dir ++ " && sh -c " ++ (self shellQuote: script)
+    result := [
+      Erlang os cmd: cmd
+    ] on: Error do: [:e |
+      ^Result error: #{"kind" => "hook_error", "detail" => e message}
+    ]
+    Result ok: result
+
+  shellQuote: str =>
+    "'" ++ (str replaceAll: "'" with: "'\\''") ++ "'"
+
+  // --- Cleanup ---
+
+  removeWorkspace: identifier =>
+    wsPath := self workspacePath: identifier
+    (File isDirectory: wsPath) ifFalse: [^Result ok: true]
+    self runBeforeRemove: wsPath
+    File deleteAll: wsPath
+    Result ok: true
+
+  // --- Validation for agent launch ---
+
+  validateCwd: cwd forIssue: identifier =>
+    expected := self workspacePath: identifier
+    absExpected := Erlang filename absname: expected
+    absCwd := Erlang filename absname: cwd
+    absExpected == absCwd
+      ifTrue: [Result ok: true]
+      ifFalse: [Result error: #{
+        "kind" => "invalid_workspace_cwd",
+        "expected" => absExpected,
+        "actual" => absCwd
+      }]

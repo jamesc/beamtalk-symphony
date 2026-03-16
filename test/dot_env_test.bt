@@ -1,0 +1,47 @@
+// Tests for DotEnv
+
+TestCase subclass: DotEnvTest
+  state: tmpDir = "target/bt-test-tmp/dotenv"
+
+  setUp =>
+    File mkdirAll: self.tmpDir
+    self
+
+  tearDown =>
+    File deleteAll: self.tmpDir
+    self
+
+  testLoadsKeyValuePairs =>
+    path := self.tmpDir ++ "/.env"
+    nl := String fromCodePoint: 10
+    File writeAll: path contents: "FOO_TEST_1=bar" ++ nl ++ "BAZ_TEST_1=qux"
+    result := DotEnv load: path
+    self assert: result isOk
+    self assert: (Erlang os getenv: "FOO_TEST_1") equals: "bar"
+    self assert: (Erlang os getenv: "BAZ_TEST_1") equals: "qux"
+
+  testSkipsComments =>
+    path := self.tmpDir ++ "/.env2"
+    nl := String fromCodePoint: 10
+    File writeAll: path contents: "# comment" ++ nl ++ "KEY_TEST_2=val"
+    DotEnv load: path
+    self assert: (Erlang os getenv: "KEY_TEST_2") equals: "val"
+
+  testSkipsBlankLines =>
+    path := self.tmpDir ++ "/.env3"
+    nl := String fromCodePoint: 10
+    File writeAll: path contents: "" ++ nl ++ "KEY_TEST_3=val3" ++ nl ++ ""
+    DotEnv load: path
+    self assert: (Erlang os getenv: "KEY_TEST_3") equals: "val3"
+
+  testMissingFileReturnsOk =>
+    result := DotEnv load: self.tmpDir ++ "/nonexistent"
+    self assert: result isOk
+    self assert: result unwrap equals: 0
+
+  testCountsLoadedVars =>
+    path := self.tmpDir ++ "/.env4"
+    nl := String fromCodePoint: 10
+    File writeAll: path contents: "A_TEST_4=1" ++ nl ++ "B_TEST_4=2" ++ nl ++ "# skip"
+    result := DotEnv load: path
+    self assert: result unwrap equals: 2

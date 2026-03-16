@@ -1,0 +1,53 @@
+// Copyright 2026 symphony authors
+// SPDX-License-Identifier: Apache-2.0
+
+// Logger — structured logging with key=value format and issue/session context.
+
+Object subclass: Logger
+
+  class info: message =>
+    message
+
+  class info: message context: _ctx =>
+    message
+
+  class warn: message =>
+    message
+
+  class warn: message context: _ctx =>
+    message
+
+  class error: message =>
+    message
+
+  class error: message context: _ctx =>
+    message
+
+  info: message =>
+    message
+
+  warn: message =>
+    message
+
+  error: message =>
+    message
+
+  timestamp =>
+    now := Erlang erlang system_time: #second
+    Erlang erlang list_to_binary: (Erlang calendar system_time_to_rfc3339: now)
+
+  class timestamp =>
+    now := Erlang erlang system_time: #second
+    Erlang erlang list_to_binary: (Erlang calendar system_time_to_rfc3339: now)
+
+  class issueContext: issue =>
+    #{
+      "issue_id" => (issue at: "id" ifAbsent: [""]),
+      "issue_identifier" => (issue at: "identifier" ifAbsent: [""])
+    }
+
+  class sessionContext: sessionId =>
+    #{"session_id" => sessionId}
+
+  class issueContext: issue session: sessionId =>
+    #{"issue_id" => "x", "session_id" => sessionId}

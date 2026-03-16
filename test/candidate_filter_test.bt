@@ -1,0 +1,162 @@
+// Tests for CandidateFilter
+
+TestCase subclass: CandidateFilterTest
+
+  testSortByPriority =>
+    issues := #(
+      #{"identifier" => "A", "priority" => 3, "created_at" => "2026-01-01"},
+      #{"identifier" => "B", "priority" => 1, "created_at" => "2026-01-01"},
+      #{"identifier" => "C", "priority" => 2, "created_at" => "2026-01-01"}
+    )
+    sorted := CandidateFilter sortForDispatch: issues
+    self assert: ((sorted at: 1) at: "identifier") equals: "B"
+    self assert: ((sorted at: 2) at: "identifier") equals: "C"
+    self assert: ((sorted at: 3) at: "identifier") equals: "A"
+
+  testNilPrioritySortsLast =>
+    issues := #(
+      #{"identifier" => "A", "priority" => nil, "created_at" => "2026-01-01"},
+      #{"identifier" => "B", "priority" => 1, "created_at" => "2026-01-01"}
+    )
+    sorted := CandidateFilter sortForDispatch: issues
+    self assert: ((sorted at: 1) at: "identifier") equals: "B"
+    self assert: ((sorted at: 2) at: "identifier") equals: "A"
+
+  testSortByCreatedAtThenIdentifier =>
+    issues := #(
+      #{"identifier" => "B", "priority" => 1, "created_at" => "2026-01-02"},
+      #{"identifier" => "A", "priority" => 1, "created_at" => "2026-01-01"}
+    )
+    sorted := CandidateFilter sortForDispatch: issues
+    self assert: ((sorted at: 1) at: "identifier") equals: "A"
+
+  testEligibleIssue =>
+    issue := #{"id" => "1", "identifier" => "X-1", "title" => "T", "state" => "Todo"}
+    result := CandidateFilter
+      eligible: #(issue)
+      running: #{}
+      claimed: #()
+      activeStates: #("Todo")
+      terminalStates: #("Done")
+      maxConcurrent: 10
+      maxByState: #{}
+    self assert: result size equals: 1
+
+  testIneligibleIfAlreadyRunning =>
+    issue := #{"id" => "1", "identifier" => "X-1", "title" => "T", "state" => "Todo"}
+    entry := RunningEntry new: #{"issue" => issue}
+    result := CandidateFilter
+      eligible: #(issue)
+      running: #{"1" => entry}
+      claimed: #()
+      activeStates: #("Todo")
+      terminalStates: #("Done")
+      maxConcurrent: 10
+      maxByState: #{}
+    self assert: result size equals: 0
+
+  testIneligibleIfClaimed =>
+    issue := #{"id" => "1", "identifier" => "X-1", "title" => "T", "state" => "Todo"}
+    result := CandidateFilter
+      eligible: #(issue)
+      running: #{}
+      claimed: #("1")
+      activeStates: #("Todo")
+      terminalStates: #("Done")
+      maxConcurrent: 10
+      maxByState: #{}
+    self assert: result size equals: 0
+
+  testIneligibleIfNotActiveState =>
+    issue := #{"id" => "1", "identifier" => "X-1", "title" => "T", "state" => "Backlog"}
+    result := CandidateFilter
+      eligible: #(issue)
+      running: #{}
+      claimed: #()
+      activeStates: #("Todo")
+      terminalStates: #("Done")
+      maxConcurrent: 10
+      maxByState: #{}
+    self assert: result size equals: 0
+
+  testStateComparisonIsCaseInsensitive =>
+    issue := #{"id" => "1", "identifier" => "X-1", "title" => "T", "state" => "todo"}
+    result := CandidateFilter
+      eligible: #(issue)
+      running: #{}
+      claimed: #()
+      activeStates: #("Todo")
+      terminalStates: #("Done")
+      maxConcurrent: 10
+      maxByState: #{}
+    self assert: result size equals: 1
+
+  testGlobalConcurrencyLimit =>
+    issue1 := #{"id" => "1", "identifier" => "X-1", "title" => "T1", "state" => "Todo"}
+    issue2 := #{"id" => "2", "identifier" => "X-2", "title" => "T2", "state" => "Todo"}
+    entry := RunningEntry new: #{"issue" => issue1}
+    result := CandidateFilter
+      eligible: #(issue2)
+      running: #{"1" => entry}
+      claimed: #("1")
+      activeStates: #("Todo")
+      terminalStates: #("Done")
+      maxConcurrent: 1
+      maxByState: #{}
+    self assert: result size equals: 0
+
+  testPerStateConcurrencyLimit =>
+    issue1 := #{"id" => "1", "identifier" => "X-1", "title" => "T1", "state" => "Todo"}
+    issue2 := #{"id" => "2", "identifier" => "X-2", "title" => "T2", "state" => "Todo"}
+    entry := RunningEntry new: #{"issue" => issue1}
+    result := CandidateFilter
+      eligible: #(issue2)
+      running: #{"1" => entry}
+      claimed: #("1")
+      activeStates: #("Todo")
+      terminalStates: #("Done")
+      maxConcurrent: 10
+      maxByState: #{"todo" => 1}
+    self assert: result size equals: 0
+
+  testTodoWithNonTerminalBlockerNotEligible =>
+    issue := #{
+      "id" => "1", "identifier" => "X-1", "title" => "T", "state" => "Todo",
+      "blocked_by" => #(#{"id" => "2", "identifier" => "X-2", "state" => "In Progress"})
+    }
+    result := CandidateFilter
+      eligible: #(issue)
+      running: #{}
+      claimed: #()
+      activeStates: #("Todo", "In Progress")
+      terminalStates: #("Done")
+      maxConcurrent: 10
+      maxByState: #{}
+    self assert: result size equals: 0
+
+  testTodoWithTerminalBlockerIsEligible =>
+    issue := #{
+      "id" => "1", "identifier" => "X-1", "title" => "T", "state" => "Todo",
+      "blocked_by" => #(#{"id" => "2", "identifier" => "X-2", "state" => "Done"})
+    }
+    result := CandidateFilter
+      eligible: #(issue)
+      running: #{}
+      claimed: #()
+      activeStates: #("Todo")
+      terminalStates: #("Done")
+      maxConcurrent: 10
+      maxByState: #{}
+    self assert: result size equals: 1
+
+  testMissingRequiredFieldsNotEligible =>
+    issue := #{"id" => "1", "identifier" => "X-1", "state" => "Todo"}
+    result := CandidateFilter
+      eligible: #(issue)
+      running: #{}
+      claimed: #()
+      activeStates: #("Todo")
+      terminalStates: #("Done")
+      maxConcurrent: 10
+      maxByState: #{}
+    self assert: result size equals: 0

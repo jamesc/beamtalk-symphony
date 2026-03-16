@@ -1,0 +1,32 @@
+// Tests for LinearClient — unit tests for construction and error helpers.
+// Integration tests require network access and a valid API key.
+
+TestCase subclass: LinearClientTest
+
+  testNewWithDefaults =>
+    client := LinearClient new: #{}
+    self assert: client endpoint equals: "https://api.linear.app/graphql"
+    self assert: client apiKey equals: ""
+    self assert: client projectSlug equals: ""
+
+  testNewWithOpts =>
+    client := LinearClient new: #{
+      "endpoint" => "https://custom.api/graphql",
+      "apiKey" => "lin_test_key",
+      "projectSlug" => "my-proj"
+    }
+    self assert: client endpoint equals: "https://custom.api/graphql"
+    self assert: client apiKey equals: "lin_test_key"
+    self assert: client projectSlug equals: "my-proj"
+
+  testErrorKindForErrorResult =>
+    err := Result error: #{"kind" => "linear_api_request", "detail" => "timeout"}
+    self assert: (LinearClient errorKind: err) equals: "linear_api_request"
+
+  testErrorKindForOkResult =>
+    ok := Result ok: "data"
+    self assert: (LinearClient errorKind: ok) equals: nil
+
+  testErrorKindForNonDictError =>
+    err := Result error: "simple string"
+    self assert: (LinearClient errorKind: err) equals: "unknown"

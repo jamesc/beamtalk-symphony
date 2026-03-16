@@ -1,0 +1,162 @@
+// Copyright 2026 symphony authors
+// SPDX-License-Identifier: Apache-2.0
+
+// PromptRenderer — strict template rendering with issue and attempt variables.
+// Supports double-brace var interpolation, if/endif, for/endfor syntax.
+
+Object subclass: PromptRenderer
+  state: openVar = ""
+  state: closeVar = ""
+  state: openTag = ""
+  state: closeTag = ""
+
+  class shared =>
+    self new initShared
+
+  initShared =>
+    lb := Erlang erlang list_to_binary: #(123)
+    rb := Erlang erlang list_to_binary: #(125)
+    self.openVar := lb ++ lb ++ " "
+    self.closeVar := " " ++ rb ++ rb
+    self.openTag := lb ++ "% "
+    self.closeTag := " %" ++ rb
+    self
+
+  class render: template issue: issue attempt: attempt =>
+    renderer := self shared
+    renderer render: template issue: issue attempt: attempt
+
+  render: template issue: issue attempt: attempt =>
+    template isNil ifTrue: [^Result ok: "You are working on an issue from Linear."]
+    template trim isEmpty ifTrue: [^Result ok: "You are working on an issue from Linear."]
+    vars := #{"issue" => issue, "attempt" => attempt}
+    result := [self processAll: template vars: vars]
+      on: Error do: [:e | ^Result error: #{"kind" => "template_render_error", "detail" => e message}]
+    Result ok: result
+
+  processAll: text vars: vars =>
+    result := self processIfs: text vars: vars
+    result := self processFors: result vars: vars
+    self interpolate: result vars: vars
+
+  // --- If/Endif ---
+
+  processIfs: text vars: vars =>
+    ifOpen := self.openTag ++ "if "
+    result := text
+    (result includesSubstring: ifOpen) ifFalse: [^result]
+    self processOneIf: result vars: vars
+
+  processOneIf: text vars: vars =>
+    ifOpen := self.openTag ++ "if "
+    ifClose := self.openTag ++ "endif" ++ self.closeTag
+    startIdx := text indexOf: ifOpen
+    startIdx isNil ifTrue: [^text]
+    afterStart := text drop: startIdx + ifOpen size - 1
+    endTagIdx := afterStart indexOf: self.closeTag
+    endTagIdx isNil ifTrue: [^text]
+    varName := (afterStart take: endTagIdx - 1) trim
+    blockStart := startIdx + ifOpen size + endTagIdx + self.closeTag size - 2
+    remaining := text drop: blockStart
+    endifIdx := remaining indexOf: ifClose
+    endifIdx isNil ifTrue: [^text]
+    blockBody := remaining take: endifIdx - 1
+    afterEndif := remaining drop: endifIdx + ifClose size - 1
+    prefix := text take: startIdx - 1
+    val := self resolveVar: varName vars: vars
+    isTruthy := self checkTruthy: val
+    result := isTruthy
+      ifTrue: [prefix ++ blockBody ++ afterEndif]
+      ifFalse: [prefix ++ afterEndif]
+    // Check for more if blocks
+    (result includesSubstring: ifOpen)
+      ifTrue: [self processOneIf: result vars: vars]
+      ifFalse: [result]
+
+  checkTruthy: val =>
+    val isNil ifTrue: [^false]
+    val == false ifTrue: [^false]
+    val == "" ifTrue: [^false]
+    val == 0 ifTrue: [^false]
+    true
+
+  // --- For/Endfor ---
+
+  processFors: text vars: vars =>
+    forOpen := self.openTag ++ "for "
+    (text includesSubstring: forOpen) ifFalse: [^text]
+    self processOneFor: text vars: vars
+
+  processOneFor: text vars: vars =>
+    forOpen := self.openTag ++ "for "
+    forClose := self.openTag ++ "endfor" ++ self.closeTag
+    startIdx := text indexOf: forOpen
+    startIdx isNil ifTrue: [^text]
+    afterStart := text drop: startIdx + forOpen size - 1
+    endTagIdx := afterStart indexOf: self.closeTag
+    endTagIdx isNil ifTrue: [^text]
+    forExpr := (afterStart take: endTagIdx - 1) trim
+    blockStart := startIdx + forOpen size + endTagIdx + self.closeTag size - 2
+
+    inIdx := forExpr indexOf: " in "
+    inIdx isNil ifTrue: [^text]
+    itemName := (forExpr take: inIdx - 1) trim
+    collName := (forExpr drop: inIdx + 3) trim
+
+    remaining := text drop: blockStart
+    endforIdx := remaining indexOf: forClose
+    endforIdx isNil ifTrue: [^text]
+    blockBody := remaining take: endforIdx - 1
+    afterEndfor := remaining drop: endforIdx + forClose size - 1
+    prefix := text take: startIdx - 1
+
+    coll := self resolveVar: collName vars: vars
+    rendered := self renderForBody: blockBody items: coll itemName: itemName vars: vars
+    result := prefix ++ rendered ++ afterEndfor
+    (result includesSubstring: forOpen)
+      ifTrue: [self processOneFor: result vars: vars]
+      ifFalse: [result]
+
+  renderForBody: body items: coll itemName: itemName vars: vars =>
+    coll isNil ifTrue: [^""]
+    (coll isKindOf: List) ifFalse: [^""]
+    coll inject: "" into: [:acc :item |
+      innerVars := vars at: itemName put: item
+      acc ++ (self interpolate: body vars: innerVars)
+    ]
+
+  // --- Interpolation ---
+
+  interpolate: text vars: vars =>
+    (text includesSubstring: self.openVar) ifFalse: [^text]
+    result := self interpolateOne: text vars: vars
+    (result includesSubstring: self.openVar)
+      ifTrue: [self interpolate: result vars: vars]
+      ifFalse: [result]
+
+  interpolateOne: text vars: vars =>
+    startIdx := text indexOf: self.openVar
+    startIdx isNil ifTrue: [^text]
+    afterStart := text drop: startIdx + self.openVar size - 1
+    endIdx := afterStart indexOf: self.closeVar
+    endIdx isNil ifTrue: [^text]
+    varExpr := (afterStart take: endIdx - 1) trim
+    rawVal := self resolveVar: varExpr vars: vars
+    valStr := rawVal isNil
+      ifTrue: [""]
+      ifFalse: [(rawVal isKindOf: String) ifTrue: [rawVal] ifFalse: [rawVal displayString]]
+    prefix := text take: startIdx - 1
+    suffix := afterStart drop: endIdx + self.closeVar size - 1
+    prefix ++ valStr ++ suffix
+
+  // --- Variable resolution ---
+
+  resolveVar: expr vars: vars =>
+    parts := expr split: "."
+    parts inject: vars into: [:val :part |
+      val isNil ifTrue: [nil] ifFalse: [
+        (val isKindOf: Dictionary)
+          ifTrue: [val at: part ifAbsent: [nil]]
+          ifFalse: [nil]
+      ]
+    ]

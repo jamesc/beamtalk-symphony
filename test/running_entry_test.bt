@@ -1,0 +1,52 @@
+// Tests for RunningEntry
+
+TestCase subclass: RunningEntryTest
+
+  testNewWithDefaults =>
+    entry := RunningEntry new
+    self assert: entry identifier equals: ""
+    self assert: entry issue equals: nil
+    self assert: entry sessionId equals: nil
+    self assert: entry codexInputTokens equals: 0
+    self assert: entry turnCount equals: 0
+
+  testNewWithOpts =>
+    entry := RunningEntry new: #{
+      "identifier" => "BT-123",
+      "issue" => #{"id" => "abc", "title" => "Test"},
+      "retryAttempt" => 2,
+      "startedAt" => 1000
+    }
+    self assert: entry identifier equals: "BT-123"
+    self assert: (entry issue at: "id") equals: "abc"
+    self assert: entry retryAttempt equals: 2
+    self assert: entry startedAt equals: 1000
+
+  testWithSessionIds =>
+    entry := RunningEntry new
+    updated := entry withSessionId: "s1" threadId: "t1" turnId: "u1"
+    self assert: updated sessionId equals: "s1"
+    self assert: updated threadId equals: "t1"
+    self assert: updated turnId equals: "u1"
+
+  testWithCodexEvent =>
+    entry := RunningEntry new
+    updated := entry withCodexEvent: "turn_completed" message: "done" timestamp: 12345
+    self assert: updated lastCodexEvent equals: "turn_completed"
+    self assert: updated lastCodexMessage equals: "done"
+    self assert: updated lastCodexTimestamp equals: 12345
+
+  testWithTokens =>
+    entry := RunningEntry new
+    updated := entry withTokens: 100 output: 50 total: 150
+    self assert: updated codexInputTokens equals: 100
+    self assert: updated codexOutputTokens equals: 50
+    self assert: updated codexTotalTokens equals: 150
+
+  testIncrementTurnCount =>
+    entry := RunningEntry new
+    self assert: entry turnCount equals: 0
+    updated := entry incrementTurnCount
+    self assert: updated turnCount equals: 1
+    updated2 := updated incrementTurnCount
+    self assert: updated2 turnCount equals: 2

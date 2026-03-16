@@ -1,0 +1,94 @@
+// Copyright 2026 symphony authors
+// SPDX-License-Identifier: Apache-2.0
+
+// RunningEntry — tracks a running agent session in the orchestrator.
+// Value object (immutable, returns new self on mutation).
+
+Object subclass: RunningEntry
+  state: workerPid = nil
+  state: monitorRef = nil
+  state: identifier = ""
+  state: issue = nil
+  state: sessionId = nil
+  state: threadId = nil
+  state: turnId = nil
+  state: codexPid = nil
+  state: lastCodexMessage = nil
+  state: lastCodexEvent = nil
+  state: lastCodexTimestamp = nil
+  state: codexInputTokens = 0
+  state: codexOutputTokens = 0
+  state: codexTotalTokens = 0
+  state: lastReportedInputTokens = 0
+  state: lastReportedOutputTokens = 0
+  state: lastReportedTotalTokens = 0
+  state: retryAttempt = nil
+  state: startedAt = nil
+  state: turnCount = 0
+
+  class new: opts =>
+    (self new) initWith: opts
+
+  initWith: opts =>
+    self.workerPid := opts at: "workerPid" ifAbsent: [nil]
+    self.monitorRef := opts at: "monitorRef" ifAbsent: [nil]
+    self.identifier := opts at: "identifier" ifAbsent: [""]
+    self.issue := opts at: "issue" ifAbsent: [nil]
+    self.retryAttempt := opts at: "retryAttempt" ifAbsent: [nil]
+    self.startedAt := opts at: "startedAt" ifAbsent: [nil]
+    self
+
+  workerPid => self.workerPid
+  monitorRef => self.monitorRef
+  identifier => self.identifier
+  issue => self.issue
+  sessionId => self.sessionId
+  threadId => self.threadId
+  turnId => self.turnId
+  codexPid => self.codexPid
+  lastCodexMessage => self.lastCodexMessage
+  lastCodexEvent => self.lastCodexEvent
+  lastCodexTimestamp => self.lastCodexTimestamp
+  codexInputTokens => self.codexInputTokens
+  codexOutputTokens => self.codexOutputTokens
+  codexTotalTokens => self.codexTotalTokens
+  lastReportedInputTokens => self.lastReportedInputTokens
+  lastReportedOutputTokens => self.lastReportedOutputTokens
+  lastReportedTotalTokens => self.lastReportedTotalTokens
+  retryAttempt => self.retryAttempt
+  startedAt => self.startedAt
+  turnCount => self.turnCount
+
+  withSessionId: sid threadId: tid turnId: tuid =>
+    self.sessionId := sid
+    self.threadId := tid
+    self.turnId := tuid
+
+  withCodexEvent: event message: msg timestamp: ts =>
+    self.lastCodexEvent := event
+    self.lastCodexMessage := msg
+    self.lastCodexTimestamp := ts
+
+  withCodexPid: pid =>
+    self.codexPid := pid
+
+  withTokens: input output: output total: total =>
+    self.codexInputTokens := input
+    self.codexOutputTokens := output
+    self.codexTotalTokens := total
+
+  withLastReportedTokens: input output: output total: total =>
+    self.lastReportedInputTokens := input
+    self.lastReportedOutputTokens := output
+    self.lastReportedTotalTokens := total
+
+  incrementTurnCount =>
+    self.turnCount := self.turnCount + 1
+
+  elapsedMs =>
+    self.startedAt isNil ifTrue: [^0]
+    now := Erlang erlang monotonic_time: #millisecond
+    now - self.startedAt
+
+  elapsedSeconds =>
+    self elapsedMs / 1000.0
