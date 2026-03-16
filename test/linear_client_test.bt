@@ -10,17 +10,21 @@ TestCase subclass: LinearClientTest
     self assert: client projectSlug equals: ""
 
   testNewWithOpts =>
-    client := LinearClient new: #{
-      "endpoint" => "https://custom.api/graphql",
-      "apiKey" => "lin_test_key",
-      "projectSlug" => "my-proj"
-    }
+    client := LinearClient
+      new: #{
+        "endpoint" => "https://custom.api/graphql",
+        "apiKey" => "lin_test_key",
+        "projectSlug" => "my-proj"
+      }
     self assert: client endpoint equals: "https://custom.api/graphql"
     self assert: client apiKey equals: "lin_test_key"
     self assert: client projectSlug equals: "my-proj"
 
   testErrorKindForErrorResult =>
-    err := Result error: #{"kind" => "linear_api_request", "detail" => "timeout"}
+    err := Result error: #{
+      "kind" => "linear_api_request",
+      "detail" => "timeout"
+    }
     self assert: (LinearClient errorKind: err) equals: "linear_api_request"
 
   testErrorKindForOkResult =>
@@ -32,7 +36,6 @@ TestCase subclass: LinearClientTest
     self assert: (LinearClient errorKind: err) equals: "unknown"
 
   // --- Normalization ---
-
   testNormalizeIssue =>
     client := LinearClient new: #{}
     node := #{
@@ -60,7 +63,9 @@ TestCase subclass: LinearClientTest
   testNormalizeLabelsToLowercase =>
     client := LinearClient new: #{}
     node := #{
-      "id" => "x", "identifier" => "X-1", "title" => "T",
+      "id" => "x",
+      "identifier" => "X-1",
+      "title" => "T",
       "state" => #{"name" => "Todo"},
       "labels" => #{"nodes" => #(#{"name" => "Bug"}, #{"name" => "URGENT"})}
     }
@@ -73,12 +78,27 @@ TestCase subclass: LinearClientTest
   testNormalizeBlockers =>
     client := LinearClient new: #{}
     node := #{
-      "id" => "x", "identifier" => "X-1", "title" => "T",
+      "id" => "x",
+      "identifier" => "X-1",
+      "title" => "T",
       "state" => #{"name" => "Todo"},
-      "inverseRelations" => #{"nodes" => #(
-        #{"type" => "blocks", "relatedIssue" => #{"id" => "y", "identifier" => "Y-1", "state" => #{"name" => "In Progress"}}},
-        #{"type" => "related", "relatedIssue" => #{"id" => "z", "identifier" => "Z-1", "state" => #{"name" => "Done"}}}
-      )}
+      "inverseRelations" => #{
+        "nodes" => #(#{
+          "type" => "blocks",
+          "relatedIssue" => #{
+            "id" => "y",
+            "identifier" => "Y-1",
+            "state" => #{"name" => "In Progress"}
+          }
+        }, #{
+          "type" => "related",
+          "relatedIssue" => #{
+            "id" => "z",
+            "identifier" => "Z-1",
+            "state" => #{"name" => "Done"}
+          }
+        })
+      }
     }
     issue := client normalizeIssue: node
     blockers := issue at: "blocked_by"
@@ -88,7 +108,9 @@ TestCase subclass: LinearClientTest
   testNormalizePriorityNonIntegerBecomesNil =>
     client := LinearClient new: #{}
     node := #{
-      "id" => "x", "identifier" => "X-1", "title" => "T",
+      "id" => "x",
+      "identifier" => "X-1",
+      "title" => "T",
       "state" => #{"name" => "Todo"},
       "priority" => "high"
     }

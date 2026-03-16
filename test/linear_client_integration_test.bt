@@ -12,19 +12,20 @@ TestCase subclass: LinearClientIntegrationTest
     token := System getEnv: "LINEAR_API_TOKEN"
     // Check both token and HTTP availability
     self.hasToken := self checkConnectivity: token
-    self.client := self.hasToken
-      ifTrue: [LinearClient new: #{"apiKey" => token, "projectSlug" => "c3c0717a652a"}]
-      ifFalse: [nil]
+    self.client := self.hasToken ifTrue: [
+      LinearClient new: #{"apiKey" => token, "projectSlug" => "c3c0717a652a"}
+    ] ifFalse: [nil]
     self
 
   checkConnectivity: token =>
     token isNil ifTrue: [^false]
     // Verify HTTP client works (may not be available in compiled test context)
-    result := [HTTPClient get: "https://api.linear.app/graphql"] on: Error do: [:e | ^false]
+    result := [
+      HTTPClient get: "https://api.linear.app/graphql"
+    ] on: Error do: [:e | ^false]
     result isOk
 
   // --- Candidate fetch ---
-
   testFetchCandidateIssues =>
     self.hasToken ifFalse: [^self skip: "LINEAR_API_TOKEN not set"]
     result := self.client fetchCandidateIssues: #("Todo", "In Progress")
@@ -45,21 +46,21 @@ TestCase subclass: LinearClientIntegrationTest
   testCandidateLabelsAreLowercase =>
     self.hasToken ifFalse: [^self skip: "LINEAR_API_TOKEN not set"]
     issues := (self.client fetchCandidateIssues: #("Todo")) unwrap
-    issues do: [:issue |
-      labels := issue at: "labels"
-      labels do: [:label |
-        self assert: label equals: label lowercase
+    issues
+      do: [:issue |
+        labels := issue at: "labels"
+        labels do: [:label | self assert: label equals: label lowercase]
       ]
-    ]
 
   testCandidateBlockersNormalized =>
     self.hasToken ifFalse: [^self skip: "LINEAR_API_TOKEN not set"]
     issues := (self.client fetchCandidateIssues: #("Todo")) unwrap
     // blockers should be a list (possibly empty) for every issue
-    issues do: [:issue |
-      blockers := issue at: "blocked_by"
-      self assert: (blockers isKindOf: List)
-    ]
+    issues
+      do: [:issue |
+        blockers := issue at: "blocked_by"
+        self assert: (blockers isKindOf: List)
+      ]
 
   testEmptyStatesReturnsEmpty =>
     self.hasToken ifFalse: [^self skip: "LINEAR_API_TOKEN not set"]
@@ -68,7 +69,6 @@ TestCase subclass: LinearClientIntegrationTest
     self assert: result unwrap equals: #()
 
   // --- State refresh ---
-
   testFetchIssueStatesByIds =>
     self.hasToken ifFalse: [^self skip: "LINEAR_API_TOKEN not set"]
     // First get some issue IDs
@@ -80,9 +80,7 @@ TestCase subclass: LinearClientIntegrationTest
     self assert: result isOk
     refreshed := result unwrap
     // nodes query may return fewer results if some IDs are filtered
-    refreshed do: [:r |
-      self deny: (r at: "id") isNil
-    ]
+    refreshed do: [:r | self deny: (r at: "id") isNil]
 
   testFetchIssueStatesByIdsEmpty =>
     self.hasToken ifFalse: [^self skip: "LINEAR_API_TOKEN not set"]
@@ -91,13 +89,12 @@ TestCase subclass: LinearClientIntegrationTest
     self assert: result unwrap equals: #()
 
   // --- Terminal fetch ---
-
   testFetchIssuesByStates =>
     self.hasToken ifFalse: [^self skip: "LINEAR_API_TOKEN not set"]
     result := self.client fetchIssuesByStates: #("Done", "Cancelled")
     self assert: result isOk
-    // May be empty if no terminal issues, but shouldn't error
 
+  // May be empty if no terminal issues, but shouldn't error
   testFetchIssuesByStatesEmpty =>
     self.hasToken ifFalse: [^self skip: "LINEAR_API_TOKEN not set"]
     result := self.client fetchIssuesByStates: #()
@@ -105,12 +102,13 @@ TestCase subclass: LinearClientIntegrationTest
     self assert: result unwrap equals: #()
 
   // --- Error handling ---
-
   testInvalidApiKeyReturnsError =>
     self.hasToken ifFalse: [^self skip: "No connectivity"]
     badClient := LinearClient new: #{
       "apiKey" => "invalid_token",
       "projectSlug" => "c3c0717a652a"
     }
-    result := [badClient fetchCandidateIssues: #("Todo")] on: Error do: [:e | Result error: e message]
+    result := [
+      badClient fetchCandidateIssues: #("Todo")
+    ] on: Error do: [:e | Result error: e message]
     self assert: result isError

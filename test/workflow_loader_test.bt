@@ -13,7 +13,15 @@ TestCase subclass: WorkflowLoaderTest
 
   testParsesWithFrontMatterAndBody =>
     nl := String fromCodePoint: 10
-    content := "---" ++ nl ++ "tracker:" ++ nl ++ "  kind: linear" ++ nl ++ "---" ++ nl ++ "You are an agent."
+    content := "---"
+      ++ nl
+      ++ "tracker:"
+      ++ nl
+      ++ "  kind: linear"
+      ++ nl
+      ++ "---"
+      ++ nl
+      ++ "You are an agent."
     path := self.tmpDir ++ "/wf1.md"
     File writeAll: path contents: content
     result := WorkflowLoader load: path
@@ -56,7 +64,18 @@ TestCase subclass: WorkflowLoaderTest
 
   testTrimsPromptBody =>
     nl := String fromCodePoint: 10
-    content := "---" ++ nl ++ "tracker:" ++ nl ++ "  kind: linear" ++ nl ++ "---" ++ nl ++ nl ++ "  prompt body  " ++ nl ++ nl
+    content := "---"
+      ++ nl
+      ++ "tracker:"
+      ++ nl
+      ++ "  kind: linear"
+      ++ nl
+      ++ "---"
+      ++ nl
+      ++ nl
+      ++ "  prompt body  "
+      ++ nl
+      ++ nl
     path := self.tmpDir ++ "/wf5.md"
     File writeAll: path contents: content
     result := WorkflowLoader load: path

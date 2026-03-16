@@ -13,5 +13,4 @@ Value subclass: SessionInfo
   state: lastTimestamp = nil
   state: turnCount = 0
 
-  incrementTurnCount =>
-    self withTurnCount: self turnCount + 1
+  incrementTurnCount => self withTurnCount: self turnCount + 1

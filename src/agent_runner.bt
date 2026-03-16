@@ -17,37 +17,33 @@ Actor subclass: AgentRunner
   state: threadId = nil
   state: turnNumber = 0
 
-  class run: issue
-    attempt: attempt
-    config: config
-    workspaceManager: wm
-    linearClient: lc
-    promptTemplate: pt
-    onEvent: callback =>
-
-    runner := self spawnWith: #{
-      #issue => issue,
-      #attempt => attempt,
-      #config => config,
-      #workspaceManager => wm,
-      #linearClient => lc,
-      #promptTemplate => pt,
-      #onEvent => callback
-    }
+  class run: issue attempt: attempt config: config workspaceManager: wm linearClient: lc promptTemplate: pt onEvent: callback =>
+    runner := self
+      spawnWith: #{
+        #issue => issue,
+        #attempt => attempt,
+        #config => config,
+        #workspaceManager => wm,
+        #linearClient => lc,
+        #promptTemplate => pt,
+        #onEvent => callback
+      }
     runner start!
     runner
 
   // --- Main lifecycle ---
-
   start =>
     result := self doRun
-    result isError ifTrue: [
-      Logger error: "agent run failed" context: #{
-        "issue_identifier" => (self.issue at: "identifier" ifAbsent: [""]),
-        "error" => result error displayString
-      }
-      self error: result error displayString
-    ]
+    result isError
+      ifTrue: [
+        Logger
+          error: "agent run failed"
+          context: #{
+            "issue_identifier" => (self.issue at: "identifier" ifAbsent: [""]),
+            "error" => result error displayString
+          }
+        self error: result error displayString
+      ]
 
   doRun =>
     identifier := self.issue at: "identifier" ifAbsent: [""]
@@ -62,14 +58,18 @@ Actor subclass: AgentRunner
     hookResult isError ifTrue: [^hookResult]
 
     // Step 3: Start codex session
-    self.codexClient := CodexClient start: wsPath config: self.config onEvent: self.onEvent
+    self.codexClient := CodexClient
+      start: wsPath
+      config: self.config
+      onEvent: self.onEvent
     sessionResult := self.codexClient startSession
-    sessionResult isError ifTrue: [
-      self runAfterRunHook: wsPath
-      self.codexClient stopProcess
-      self.codexClient stop
-      ^sessionResult
-    ]
+    sessionResult isError
+      ifTrue: [
+        self runAfterRunHook: wsPath
+        self.codexClient stopProcess
+        self.codexClient stop
+        ^sessionResult
+      ]
 
     sessionData := sessionResult unwrap
     self.threadId := sessionData at: "threadId"
@@ -87,7 +87,6 @@ Actor subclass: AgentRunner
     turnLoopResult
 
   // --- Turn loop ---
-
   runTurnLoop: wsPath maxTurns: maxTurns =>
     // Build prompt for this turn
     prompt := self buildPrompt
@@ -95,8 +94,13 @@ Actor subclass: AgentRunner
     promptText := prompt unwrap
 
     // Start the turn
-    title := (self.issue at: "identifier" ifAbsent: [""]) ++ ": " ++ (self.issue at: "title" ifAbsent: [""])
-    turnResult := self.codexClient startTurn: self.threadId prompt: promptText title: title
+    title := (self.issue at: "identifier" ifAbsent: [""])
+      ++ ": "
+      ++ (self.issue at: "title" ifAbsent: [""])
+    turnResult := self.codexClient
+      startTurn: self.threadId
+      prompt: promptText
+      title: title
     turnResult isError ifTrue: [^turnResult]
 
     // Stream events until turn completes
@@ -109,7 +113,9 @@ Actor subclass: AgentRunner
 
   shouldContinue: wsPath maxTurns: maxTurns =>
     // Check if max turns reached
-    self.turnNumber >= maxTurns ifTrue: [^Result ok: #{"status" => "max_turns_reached"}]
+    self.turnNumber >= maxTurns ifTrue: [
+      ^Result ok: #{"status" => "max_turns_reached"}
+    ]
 
     // Re-check issue state via tracker
     refreshResult := self.linearClient fetchIssueStatesByIds: #(self.issue at: "id")
@@ -120,35 +126,46 @@ Actor subclass: AgentRunner
 
     currentState := (refreshed at: 1) at: "state" ifAbsent: [nil]
     activeStates := self.config trackerActiveStates
-    isActive := activeStates anySatisfy: [:s | s lowercase == currentState lowercase]
-    isActive ifFalse: [^Result ok: #{"status" => "issue_no_longer_active", "state" => currentState}]
+    isActive := activeStates anySatisfy: [:s |
+      s lowercase == currentState lowercase
+    ]
+    isActive ifFalse: [
+      ^Result ok: #{
+        "status" => "issue_no_longer_active",
+        "state" => currentState
+      }
+    ]
 
     // Continue with next turn
     self.turnNumber := self.turnNumber + 1
     self runTurnLoop: wsPath maxTurns: maxTurns
 
   // --- Prompt building ---
-
   buildPrompt =>
-    self.turnNumber == 1
-      ifTrue: [self buildFirstTurnPrompt]
-      ifFalse: [self buildContinuationPrompt]
+    self.turnNumber == 1 ifTrue: [
+      self buildFirstTurnPrompt
+    ] ifFalse: [self buildContinuationPrompt]
 
   buildFirstTurnPrompt =>
-    PromptRenderer render: self.promptTemplate issue: self.issue attempt: self.attempt
+    PromptRenderer
+      render: self.promptTemplate
+      issue: self.issue
+      attempt: self.attempt
 
   buildContinuationPrompt =>
     // Continuation turns get guidance, not the full prompt
-    guidance := "Continue working on this issue. This is turn " ++ self.turnNumber displayString ++ "."
+    guidance := "Continue working on this issue. This is turn "
+      ++ self.turnNumber displayString
+      ++ "."
     Result ok: guidance
 
   // --- Helpers ---
-
   runAfterRunHook: wsPath =>
     // after_run failures are logged and ignored
     result := self.workspaceManager runAfterRun: wsPath
-    result isError ifTrue: [
-      Logger warn: "after_run hook failed" context: #{
-        "error" => result error displayString
-      }
-    ]
+    result isError
+      ifTrue: [
+        Logger warn: "after_run hook failed" context: #{
+          "error" => result error displayString
+        }
+      ]

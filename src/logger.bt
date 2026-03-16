@@ -6,40 +6,33 @@
 
 Object subclass: Logger
 
-  class info: message =>
-    Erlang logger info: message metadata: #{}
+  class info: message => Erlang logger info: message metadata: #{}
 
-  class info: message context: ctx =>
-    Erlang logger info: message metadata: ctx
+  class info: message context: ctx => Erlang logger info: message metadata: ctx
 
-  class warn: message =>
-    Erlang logger warning: message metadata: #{}
+  class warn: message => Erlang logger warning: message metadata: #{}
 
   class warn: message context: ctx =>
     Erlang logger warning: message metadata: ctx
 
-  class error: message =>
-    Erlang logger error: message metadata: #{}
+  class error: message => Erlang logger error: message metadata: #{}
 
   class error: message context: ctx =>
     Erlang logger error: message metadata: ctx
 
-  class debug: message =>
-    Erlang logger debug: message metadata: #{}
+  class debug: message => Erlang logger debug: message metadata: #{}
 
   class debug: message context: ctx =>
     Erlang logger debug: message metadata: ctx
 
   // --- Context helpers ---
-
   class issueContext: issue =>
     #{
       "issue_id" => (issue at: "id" ifAbsent: [""]),
       "issue_identifier" => (issue at: "identifier" ifAbsent: [""])
     }
 
-  class sessionContext: sessionId =>
-    #{"session_id" => sessionId}
+  class sessionContext: sessionId => #{"session_id" => sessionId}
 
   class issueContext: issue session: sessionId =>
     #{

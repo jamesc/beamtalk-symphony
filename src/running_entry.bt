@@ -15,18 +15,18 @@ Value subclass: RunningEntry
   state: startedAt = nil
 
   class forIssue: issue identifier: identifier startedAt: startedAt =>
-    RunningEntry new: #{
-      #identifier => identifier,
-      #issue => issue,
-      #session => SessionInfo new,
-      #tokens => TokenUsage new,
-      #startedAt => startedAt
-    }
+    RunningEntry
+      new: #{
+        #identifier => identifier,
+        #issue => issue,
+        #session => SessionInfo new,
+        #tokens => TokenUsage new,
+        #startedAt => startedAt
+      }
 
   elapsedMs =>
     self startedAt isNil ifTrue: [^0]
     now := Erlang erlang monotonic_time: #millisecond
     now - self startedAt
 
-  elapsedSeconds =>
-    self elapsedMs / 1000.0
+  elapsedSeconds => self elapsedMs / 1000.0

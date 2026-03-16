@@ -7,7 +7,10 @@ TestCase subclass: CodexClientTest
     config := Config fromMap: #{
       "codex" => #{"command" => "echo hello", "read_timeout_ms" => 1000}
     }
-    client := CodexClient start: "/tmp" config: config onEvent: nil
+    client := CodexClient
+      start: "/tmp"
+      config: config
+      onEvent: nil
     self assert: client isAlive
     self assert: client stop equals: #ok
 
@@ -15,15 +18,19 @@ TestCase subclass: CodexClientTest
     config := Config fromMap: #{
       "codex" => #{"command" => "cat", "read_timeout_ms" => 2000}
     }
-    client := CodexClient start: "/tmp" config: config onEvent: nil
+    client := CodexClient
+      start: "/tmp"
+      config: config
+      onEvent: nil
     launchResult := client launch
-    launchResult isOk ifTrue: [
-      client sendJson: #{"id" => 1, "result" => "ok"}
-      resp := client readResponse: 1 timeout: 2000
-      self assert: resp isOk
-      msg := resp unwrap
-      self assert: (msg at: "id") equals: 1
-    ]
+    launchResult isOk
+      ifTrue: [
+        client sendJson: #{"id" => 1, "result" => "ok"}
+        resp := client readResponse: 1 timeout: 2000
+        self assert: resp isOk
+        msg := resp unwrap
+        self assert: (msg at: "id") equals: 1
+      ]
     client stopProcess
     self assert: client stop equals: #ok
 
@@ -31,23 +38,30 @@ TestCase subclass: CodexClientTest
     config := Config fromMap: #{
       "codex" => #{"command" => "sleep 10", "read_timeout_ms" => 500}
     }
-    client := CodexClient start: "/tmp" config: config onEvent: nil
+    client := CodexClient
+      start: "/tmp"
+      config: config
+      onEvent: nil
     launchResult := client launch
-    launchResult isOk ifTrue: [
-      resp := client readResponse: 1 timeout: 500
-      self assert: resp isError
-    ]
+    launchResult isOk
+      ifTrue: [
+        resp := client readResponse: 1 timeout: 500
+        self assert: resp isError
+      ]
     client stopProcess
     self assert: client stop equals: #ok
 
   // --- Token extraction ---
-
   testExtractUsageFromTotalTokenUsage =>
-    msg := #{"params" => #{"total_token_usage" => #{
-      "input_tokens" => 100,
-      "output_tokens" => 50,
-      "total_tokens" => 150
-    }}}
+    msg := #{
+      "params" => #{
+        "total_token_usage" => #{
+          "input_tokens" => 100,
+          "output_tokens" => 50,
+          "total_tokens" => 150
+        }
+      }
+    }
     usage := CodexClient extractUsage: msg
     self deny: usage isNil
     self assert: (usage at: "input") equals: 100
@@ -55,11 +69,15 @@ TestCase subclass: CodexClientTest
     self assert: (usage at: "total") equals: 150
 
   testExtractUsageFromUsageField =>
-    msg := #{"params" => #{"usage" => #{
-      "inputTokens" => 200,
-      "outputTokens" => 80,
-      "totalTokens" => 280
-    }}}
+    msg := #{
+      "params" => #{
+        "usage" => #{
+          "inputTokens" => 200,
+          "outputTokens" => 80,
+          "totalTokens" => 280
+        }
+      }
+    }
     usage := CodexClient extractUsage: msg
     self deny: usage isNil
     self assert: (usage at: "input") equals: 200

@@ -19,41 +19,41 @@ Actor subclass: WorkflowWatcher
     watcher schedulePoll!
     watcher
 
-  schedulePoll =>
-    Timer after: self.pollIntervalMs do: [self checkForChanges!]
+  schedulePoll => Timer after: self.pollIntervalMs do: [self checkForChanges!]
 
   checkForChanges =>
     modTime := self getModTime: self.path
-    changed := self.lastModified isNil ifTrue: [
-      self.lastModified := modTime
-      false
-    ] ifFalse: [
-      modTime /= self.lastModified
-    ]
+    changed := self.lastModified isNil
+      ifTrue: [
+        self.lastModified := modTime
+        false
+      ]
+      ifFalse: [modTime /= self.lastModified]
 
-    changed ifTrue: [
-      self.lastModified := modTime
-      self doReload
-    ]
+    changed
+      ifTrue: [
+        self.lastModified := modTime
+        self doReload
+      ]
 
     self schedulePoll!
 
   doReload =>
     result := WorkflowLoader load: self.path
-    result isOk ifTrue: [
-      wf := result unwrap
-      config := Config fromMap: (wf at: "config")
-      prompt := wf at: "prompt_template"
-      Logger info: "workflow reloaded" context: #{"path" => self.path}
-      self.onReload isNil ifFalse: [
-        self.onReload value: config value: prompt
+    result isOk
+      ifTrue: [
+        wf := result unwrap
+        config := Config fromMap: (wf at: "config")
+        prompt := wf at: "prompt_template"
+        Logger info: "workflow reloaded" context: #{"path" => self.path}
+        self.onReload isNil ifFalse: [self.onReload value: config value: prompt]
       ]
-    ] ifFalse: [
-      Logger error: "workflow reload failed" context: #{
-        "path" => self.path,
-        "error" => result error displayString
-      }
-    ]
+      ifFalse: [
+        Logger error: "workflow reload failed" context: #{
+          "path" => self.path,
+          "error" => result error displayString
+        }
+      ]
 
   getModTime: filePath =>
     // Returns modification time or nil

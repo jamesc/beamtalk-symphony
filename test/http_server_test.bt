@@ -34,7 +34,9 @@ TestCase subclass: HttpServerTest
 
   testApiIssueNotFound =>
     self.srv := HttpServer start: 0 orchestrator: nil
-    url := "http://localhost:" ++ self.srv actualPort displayString ++ "/api/v1/NONEXISTENT-99"
+    url := "http://localhost:"
+      ++ self.srv actualPort displayString
+      ++ "/api/v1/NONEXISTENT-99"
     resp := (HTTPClient get: url) unwrap
     @expect type
     self assert: resp status equals: 404

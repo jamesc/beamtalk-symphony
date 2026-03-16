@@ -5,8 +5,7 @@
 
 Object subclass: DotEnv
 
-  class load: path =>
-    self new load: path
+  class load: path => self new load: path
 
   load: path =>
     result := [Erlang file read_file: path] on: Error do: [:e | ^Result ok: 0]

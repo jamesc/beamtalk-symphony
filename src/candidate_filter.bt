@@ -9,19 +9,18 @@ Object subclass: CandidateFilter
   state: terminalStates = nil
   state: maxByState = nil
 
-  class eligible: issues
-    running: running
-    claimed: claimed
-    activeStates: activeStates
-    terminalStates: terminalStates
-    maxConcurrent: maxConcurrent
-    maxByState: maxByState =>
-
-    filter := (self new) initStates: activeStates terminal: terminalStates byState: maxByState
-    filter doFilter: issues
+  class eligible: issues running: running claimed: claimed activeStates: activeStates terminalStates: terminalStates maxConcurrent: maxConcurrent maxByState: maxByState =>
+    filter := (self new)
+      initStates: activeStates
+      terminal: terminalStates
+      byState: maxByState
+    filter
+      doFilter: issues
       running: running
       claimed: claimed
       maxConcurrent: maxConcurrent
+
+  class sortForDispatch: issues => (self new) doSort: issues
 
   initStates: active terminal: terminal byState: byState =>
     self.activeStates := active
@@ -38,16 +37,27 @@ Object subclass: CandidateFilter
 
     // Use inject to accumulate results while tracking slots and state counts
     acc := #{"result" => #(), "slots" => 0, "byState" => runningByState}
-    finalAcc := issues inject: acc into: [:a :issue |
-      self accumulate: a issue: issue running: running claimed: claimed available: availableGlobal
-    ]
+    finalAcc := issues
+      inject: acc
+      into: [:a :issue |
+        self
+          accumulate: a
+          issue: issue
+          running: running
+          claimed: claimed
+          available: availableGlobal
+      ]
     finalAcc at: "result"
 
   accumulate: acc issue: issue running: running claimed: claimed available: availableGlobal =>
     slotsUsed := acc at: "slots"
     slotsUsed >= availableGlobal ifTrue: [^acc]
     runningByState := acc at: "byState"
-    (self isEligible: issue running: running claimed: claimed runningByState: runningByState) ifFalse: [^acc]
+    (self
+      isEligible: issue
+      running: running
+      claimed: claimed
+      runningByState: runningByState) ifFalse: [^acc]
     // Add to result
     newResult := (acc at: "result") add: issue
     newSlots := slotsUsed + 1
@@ -57,14 +67,18 @@ Object subclass: CandidateFilter
     #{"result" => newResult, "slots" => newSlots, "byState" => newByState}
 
   countRunningByState: running =>
-    running values inject: #{} into: [:acc :entry |
-      entryIssue := entry issue
-      entryIssue isNil ifTrue: [acc] ifFalse: [
-        st := (entryIssue at: "state" ifAbsent: [""]) lowercase
-        cur := acc at: st ifAbsent: [0]
-        acc at: st put: cur + 1
+    running values
+      inject: #{}
+      into: [:acc :entry |
+        entryIssue := entry issue
+        entryIssue isNil
+          ifTrue: [acc]
+          ifFalse: [
+            st := (entryIssue at: "state" ifAbsent: [""]) lowercase
+            cur := acc at: st ifAbsent: [0]
+            acc at: st put: cur + 1
+          ]
       ]
-    ]
 
   isEligible: issue running: running claimed: claimed runningByState: runningByState =>
     id := issue at: "id" ifAbsent: [nil]
@@ -80,43 +94,47 @@ Object subclass: CandidateFilter
     isActive := self.activeStates anySatisfy: [:s | s lowercase == stateLower]
     isActive ifFalse: [^false]
 
-    isTerminal := self.terminalStates anySatisfy: [:s | s lowercase == stateLower]
+    isTerminal := self.terminalStates anySatisfy: [:s |
+      s lowercase == stateLower
+    ]
     isTerminal ifTrue: [^false]
 
     (running includesKey: id) ifTrue: [^false]
     (claimed includes: id) ifTrue: [^false]
 
     // Per-state concurrency check
-    self.maxByState isEmpty ifFalse: [
-      stateLimit := self.maxByState at: stateLower ifAbsent: [nil]
-      stateLimit isNil ifFalse: [
-        stateCount := runningByState at: stateLower ifAbsent: [0]
-        stateCount >= stateLimit ifTrue: [^false]
+    self.maxByState isEmpty
+      ifFalse: [
+        stateLimit := self.maxByState at: stateLower ifAbsent: [nil]
+        stateLimit isNil
+          ifFalse: [
+            stateCount := runningByState at: stateLower ifAbsent: [0]
+            stateCount >= stateLimit ifTrue: [^false]
+          ]
       ]
-    ]
 
     // Blocker rule for Todo state
-    stateLower == "todo" ifTrue: [
-      blockers := issue at: "blocked_by" ifAbsent: [#()]
-      blockers isEmpty ifFalse: [
-        hasNonTerminal := blockers anySatisfy: [:b |
-          bState := b at: "state" ifAbsent: [nil]
-          bState isNil ifTrue: [true] ifFalse: [
-            (self isTerminalState: bState) not
+    stateLower == "todo"
+      ifTrue: [
+        blockers := issue at: "blocked_by" ifAbsent: [#()]
+        blockers isEmpty
+          ifFalse: [
+            hasNonTerminal := blockers
+              anySatisfy: [:b |
+                bState := b at: "state" ifAbsent: [nil]
+                bState isNil ifTrue: [
+                  true
+                ] ifFalse: [(self isTerminalState: bState) not]
+              ]
+            hasNonTerminal ifTrue: [^false]
           ]
-        ]
-        hasNonTerminal ifTrue: [^false]
       ]
-    ]
 
     true
 
   isTerminalState: state =>
     stateLower := state lowercase
     self.terminalStates anySatisfy: [:s | s lowercase == stateLower]
-
-  class sortForDispatch: issues =>
-    (self new) doSort: issues
 
   doSort: issues =>
     // sort: expects boolean comparator (a < b), not three-way
@@ -127,23 +145,25 @@ Object subclass: CandidateFilter
     pB := b at: "priority" ifAbsent: [nil]
 
     // nil priority sorts last
-    pA isNil ifTrue: [
-      pB isNil ifFalse: [^false]
-    ] ifFalse: [
-      pB isNil ifTrue: [^true]
-      pA < pB ifTrue: [^true]
-      pA > pB ifTrue: [^false]
-    ]
+    pA isNil
+      ifTrue: [pB isNil ifFalse: [^false]]
+      ifFalse: [
+        pB isNil ifTrue: [^true]
+        pA < pB ifTrue: [^true]
+        pA > pB ifTrue: [^false]
+      ]
 
     // created_at oldest first
     cA := a at: "created_at" ifAbsent: [nil]
     cB := b at: "created_at" ifAbsent: [nil]
-    cA isNil ifFalse: [
-      cB isNil ifFalse: [
-        cA < cB ifTrue: [^true]
-        cA > cB ifTrue: [^false]
+    cA isNil
+      ifFalse: [
+        cB isNil
+          ifFalse: [
+            cA < cB ifTrue: [^true]
+            cA > cB ifTrue: [^false]
+          ]
       ]
-    ]
 
     // identifier lexicographic
     iA := a at: "identifier" ifAbsent: [""]

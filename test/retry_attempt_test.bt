@@ -12,13 +12,14 @@ TestCase subclass: RetryAttemptTest
     self assert: entry error equals: nil
 
   testNewWithMap =>
-    entry := RetryAttempt new: #{
-      #issueId => "abc123",
-      #identifier => "BT-456",
-      #attempt => 3,
-      #dueAtMs => 99999,
-      #error => "turn failed"
-    }
+    entry := RetryAttempt
+      new: #{
+        #issueId => "abc123",
+        #identifier => "BT-456",
+        #attempt => 3,
+        #dueAtMs => 99999,
+        #error => "turn failed"
+      }
     self assert: entry issueId equals: "abc123"
     self assert: entry identifier equals: "BT-456"
     self assert: entry attempt equals: 3

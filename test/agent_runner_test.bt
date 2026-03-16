@@ -6,14 +6,25 @@ TestCase subclass: AgentRunnerTest
   testBuildFirstTurnPrompt =>
     issue := #{"identifier" => "BT-1", "title" => "Fix bug", "id" => "abc"}
     lb := "\{"
-    rb := "\}"
-    template := lb ++ lb ++ " issue.identifier " ++ rb ++ rb ++ ": " ++ lb ++ lb ++ " issue.title " ++ rb ++ rb
-    runner := AgentRunner spawnWith: #{
-      #issue => issue,
-      #attempt => nil,
-      #promptTemplate => template,
-      #turnNumber => 1
-    }
+    rb := "}"
+    template := lb
+      ++ lb
+      ++ " issue.identifier "
+      ++ rb
+      ++ rb
+      ++ ": "
+      ++ lb
+      ++ lb
+      ++ " issue.title "
+      ++ rb
+      ++ rb
+    runner := AgentRunner
+      spawnWith: #{
+        #issue => issue,
+        #attempt => nil,
+        #promptTemplate => template,
+        #turnNumber => 1
+      }
     result := runner buildFirstTurnPrompt
     self assert: result isOk
     self assert: result unwrap equals: "BT-1: Fix bug"
@@ -31,12 +42,13 @@ TestCase subclass: AgentRunnerTest
 
   testBuildPromptFirstTurn =>
     issue := #{"identifier" => "X-1", "title" => "Task", "id" => "x"}
-    runner := AgentRunner spawnWith: #{
-      #issue => issue,
-      #promptTemplate => "Work on it",
-      #turnNumber => 1,
-      #attempt => nil
-    }
+    runner := AgentRunner
+      spawnWith: #{
+        #issue => issue,
+        #promptTemplate => "Work on it",
+        #turnNumber => 1,
+        #attempt => nil
+      }
     result := runner buildPrompt
     self assert: result isOk
     self assert: result unwrap equals: "Work on it"

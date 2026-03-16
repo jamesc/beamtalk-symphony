@@ -12,8 +12,18 @@ Object subclass: WorkspaceManager
   state: hooksBeforeRemove = nil
   state: hooksTimeoutMs = 60000
 
-  class new: opts =>
-    (self new) initWith: opts
+  class new: opts => (self new) initWith: opts
+
+  class fromConfig: config =>
+    self
+      new: #{
+        "root" => config workspaceRoot,
+        "hooksAfterCreate" => config hooksAfterCreate,
+        "hooksBeforeRun" => config hooksBeforeRun,
+        "hooksAfterRun" => config hooksAfterRun,
+        "hooksBeforeRemove" => config hooksBeforeRemove,
+        "hooksTimeoutMs" => config hooksTimeoutMs
+      }
 
   initWith: opts =>
     self.root := opts at: "root" ifAbsent: ["/tmp/symphony_workspaces"]
@@ -24,25 +34,12 @@ Object subclass: WorkspaceManager
     self.hooksTimeoutMs := opts at: "hooksTimeoutMs" ifAbsent: [60000]
     self
 
-  class fromConfig: config =>
-    self new: #{
-      "root" => config workspaceRoot,
-      "hooksAfterCreate" => config hooksAfterCreate,
-      "hooksBeforeRun" => config hooksBeforeRun,
-      "hooksAfterRun" => config hooksAfterRun,
-      "hooksBeforeRemove" => config hooksBeforeRemove,
-      "hooksTimeoutMs" => config hooksTimeoutMs
-    }
-
   root => self.root
 
   // --- Path derivation ---
-
   sanitizeIdentifier: identifier =>
     chars := identifier collect: [:ch |
-      (ch matchesRegex: "[A-Za-z0-9._-]")
-        ifTrue: [ch]
-        ifFalse: ["_"]
+      (ch matchesRegex: "[A-Za-z0-9._-]") ifTrue: [ch] ifFalse: ["_"]
     ]
     chars join
 
@@ -51,60 +48,71 @@ Object subclass: WorkspaceManager
     self.root ++ "/" ++ key
 
   // --- Containment validation ---
-
   validateContainment: wsPath =>
     absRoot := Erlang filename absname: self.root
     absWs := Erlang filename absname: wsPath
     (absWs startsWith: absRoot ++ "/") ifTrue: [^Result ok: true]
-    absWs == absRoot ifTrue: [
-      ^Result error: #{"kind" => "invalid_workspace_path", "detail" => "workspace path equals root"}
-    ]
-    Result error: #{
-      "kind" => "invalid_workspace_path",
-      "detail" => "workspace path outside root",
-      "workspace" => absWs,
-      "root" => absRoot
-    }
+    absWs == absRoot
+      ifTrue: [
+        ^Result error: #{
+          "kind" => "invalid_workspace_path",
+          "detail" => "workspace path equals root"
+        }
+      ]
+    Result
+      error: #{
+        "kind" => "invalid_workspace_path",
+        "detail" => "workspace path outside root",
+        "workspace" => absWs,
+        "root" => absRoot
+      }
 
   // --- Create or reuse ---
-
   createForIssue: identifier =>
     wsPath := self workspacePath: identifier
     containment := self validateContainment: wsPath
     containment isError ifTrue: [^containment]
 
     alreadyExists := File isDirectory: wsPath
-    alreadyExists ifFalse: [
-      mkResult := File mkdirAll: wsPath
-      mkResult isError ifTrue: [
-        ^Result error: #{"kind" => "workspace_create_error", "detail" => mkResult error}
+    alreadyExists
+      ifFalse: [
+        mkResult := File mkdirAll: wsPath
+        mkResult isError
+          ifTrue: [
+            ^Result error: #{
+              "kind" => "workspace_create_error",
+              "detail" => mkResult error
+            }
+          ]
       ]
-    ]
 
     createdNow := alreadyExists not
 
     // Run after_create hook if newly created
-    createdNow ifTrue: [
-      self.hooksAfterCreate isNil ifFalse: [
-        hookResult := self runHook: self.hooksAfterCreate inDir: wsPath
-        hookResult isError ifTrue: [
-          File deleteAll: wsPath
-          ^Result error: #{
-            "kind" => "hook_after_create_failed",
-            "detail" => hookResult error
-          }
-        ]
+    createdNow
+      ifTrue: [
+        self.hooksAfterCreate isNil
+          ifFalse: [
+            hookResult := self runHook: self.hooksAfterCreate inDir: wsPath
+            hookResult isError
+              ifTrue: [
+                File deleteAll: wsPath
+                ^Result error: #{
+                  "kind" => "hook_after_create_failed",
+                  "detail" => hookResult error
+                }
+              ]
+          ]
       ]
-    ]
 
-    Result ok: #{
-      "path" => wsPath,
-      "workspace_key" => (self sanitizeIdentifier: identifier),
-      "created_now" => createdNow
-    }
+    Result
+      ok: #{
+        "path" => wsPath,
+        "workspace_key" => (self sanitizeIdentifier: identifier),
+        "created_now" => createdNow
+      }
 
   // --- Hook execution ---
-
   runBeforeRun: wsPath =>
     self.hooksBeforeRun isNil ifTrue: [^Result ok: true]
     self runHook: self.hooksBeforeRun inDir: wsPath
@@ -135,10 +143,15 @@ Object subclass: WorkspaceManager
     proc close
     exitCode == 0
       ifTrue: [Result ok: output]
-      ifFalse: [Result error: #{"kind" => "hook_error", "exit_code" => exitCode, "output" => output}]
+      ifFalse: [
+        Result error: #{
+          "kind" => "hook_error",
+          "exit_code" => exitCode,
+          "output" => output
+        }
+      ]
 
   // --- Cleanup ---
-
   removeWorkspace: identifier =>
     wsPath := self workspacePath: identifier
     (File isDirectory: wsPath) ifFalse: [^Result ok: true]
@@ -147,15 +160,17 @@ Object subclass: WorkspaceManager
     Result ok: true
 
   // --- Validation for agent launch ---
-
   validateCwd: cwd forIssue: identifier =>
     expected := self workspacePath: identifier
     absExpected := Erlang filename absname: expected
     absCwd := Erlang filename absname: cwd
     absExpected == absCwd
       ifTrue: [Result ok: true]
-      ifFalse: [Result error: #{
-        "kind" => "invalid_workspace_cwd",
-        "expected" => absExpected,
-        "actual" => absCwd
-      }]
+      ifFalse: [
+        Result
+          error: #{
+            "kind" => "invalid_workspace_cwd",
+            "expected" => absExpected,
+            "actual" => absCwd
+          }
+      ]

@@ -6,11 +6,12 @@
 
 Object subclass: WorkflowLoader
 
-  class load: path =>
-    self new load: path
+  class load: path => self new load: path
 
   load: path =>
-    result := [Erlang file read_file: path] on: Error do: [:e |
+    result := [
+      Erlang file read_file: path
+    ] on: Error do: [:e |
       ^Result error: #{"kind" => "missing_workflow_file", "path" => path}
     ]
     {tag, content} := result
@@ -38,15 +39,15 @@ Object subclass: WorkflowLoader
   extractFrontMatter: rest =>
     nl := String fromCodePoint: 10
     // Find closing --- index using inject (block mutations don't propagate)
-    closingIdx := rest inject: #(0, 1) into: [:acc :line |
-      found := acc at: 1
-      idx := acc at: 2
-      found == 0 ifTrue: [
-        line trim == "---" ifTrue: [#(idx, idx + 1)] ifFalse: [#(0, idx + 1)]
-      ] ifFalse: [
-        #(found, idx + 1)
+    closingIdx := rest
+      inject: #(0, 1)
+      into: [:acc :line |
+        found := acc at: 1
+        idx := acc at: 2
+        found == 0 ifTrue: [
+          line trim == "---" ifTrue: [#(idx, idx + 1)] ifFalse: [#(0, idx + 1)]
+        ] ifFalse: [#(found, idx + 1)]
       ]
-    ]
     closingIdx := closingIdx at: 1
 
     closingIdx == 0 ifTrue: [
@@ -67,15 +68,23 @@ Object subclass: WorkflowLoader
     ]
 
     yamlResult := Yaml parse: yamlText
-    yamlResult isError ifTrue: [
-      ^Result error: #{"kind" => "workflow_parse_error", "detail" => yamlResult error}
-    ]
+    yamlResult isError
+      ifTrue: [
+        ^Result error: #{
+          "kind" => "workflow_parse_error",
+          "detail" => yamlResult error
+        }
+      ]
 
     config := yamlResult unwrap
 
     // Validate config is a map/dictionary
-    (config isKindOf: Dictionary) ifFalse: [
-      ^Result error: #{"kind" => "workflow_front_matter_not_a_map", "detail" => config class name}
-    ]
+    (config isKindOf: Dictionary)
+      ifFalse: [
+        ^Result error: #{
+          "kind" => "workflow_front_matter_not_a_map",
+          "detail" => config class name
+        }
+      ]
 
     Result ok: #{"config" => config, "prompt_template" => promptBody}

@@ -17,10 +17,10 @@ Value subclass: TokenUsage
     ((self withInput: newInput) withOutput: newOutput) withTotal: newTotal
 
   markReported =>
-    ((self withLastReportedInput: self input)
-      withLastReportedOutput: self output)
-      withLastReportedTotal: self total
+    ((self withLastReportedInput: self input) withLastReportedOutput: self output) withLastReportedTotal: self total
 
   inputDelta => self input - self lastReportedInput
+
   outputDelta => self output - self lastReportedOutput
+
   totalDelta => self total - self lastReportedTotal

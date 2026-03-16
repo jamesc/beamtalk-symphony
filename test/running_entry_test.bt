@@ -12,7 +12,10 @@ TestCase subclass: RunningEntryTest
 
   testForIssueFactory =>
     issue := #{"id" => "abc", "title" => "Test"}
-    entry := RunningEntry forIssue: issue identifier: "BT-123" startedAt: 1000
+    entry := RunningEntry
+      forIssue: issue
+      identifier: "BT-123"
+      startedAt: 1000
     self assert: entry identifier equals: "BT-123"
     self assert: (entry issue at: "id") equals: "abc"
     self assert: entry startedAt equals: 1000
@@ -21,26 +24,41 @@ TestCase subclass: RunningEntryTest
     self assert: entry tokens input equals: 0
 
   testUpdateSession =>
-    entry := RunningEntry forIssue: #{"id" => "x"} identifier: "BT-1" startedAt: 0
+    entry := RunningEntry
+      forIssue: #{"id" => "x"}
+      identifier: "BT-1"
+      startedAt: 0
     newSession := (entry session withSessionId: "s1") withThreadId: "t1"
     updated := entry withSession: newSession
     self assert: updated session sessionId equals: "s1"
     self assert: updated session threadId equals: "t1"
 
   testUpdateTokens =>
-    entry := RunningEntry forIssue: #{"id" => "x"} identifier: "BT-1" startedAt: 0
-    newTokens := entry tokens applyAbsolute: 100 output: 50 total: 150
+    entry := RunningEntry
+      forIssue: #{"id" => "x"}
+      identifier: "BT-1"
+      startedAt: 0
+    newTokens := entry tokens
+      applyAbsolute: 100
+      output: 50
+      total: 150
     updated := entry withTokens: newTokens
     self assert: updated tokens input equals: 100
     self assert: updated tokens output equals: 50
 
   testIncrementTurnCount =>
-    entry := RunningEntry forIssue: #{"id" => "x"} identifier: "BT-1" startedAt: 0
+    entry := RunningEntry
+      forIssue: #{"id" => "x"}
+      identifier: "BT-1"
+      startedAt: 0
     updated := entry withSession: entry session incrementTurnCount
     self assert: updated session turnCount equals: 1
 
   testImmutability =>
-    entry := RunningEntry forIssue: #{"id" => "x"} identifier: "BT-1" startedAt: 0
+    entry := RunningEntry
+      forIssue: #{"id" => "x"}
+      identifier: "BT-1"
+      startedAt: 0
     entry withIdentifier: "changed"
     // Original unchanged
     self assert: entry identifier equals: "BT-1"

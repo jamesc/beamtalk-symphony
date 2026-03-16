@@ -7,16 +7,16 @@
 
 Object subclass: Main
 
-  class run =>
-    self new run
+  class run => self new run
 
   run =>
     // SymphonySupervisor.children loads WORKFLOW.md and creates clients itself.
     // Main just starts the supervisor and kicks off the orchestrator.
     supervisor := SymphonySupervisor supervise
     orchestrator := supervisor which: Orchestrator
-    orchestrator isNil ifFalse: [
-      orchestrator startupTerminalCleanup
-      orchestrator scheduleTick: 0
-    ]
+    orchestrator isNil
+      ifFalse: [
+        orchestrator startupTerminalCleanup
+        orchestrator scheduleTick: 0
+      ]
     supervisor

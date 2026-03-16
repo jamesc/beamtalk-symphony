@@ -3,77 +3,118 @@
 TestCase subclass: PromptRendererTest
 
   // Helper to build template strings with braces
-  var: name =>
-    "\{\{" ++ name ++ "\}\}"
+  var: name => "\{\{" ++ name ++ "}}"
 
-  ifOpen: name =>
-    "\{% if " ++ name ++ " %\}"
+  ifOpen: name => "\{% if " ++ name ++ " %}"
 
-  ifClose =>
-    "\{% endif %\}"
+  ifClose => "\{% endif %}"
 
-  forOpen: expr =>
-    "\{% for " ++ expr ++ " %\}"
+  forOpen: expr => "\{% for " ++ expr ++ " %}"
 
-  forClose =>
-    "\{% endfor %\}"
+  forClose => "\{% endfor %}"
 
   testRendersIssueFields =>
-    template := "Work on " ++ (self var: "issue.identifier") ++ ": " ++ (self var: "issue.title")
+    template := "Work on "
+      ++ (self var: "issue.identifier")
+      ++ ": "
+      ++ (self var: "issue.title")
     issue := #{"identifier" => "BT-42", "title" => "Fix the bug", "id" => "abc"}
-    result := PromptRenderer render: template issue: issue attempt: nil
+    result := PromptRenderer
+      render: template
+      issue: issue
+      attempt: nil
     self assert: result isOk
     self assert: result unwrap equals: "Work on BT-42: Fix the bug"
 
   testRendersAttemptVariable =>
     template := "Attempt: " ++ (self var: "attempt")
     issue := #{"id" => "x"}
-    result := PromptRenderer render: template issue: issue attempt: 3
+    result := PromptRenderer
+      render: template
+      issue: issue
+      attempt: 3
     self assert: result isOk
     self assert: result unwrap equals: "Attempt: 3"
 
   testNilAttemptRendersEmpty =>
     template := "Attempt: " ++ (self var: "attempt")
     issue := #{"id" => "x"}
-    result := PromptRenderer render: template issue: issue attempt: nil
+    result := PromptRenderer
+      render: template
+      issue: issue
+      attempt: nil
     self assert: result isOk
     self assert: result unwrap equals: "Attempt: "
 
   testEmptyTemplateUsesDefault =>
-    result := PromptRenderer render: "" issue: #{"id" => "x"} attempt: nil
+    result := PromptRenderer
+      render: ""
+      issue: #{"id" => "x"}
+      attempt: nil
     self assert: result isOk
     self assert: result unwrap equals: "You are working on an issue from Linear."
 
   testNilTemplateUsesDefault =>
-    result := PromptRenderer render: nil issue: #{"id" => "x"} attempt: nil
+    result := PromptRenderer
+      render: nil
+      issue: #{"id" => "x"}
+      attempt: nil
     self assert: result isOk
     self assert: result unwrap equals: "You are working on an issue from Linear."
 
   testIfBlockTrue =>
-    template := (self ifOpen: "issue.description") ++ "Desc: " ++ (self var: "issue.description") ++ (self ifClose)
+    template := (self ifOpen: "issue.description")
+      ++ "Desc: "
+      ++ (self var: "issue.description")
+      ++ self ifClose
     issue := #{"description" => "Some description"}
-    result := PromptRenderer render: template issue: issue attempt: nil
+    result := PromptRenderer
+      render: template
+      issue: issue
+      attempt: nil
     self assert: result isOk
     self assert: result unwrap equals: "Desc: Some description"
 
   testIfBlockFalse =>
-    template := "Start" ++ (self ifOpen: "issue.description") ++ " desc" ++ (self ifClose) ++ " end"
+    template := "Start"
+      ++ (self ifOpen: "issue.description")
+      ++ " desc"
+      ++ self ifClose
+      ++ " end"
     issue := #{}
-    result := PromptRenderer render: template issue: issue attempt: nil
+    result := PromptRenderer
+      render: template
+      issue: issue
+      attempt: nil
     self assert: result isOk
     self assert: result unwrap equals: "Start end"
 
   testForLoop =>
-    template := "Labels:" ++ (self forOpen: "label in issue.labels") ++ " " ++ (self var: "label") ++ (self forClose)
+    template := "Labels:"
+      ++ (self forOpen: "label in issue.labels")
+      ++ " "
+      ++ (self var: "label")
+      ++ self forClose
     issue := #{"labels" => #("bug", "urgent")}
-    result := PromptRenderer render: template issue: issue attempt: nil
+    result := PromptRenderer
+      render: template
+      issue: issue
+      attempt: nil
     self assert: result isOk
     self assert: (result unwrap includesSubstring: "bug")
     self assert: (result unwrap includesSubstring: "urgent")
 
   testMultipleInterpolations =>
-    template := (self var: "issue.identifier") ++ ": " ++ (self var: "issue.title") ++ " (" ++ (self var: "attempt") ++ ")"
+    template := (self var: "issue.identifier")
+      ++ ": "
+      ++ (self var: "issue.title")
+      ++ " ("
+      ++ (self var: "attempt")
+      ++ ")"
     issue := #{"identifier" => "X-1", "title" => "Do it"}
-    result := PromptRenderer render: template issue: issue attempt: 2
+    result := PromptRenderer
+      render: template
+      issue: issue
+      attempt: 2
     self assert: result isOk
     self assert: result unwrap equals: "X-1: Do it (2)"

@@ -20,8 +20,34 @@ Actor subclass: CodexClient
     }
     client
 
-  // --- Subprocess lifecycle ---
+  // --- Token and rate-limit extraction ---
+  class extractUsage: msg =>
+    // Look for token usage in common payload shapes
+    params := msg at: "params" ifAbsent: [#{}]
+    // Prefer total_token_usage, fallback to usage
+    usage := params at: "total_token_usage" ifAbsent: [nil]
+    usage := usage isNil ifTrue: [
+      params at: "usage" ifAbsent: [nil]
+    ] ifFalse: [usage]
+    usage isNil ifTrue: [^nil]
+    (usage isKindOf: Dictionary) ifFalse: [^nil]
+    #{
+      "input" => (usage at: "input_tokens" ifAbsent: [
+        usage at: "inputTokens" ifAbsent: [0]
+      ]),
+      "output" => (usage at: "output_tokens" ifAbsent: [
+        usage at: "outputTokens" ifAbsent: [0]
+      ]),
+      "total" => (usage at: "total_tokens" ifAbsent: [
+        usage at: "totalTokens" ifAbsent: [0]
+      ])
+    }
 
+  class extractRateLimits: msg =>
+    params := msg at: "params" ifAbsent: [#{}]
+    params at: "rate_limits" ifAbsent: [params at: "rateLimits" ifAbsent: [nil]]
+
+  // --- Subprocess lifecycle ---
   launch =>
     cmd := "cd " ++ self.workspacePath ++ " && " ++ self.config codexCommand
     procResult := [
@@ -29,23 +55,26 @@ Actor subclass: CodexClient
     ] on: Error do: [:e |
       ^Result error: #{"kind" => "codex_not_found", "detail" => e message}
     ]
-    procResult isError ifTrue: [
-      ^Result error: #{"kind" => "codex_not_found", "detail" => procResult error displayString}
-    ]
+    procResult isError
+      ifTrue: [
+        ^Result error: #{
+          "kind" => "codex_not_found",
+          "detail" => procResult error displayString
+        }
+      ]
     self.proc := procResult unwrap
     Result ok: self
 
   stopProcess =>
-    self.proc isNil ifFalse: [
-  
-      self.proc close
-  
-      self.proc stop
-      self.proc := nil
-    ]
+    self.proc isNil
+      ifFalse: [
+        self.proc close
+
+        self.proc stop
+        self.proc := nil
+      ]
 
   // --- JSON-RPC protocol ---
-
   sendRequest: method params: params =>
     id := self.nextId
     self.nextId := self.nextId + 1
@@ -75,22 +104,23 @@ Actor subclass: CodexClient
     readTimeout := remaining > 1000 ifTrue: [1000] ifFalse: [remaining]
 
     line := self.proc readLine: readTimeout
-    line isNil ifTrue: [
-      // Check if process exited
-  
-      exitCode := self.proc exitCode
-      exitCode isNil ifFalse: [
-        ^Result error: #{"kind" => "port_exit", "exit_code" => exitCode}
+    line isNil
+      ifTrue: [
+        // Check if process exited
+        exitCode := self.proc exitCode
+        exitCode isNil ifFalse: [
+          ^Result error: #{"kind" => "port_exit", "exit_code" => exitCode}
+        ]
+        // No line yet, keep trying
+        ^self readUntilResponse: expectedId deadline: deadline
       ]
-      // No line yet, keep trying
-      ^self readUntilResponse: expectedId deadline: deadline
-    ]
     // Try to parse as JSON
     parsed := [Json parse: line] on: Error do: [:e | nil]
-    parsed isNil ifTrue: [
-      // Non-JSON line (stderr leak or garbage), skip
-      ^self readUntilResponse: expectedId deadline: deadline
-    ]
+    parsed isNil
+      ifTrue: [
+        // Non-JSON line (stderr leak or garbage), skip
+        ^self readUntilResponse: expectedId deadline: deadline
+      ]
     parsedMsg := parsed unwrap
     // Check if this is our response
     msgId := parsedMsg at: "id" ifAbsent: [nil]
@@ -100,7 +130,6 @@ Actor subclass: CodexClient
     self readUntilResponse: expectedId deadline: deadline
 
   // --- Session startup handshake ---
-
   startSession =>
     launchResult := self launch
     launchResult isError ifTrue: [^launchResult]
@@ -108,15 +137,23 @@ Actor subclass: CodexClient
     readTimeout := self.config codexReadTimeoutMs
 
     // Step 1: initialize request
-    initId := self sendRequest: "initialize" params: #{
-      "clientInfo" => #{"name" => "symphony", "version" => "1.0"},
-      "capabilities" => #{}
-    }
+    initId := self
+      sendRequest: "initialize"
+      params: #{
+        "clientInfo" => #{"name" => "symphony", "version" => "1.0"},
+        "capabilities" => #{}
+      }
     initResp := self readResponse: initId timeout: readTimeout
-    initResp isError ifTrue: [
-      self stopProcess
-      ^Result error: #{"kind" => "startup_failed", "step" => "initialize", "detail" => initResp error}
-    ]
+    initResp isError
+      ifTrue: [
+        self stopProcess
+        ^Result
+          error: #{
+            "kind" => "startup_failed",
+            "step" => "initialize",
+            "detail" => initResp error
+          }
+      ]
 
     // Step 2: initialized notification
     self sendNotification: "initialized" params: #{}
@@ -126,10 +163,16 @@ Actor subclass: CodexClient
       "cwd" => self.workspacePath
     }
     threadResp := self readResponse: threadId timeout: readTimeout
-    threadResp isError ifTrue: [
-      self stopProcess
-      ^Result error: #{"kind" => "startup_failed", "step" => "thread/start", "detail" => threadResp error}
-    ]
+    threadResp isError
+      ifTrue: [
+        self stopProcess
+        ^Result
+          error: #{
+            "kind" => "startup_failed",
+            "step" => "thread/start",
+            "detail" => threadResp error
+          }
+      ]
 
     // Extract thread ID from response
     threadData := threadResp unwrap
@@ -140,15 +183,16 @@ Actor subclass: CodexClient
     Result ok: #{"threadId" => tid}
 
   // --- Turn management ---
-
   startTurn: threadId prompt: prompt title: title =>
     readTimeout := self.config codexReadTimeoutMs
-    turnId := self sendRequest: "turn/start" params: #{
-      "threadId" => threadId,
-      "input" => #(#{"type" => "text", "text" => prompt}),
-      "cwd" => self.workspacePath,
-      "title" => title
-    }
+    turnId := self
+      sendRequest: "turn/start"
+      params: #{
+        "threadId" => threadId,
+        "input" => #(#{"type" => "text", "text" => prompt}),
+        "cwd" => self.workspacePath,
+        "title" => title
+      }
     turnResp := self readResponse: turnId timeout: readTimeout
     turnResp isError ifTrue: [^turnResp]
 
@@ -166,20 +210,18 @@ Actor subclass: CodexClient
 
   streamUntilDone: deadline =>
     remaining := deadline - (Erlang erlang monotonic_time: #millisecond)
-    remaining <= 0 ifTrue: [
-      ^Result error: #{"kind" => "turn_timeout"}
-    ]
+    remaining <= 0 ifTrue: [^Result error: #{"kind" => "turn_timeout"}]
     readTimeout := remaining > 1000 ifTrue: [1000] ifFalse: [remaining]
 
     line := self.proc readLine: readTimeout
-    line isNil ifTrue: [
-  
-      exitCode := self.proc exitCode
-      exitCode isNil ifFalse: [
-        ^Result error: #{"kind" => "port_exit", "exit_code" => exitCode}
+    line isNil
+      ifTrue: [
+        exitCode := self.proc exitCode
+        exitCode isNil ifFalse: [
+          ^Result error: #{"kind" => "port_exit", "exit_code" => exitCode}
+        ]
+        ^self streamUntilDone: deadline
       ]
-      ^self streamUntilDone: deadline
-    ]
     parsed := [Json parse: line] on: Error do: [:e | nil]
     parsed isNil ifTrue: [^self streamUntilDone: deadline]
     msg := parsed unwrap
@@ -189,79 +231,68 @@ Actor subclass: CodexClient
     method := msg at: "method" ifAbsent: [nil]
 
     // Check for turn completion
-    method == "turn/completed" ifTrue: [
-      self emitEvent: msg
-      ^Result ok: #{"status" => "completed", "message" => msg}
-    ]
-    method == "turn/failed" ifTrue: [
-      self emitEvent: msg
-      ^Result error: #{"kind" => "turn_failed", "message" => msg}
-    ]
-    method == "turn/cancelled" ifTrue: [
-      self emitEvent: msg
-      ^Result error: #{"kind" => "turn_cancelled", "message" => msg}
-    ]
+    method == "turn/completed"
+      ifTrue: [
+        self emitEvent: msg
+        ^Result ok: #{"status" => "completed", "message" => msg}
+      ]
+    method == "turn/failed"
+      ifTrue: [
+        self emitEvent: msg
+        ^Result error: #{"kind" => "turn_failed", "message" => msg}
+      ]
+    method == "turn/cancelled"
+      ifTrue: [
+        self emitEvent: msg
+        ^Result error: #{"kind" => "turn_cancelled", "message" => msg}
+      ]
 
     // Handle approval requests — auto-approve
     id := msg at: "id" ifAbsent: [nil]
-    (method == "item/approval/request") ifTrue: [
-      self sendJson: #{"id" => id, "result" => #{"approved" => true}}
-      self emitEvent: msg
-      ^self streamUntilDone: deadline
-    ]
+    (method == "item/approval/request")
+      ifTrue: [
+        self sendJson: #{"id" => id, "result" => #{"approved" => true}}
+        self emitEvent: msg
+        ^self streamUntilDone: deadline
+      ]
 
     // Handle user input required — hard failure
-    (method == "item/tool/requestUserInput") ifTrue: [
-      self emitEvent: msg
-      ^Result error: #{"kind" => "turn_input_required", "message" => msg}
-    ]
+    (method == "item/tool/requestUserInput")
+      ifTrue: [
+        self emitEvent: msg
+        ^Result error: #{"kind" => "turn_input_required", "message" => msg}
+      ]
 
     // Handle unsupported tool calls
-    (method == "item/tool/call") ifTrue: [
-      self sendJson: #{"id" => id, "result" => #{"success" => false, "error" => "unsupported_tool_call"}}
-      self emitEvent: msg
-      ^self streamUntilDone: deadline
-    ]
+    (method == "item/tool/call")
+      ifTrue: [
+        self
+          sendJson: #{
+            "id" => id,
+            "result" => #{
+              "success" => false,
+              "error" => "unsupported_tool_call"
+            }
+          }
+        self emitEvent: msg
+        ^self streamUntilDone: deadline
+      ]
 
     // Any other message — emit as event and continue
     self emitEvent: msg
     self streamUntilDone: deadline
 
-  // --- Token and rate-limit extraction ---
-
-  class extractUsage: msg =>
-    // Look for token usage in common payload shapes
-    params := msg at: "params" ifAbsent: [#{}]
-    // Prefer total_token_usage, fallback to usage
-    usage := params at: "total_token_usage" ifAbsent: [nil]
-    usage := usage isNil
-      ifTrue: [params at: "usage" ifAbsent: [nil]]
-      ifFalse: [usage]
-    usage isNil ifTrue: [^nil]
-    (usage isKindOf: Dictionary) ifFalse: [^nil]
-    #{
-      "input" => (usage at: "input_tokens" ifAbsent: [usage at: "inputTokens" ifAbsent: [0]]),
-      "output" => (usage at: "output_tokens" ifAbsent: [usage at: "outputTokens" ifAbsent: [0]]),
-      "total" => (usage at: "total_tokens" ifAbsent: [usage at: "totalTokens" ifAbsent: [0]])
-    }
-
-  class extractRateLimits: msg =>
-    params := msg at: "params" ifAbsent: [#{}]
-    params at: "rate_limits" ifAbsent: [
-      params at: "rateLimits" ifAbsent: [nil]
-    ]
-
   // --- Event emission ---
-
   emitEvent: msg =>
-    self.onEvent isNil ifFalse: [
-      // Enrich with extracted usage and rate limits
-      event := #{
-        "raw" => msg,
-        "method" => (msg at: "method" ifAbsent: [nil]),
-        "usage" => (CodexClient extractUsage: msg),
-        "rateLimits" => (CodexClient extractRateLimits: msg),
-        "timestamp" => (Erlang erlang monotonic_time: #millisecond)
-      }
-      self.onEvent value: event
-    ]
+    self.onEvent isNil
+      ifFalse: [
+        // Enrich with extracted usage and rate limits
+        event := #{
+          "raw" => msg,
+          "method" => (msg at: "method" ifAbsent: [nil]),
+          "usage" => (CodexClient extractUsage: msg),
+          "rateLimits" => (CodexClient extractRateLimits: msg),
+          "timestamp" => (Erlang erlang monotonic_time: #millisecond)
+        }
+        self.onEvent value: event
+      ]

@@ -11,85 +11,114 @@ Object subclass: LinearClient
   state: projectSlug = ""
   state: timeout = 30000
 
-  class new: opts =>
-    (self new) initWith: opts
-
-  initWith: opts =>
-    self.endpoint := opts at: "endpoint" ifAbsent: ["https://api.linear.app/graphql"]
-    self.apiKey := opts at: "apiKey" ifAbsent: [""]
-    self.projectSlug := opts at: "projectSlug" ifAbsent: [""]
-    self.timeout := opts at: "timeout" ifAbsent: [30000]
-    self
+  class new: opts => (self new) initWith: opts
 
   class fromConfig: config =>
     apiKey := config trackerApiKey
     apiKey isNil ifTrue: [apiKey := ""]
     slug := config trackerProjectSlug
     slug isNil ifTrue: [slug := ""]
-    self new: #{
-      "endpoint" => config trackerEndpoint,
-      "apiKey" => apiKey,
-      "projectSlug" => slug,
-      "timeout" => 30000
-    }
+    self
+      new: #{
+        "endpoint" => config trackerEndpoint,
+        "apiKey" => apiKey,
+        "projectSlug" => slug,
+        "timeout" => 30000
+      }
+
+  // --- Error helpers ---
+  class errorKind: result =>
+    result isError ifFalse: [^nil]
+    err := result error
+    (err isKindOf: Dictionary) ifTrue: [^err at: "kind" ifAbsent: ["unknown"]]
+    "unknown"
+
+  initWith: opts =>
+    self.endpoint := opts at: "endpoint" ifAbsent: [
+      "https://api.linear.app/graphql"
+    ]
+    self.apiKey := opts at: "apiKey" ifAbsent: [""]
+    self.projectSlug := opts at: "projectSlug" ifAbsent: [""]
+    self.timeout := opts at: "timeout" ifAbsent: [30000]
+    self
 
   endpoint => self.endpoint
+
   apiKey => self.apiKey
+
   projectSlug => self.projectSlug
 
   // --- Core GraphQL transport ---
-
   query: queryStr variables: vars =>
     body := Json generate: #{"query" => queryStr, "variables" => vars}
     httpResult := HTTPClient
       request: #post
       url: self.endpoint
       options: #{
-        #headers => #(
-          #("Authorization", self.apiKey),
-          #("Content-Type", "application/json")
-        ),
+        #headers => #(#("Authorization", self.apiKey), #("Content-Type", "application/json")),
         #body => body,
         #timeout => self.timeout
       }
 
-    httpResult isError ifTrue: [
-      ^Result error: #{"kind" => "linear_api_request", "detail" => httpResult error displayString}
-    ]
+    httpResult isError
+      ifTrue: [
+        ^Result error: #{
+          "kind" => "linear_api_request",
+          "detail" => httpResult error displayString
+        }
+      ]
 
     resp := httpResult unwrap
     self parseResponse: resp
 
   parseResponse: resp =>
-    resp ok ifFalse: [
-      ^Result error: #{"kind" => "linear_api_status", "status" => resp status, "body" => resp body}
-    ]
+    resp ok
+      ifFalse: [
+        ^Result error: #{
+          "kind" => "linear_api_status",
+          "status" => resp status,
+          "body" => resp body
+        }
+      ]
 
-    jsonBody := [resp bodyAsJson] on: Error do: [:e |
-      ^Result error: #{"kind" => "linear_unknown_payload", "detail" => e message}
-    ]
+    jsonBody := [resp bodyAsJson]
+      on: Error
+      do: [:e |
+        ^Result error: #{
+          "kind" => "linear_unknown_payload",
+          "detail" => e message
+        }
+      ]
 
     errors := jsonBody at: "errors" ifAbsent: [nil]
-    errors isNil ifFalse: [
-      ^Result error: #{
-        "kind" => "linear_graphql_errors",
-        "errors" => errors,
-        "data" => (jsonBody at: "data" ifAbsent: [nil])
-      }
-    ]
+    errors isNil
+      ifFalse: [
+        ^Result
+          error: #{
+            "kind" => "linear_graphql_errors",
+            "errors" => errors,
+            "data" => (jsonBody at: "data" ifAbsent: [nil])
+          }
+      ]
 
     data := jsonBody at: "data" ifAbsent: [nil]
-    data isNil ifTrue: [
-      ^Result error: #{"kind" => "linear_unknown_payload", "detail" => "missing data field"}
-    ]
+    data isNil
+      ifTrue: [
+        ^Result error: #{
+          "kind" => "linear_unknown_payload",
+          "detail" => "missing data field"
+        }
+      ]
 
     Result ok: data
 
   // --- Candidate issue fetch (BT-1376) ---
-
   fetchCandidateIssues: activeStates =>
     activeStates isEmpty ifTrue: [^Result ok: #()]
-    self fetchAllPages: activeStates cursor: nil accumulated: #()
+    self
+      fetchAllPages: activeStates
+      cursor: nil
+      accumulated: #()
 
   fetchAllPages: activeStates cursor: cursor accumulated: acc =>
     vars := #{
@@ -97,16 +126,20 @@ Object subclass: LinearClient
       "states" => activeStates,
       "first" => 50
     }
-    vars := cursor isNil
-      ifTrue: [vars]
-      ifFalse: [vars at: "after" put: cursor]
+    vars := cursor isNil ifTrue: [vars] ifFalse: [vars at: "after" put: cursor]
 
     result := self query: self candidateQuery variables: vars
     result isError ifTrue: [^result]
 
     data := result unwrap
     issues := data at: "issues" ifAbsent: [nil]
-    issues isNil ifTrue: [^Result error: #{"kind" => "linear_unknown_payload", "detail" => "missing issues"}]
+    issues isNil
+      ifTrue: [
+        ^Result error: #{
+          "kind" => "linear_unknown_payload",
+          "detail" => "missing issues"
+        }
+      ]
 
     nodes := issues at: "nodes" ifAbsent: [#()]
     normalized := nodes collect: [:node | self normalizeIssue: node]
@@ -120,32 +153,34 @@ Object subclass: LinearClient
     endCursor isNil ifTrue: [
       ^Result error: #{"kind" => "linear_missing_end_cursor"}
     ]
-    self fetchAllPages: activeStates cursor: endCursor accumulated: newAcc
+    self
+      fetchAllPages: activeStates
+      cursor: endCursor
+      accumulated: newAcc
 
   candidateQuery =>
     "query($projectSlug: String!, $states: [String!]!, $first: Int!, $after: String) \{
       issues(
         filter: \{
-          project: \{ slugId: \{ eq: $projectSlug \} \},
-          state: \{ name: \{ in: $states \} \}
-        \},
+          project: \{ slugId: \{ eq: $projectSlug } },
+          state: \{ name: \{ in: $states } }
+        },
         first: $first,
         after: $after
       ) \{
-        pageInfo \{ hasNextPage endCursor \}
+        pageInfo \{ hasNextPage endCursor }
         nodes \{
           id identifier title description priority url
           createdAt updatedAt
-          state \{ name \}
-          labels \{ nodes \{ name \} \}
-          inverseRelations \{ nodes \{ type relatedIssue \{ id identifier state \{ name \} \} \} \}
+          state \{ name }
+          labels \{ nodes \{ name } }
+          inverseRelations \{ nodes \{ type relatedIssue \{ id identifier state \{ name } } } }
           branchName
-        \}
-      \}
-    \}"
+        }
+      }
+    }"
 
   // --- Issue state refresh (BT-1377) ---
-
   fetchIssueStatesByIds: ids =>
     ids isEmpty ifTrue: [^Result ok: #()]
     result := self query: self stateRefreshQuery variables: #{"ids" => ids}
@@ -153,15 +188,20 @@ Object subclass: LinearClient
 
     data := result unwrap
     nodes := data at: "nodes" ifAbsent: [#()]
-    normalized := nodes collect: [:node |
-      node isNil ifTrue: [nil] ifFalse: [
-        #{
-          "id" => (node at: "id" ifAbsent: [nil]),
-          "identifier" => (node at: "identifier" ifAbsent: [nil]),
-          "state" => ((node at: "state" ifAbsent: [#{}]) at: "name" ifAbsent: [nil])
-        }
+    normalized := nodes
+      collect: [:node |
+        node isNil
+          ifTrue: [nil]
+          ifFalse: [
+            #{
+              "id" => (node at: "id" ifAbsent: [nil]),
+              "identifier" => (node at: "identifier" ifAbsent: [nil]),
+              "state" => ((node at: "state" ifAbsent: [
+                #{}
+              ]) at: "name" ifAbsent: [nil])
+            }
+          ]
       ]
-    ]
     Result ok: (normalized reject: [:n | n isNil])
 
   stateRefreshQuery =>
@@ -169,13 +209,12 @@ Object subclass: LinearClient
       nodes(ids: $ids) \{
         ... on Issue \{
           id identifier
-          state \{ name \}
-        \}
-      \}
-    \}"
+          state \{ name }
+        }
+      }
+    }"
 
   // --- Terminal issues fetch (BT-1377) ---
-
   fetchIssuesByStates: stateNames =>
     stateNames isEmpty ifTrue: [^Result ok: #()]
     result := self query: self terminalQuery variables: #{
@@ -194,24 +233,25 @@ Object subclass: LinearClient
     "query($projectSlug: String!, $states: [String!]!) \{
       issues(
         filter: \{
-          project: \{ slugId: \{ eq: $projectSlug \} \},
-          state: \{ name: \{ in: $states \} \}
-        \},
+          project: \{ slugId: \{ eq: $projectSlug } },
+          state: \{ name: \{ in: $states } }
+        },
         first: 250
       ) \{
         nodes \{
           id identifier title
-          state \{ name \}
-        \}
-      \}
-    \}"
+          state \{ name }
+        }
+      }
+    }"
 
   // --- Issue normalization ---
-
   normalizeIssue: node =>
     state := (node at: "state" ifAbsent: [#{}]) at: "name" ifAbsent: [nil]
     labels := self normalizeLabels: (node at: "labels" ifAbsent: [nil])
-    blockers := self normalizeBlockers: (node at: "inverseRelations" ifAbsent: [nil])
+    blockers := self normalizeBlockers: (node at: "inverseRelations" ifAbsent: [
+      nil
+    ])
     priority := node at: "priority" ifAbsent: [nil]
     priority := (priority isKindOf: Integer) ifTrue: [priority] ifFalse: [nil]
     #{
@@ -238,20 +278,15 @@ Object subclass: LinearClient
     relationsObj isNil ifTrue: [^#()]
     nodes := relationsObj at: "nodes" ifAbsent: [#()]
     // Only include inverse relations of type "blocks"
-    blockers := nodes select: [:r | (r at: "type" ifAbsent: [""])  == "blocks"]
-    blockers collect: [:r |
-      related := r at: "relatedIssue" ifAbsent: [#{}]
-      #{
-        "id" => (related at: "id" ifAbsent: [nil]),
-        "identifier" => (related at: "identifier" ifAbsent: [nil]),
-        "state" => ((related at: "state" ifAbsent: [#{}]) at: "name" ifAbsent: [nil])
-      }
-    ]
-
-  // --- Error helpers ---
-
-  class errorKind: result =>
-    result isError ifFalse: [^nil]
-    err := result error
-    (err isKindOf: Dictionary) ifTrue: [^err at: "kind" ifAbsent: ["unknown"]]
-    "unknown"
+    blockers := nodes select: [:r | (r at: "type" ifAbsent: [""]) == "blocks"]
+    blockers
+      collect: [:r |
+        related := r at: "relatedIssue" ifAbsent: [#{}]
+        #{
+          "id" => (related at: "id" ifAbsent: [nil]),
+          "identifier" => (related at: "identifier" ifAbsent: [nil]),
+          "state" => ((related at: "state" ifAbsent: [
+            #{}
+          ]) at: "name" ifAbsent: [nil])
+        }
+      ]

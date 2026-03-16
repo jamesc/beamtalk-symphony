@@ -52,36 +52,36 @@ TestCase subclass: ConfigTest
     self assert: config trackerApiKey equals: nil
 
   testCodexSettings =>
-    config := Config fromMap: #{
-      "codex" => #{
-        "command" => "my-codex",
-        "turn_timeout_ms" => 5000,
-        "read_timeout_ms" => 1000,
-        "stall_timeout_ms" => 2000
+    config := Config
+      fromMap: #{
+        "codex" => #{
+          "command" => "my-codex",
+          "turn_timeout_ms" => 5000,
+          "read_timeout_ms" => 1000,
+          "stall_timeout_ms" => 2000
+        }
       }
-    }
     self assert: config codexCommand equals: "my-codex"
     self assert: config codexTurnTimeoutMs equals: 5000
     self assert: config codexReadTimeoutMs equals: 1000
     self assert: config codexStallTimeoutMs equals: 2000
 
   testIntegerCoercionFromString =>
-    config := Config fromMap: #{
-      "polling" => #{"interval_ms" => "15000"}
-    }
+    config := Config fromMap: #{"polling" => #{"interval_ms" => "15000"}}
     self assert: config pollIntervalMs equals: 15000
 
   testMaxConcurrentAgentsByState =>
-    config := Config fromMap: #{
-      "agent" => #{
-        "max_concurrent_agents_by_state" => #{
-          "Todo" => 2,
-          "In Progress" => 5,
-          "invalid" => -1,
-          "bad" => "not_a_number"
+    config := Config
+      fromMap: #{
+        "agent" => #{
+          "max_concurrent_agents_by_state" => #{
+            "Todo" => 2,
+            "In Progress" => 5,
+            "invalid" => -1,
+            "bad" => "not_a_number"
+          }
         }
       }
-    }
     byState := config maxConcurrentAgentsByState
     self assert: (byState at: "todo") equals: 2
     self assert: (byState at: "in progress") equals: 5
@@ -90,15 +90,16 @@ TestCase subclass: ConfigTest
     self deny: (byState includesKey: "bad")
 
   testHooksConfig =>
-    config := Config fromMap: #{
-      "hooks" => #{
-        "after_create" => "git clone ...",
-        "before_run" => "git pull",
-        "after_run" => "cleanup.sh",
-        "before_remove" => "archive.sh",
-        "timeout_ms" => 30000
+    config := Config
+      fromMap: #{
+        "hooks" => #{
+          "after_create" => "git clone ...",
+          "before_run" => "git pull",
+          "after_run" => "cleanup.sh",
+          "before_remove" => "archive.sh",
+          "timeout_ms" => 30000
+        }
       }
-    }
     self assert: config hooksAfterCreate equals: "git clone ..."
     self assert: config hooksBeforeRun equals: "git pull"
     self assert: config hooksAfterRun equals: "cleanup.sh"
@@ -114,16 +115,16 @@ TestCase subclass: ConfigTest
     self assert: config serverPort equals: nil
 
   // --- Validation ---
-
   testValidateOk =>
     Erlang os putenv: "TEST_VALID_KEY" value: "some_key"
-    config := Config fromMap: #{
-      "tracker" => #{
-        "kind" => "linear",
-        "api_key" => "$TEST_VALID_KEY",
-        "project_slug" => "my-proj"
+    config := Config
+      fromMap: #{
+        "tracker" => #{
+          "kind" => "linear",
+          "api_key" => "$TEST_VALID_KEY",
+          "project_slug" => "my-proj"
+        }
       }
-    }
     result := config validate
     self assert: result isOk
 
@@ -158,14 +159,15 @@ TestCase subclass: ConfigTest
 
   testValidateEmptyCodexCommand =>
     Erlang os putenv: "TEST_CMD_KEY" value: "key"
-    config := Config fromMap: #{
-      "tracker" => #{
-        "kind" => "linear",
-        "api_key" => "$TEST_CMD_KEY",
-        "project_slug" => "p"
-      },
-      "codex" => #{"command" => ""}
-    }
+    config := Config
+      fromMap: #{
+        "tracker" => #{
+          "kind" => "linear",
+          "api_key" => "$TEST_CMD_KEY",
+          "project_slug" => "p"
+        },
+        "codex" => #{"command" => ""}
+      }
     result := config validate
     self assert: result isError
     self assert: (result error at: "check") equals: "codex.command"

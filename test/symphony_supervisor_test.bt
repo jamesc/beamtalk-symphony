@@ -3,8 +3,6 @@
 
 TestCase subclass: SymphonySupervisorTest
 
-  testStrategy =>
-    self assert: SymphonySupervisor strategy equals: #oneForOne
+  testStrategy => self assert: SymphonySupervisor strategy equals: #oneForOne
 
-  testIsSupervisor =>
-    self assert: SymphonySupervisor isSupervisor
+  testIsSupervisor => self assert: SymphonySupervisor isSupervisor

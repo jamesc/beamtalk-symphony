@@ -5,27 +5,41 @@ TestCase subclass: OrchestratorTest
 
   testStartCreatesActor =>
     Erlang os putenv: "ORCH_TEST_KEY" value: "test_key"
-    config := Config fromMap: #{
-      "tracker" => #{
-        "kind" => "linear",
-        "api_key" => "$ORCH_TEST_KEY",
-        "project_slug" => "test"
+    config := Config
+      fromMap: #{
+        "tracker" => #{
+          "kind" => "linear",
+          "api_key" => "$ORCH_TEST_KEY",
+          "project_slug" => "test"
+        }
       }
-    }
     lc := LinearClient new: #{"apiKey" => "test"}
     wm := WorkspaceManager new: #{"root" => "/tmp/test"}
-    orch := Orchestrator start: config linearClient: lc workspaceManager: wm promptTemplate: "test"
+    orch := Orchestrator
+      start: config
+      linearClient: lc
+      workspaceManager: wm
+      promptTemplate: "test"
     self assert: orch isAlive
     self assert: orch stop equals: #ok
 
   testGetSnapshotEmpty =>
     Erlang os putenv: "ORCH_TEST_KEY2" value: "test_key"
-    config := Config fromMap: #{
-      "tracker" => #{"kind" => "linear", "api_key" => "$ORCH_TEST_KEY2", "project_slug" => "test"}
-    }
+    config := Config
+      fromMap: #{
+        "tracker" => #{
+          "kind" => "linear",
+          "api_key" => "$ORCH_TEST_KEY2",
+          "project_slug" => "test"
+        }
+      }
     lc := LinearClient new: #{"apiKey" => "test"}
     wm := WorkspaceManager new: #{"root" => "/tmp/test"}
-    orch := Orchestrator start: config linearClient: lc workspaceManager: wm promptTemplate: "test"
+    orch := Orchestrator
+      start: config
+      linearClient: lc
+      workspaceManager: wm
+      promptTemplate: "test"
     snapshot := orch getSnapshot
     counts := snapshot at: "counts"
     self assert: (counts at: "running") equals: 0
@@ -39,25 +53,38 @@ TestCase subclass: OrchestratorTest
 
   testReloadConfig =>
     Erlang os putenv: "ORCH_TEST_KEY3" value: "test_key"
-    config := Config fromMap: #{
-      "tracker" => #{"kind" => "linear", "api_key" => "$ORCH_TEST_KEY3", "project_slug" => "test"},
-      "polling" => #{"interval_ms" => 30000}
-    }
+    config := Config
+      fromMap: #{
+        "tracker" => #{
+          "kind" => "linear",
+          "api_key" => "$ORCH_TEST_KEY3",
+          "project_slug" => "test"
+        },
+        "polling" => #{"interval_ms" => 30000}
+      }
     lc := LinearClient new: #{"apiKey" => "test"}
     wm := WorkspaceManager new: #{"root" => "/tmp/test"}
-    orch := Orchestrator start: config linearClient: lc workspaceManager: wm promptTemplate: "old prompt"
+    orch := Orchestrator
+      start: config
+      linearClient: lc
+      workspaceManager: wm
+      promptTemplate: "old prompt"
 
-    newConfig := Config fromMap: #{
-      "tracker" => #{"kind" => "linear", "api_key" => "$ORCH_TEST_KEY3", "project_slug" => "test"},
-      "polling" => #{"interval_ms" => 5000}
-    }
+    newConfig := Config
+      fromMap: #{
+        "tracker" => #{
+          "kind" => "linear",
+          "api_key" => "$ORCH_TEST_KEY3",
+          "project_slug" => "test"
+        },
+        "polling" => #{"interval_ms" => 5000}
+      }
     orch reloadConfig: newConfig prompt: "new prompt"
     // No crash — config reload accepted
     self assert: orch isAlive
     self assert: orch stop equals: #ok
 
   // --- Retry backoff ---
-
   testRetryBackoffCalculation =>
     // Verify the backoff formula via RetryAttempt (used by Orchestrator)
     self assert: (RetryAttempt backoffMs: 1 maxMs: 300000) equals: 10000
@@ -68,15 +95,23 @@ TestCase subclass: OrchestratorTest
     self assert: RetryAttempt continuationDelayMs equals: 1000
 
   // --- Snapshot structure ---
-
   testSnapshotStructure =>
     Erlang os putenv: "ORCH_TEST_KEY4" value: "test_key"
-    config := Config fromMap: #{
-      "tracker" => #{"kind" => "linear", "api_key" => "$ORCH_TEST_KEY4", "project_slug" => "test"}
-    }
+    config := Config
+      fromMap: #{
+        "tracker" => #{
+          "kind" => "linear",
+          "api_key" => "$ORCH_TEST_KEY4",
+          "project_slug" => "test"
+        }
+      }
     lc := LinearClient new: #{"apiKey" => "test"}
     wm := WorkspaceManager new: #{"root" => "/tmp/test"}
-    orch := Orchestrator start: config linearClient: lc workspaceManager: wm promptTemplate: "test"
+    orch := Orchestrator
+      start: config
+      linearClient: lc
+      workspaceManager: wm
+      promptTemplate: "test"
     snapshot := orch getSnapshot
     // Verify all expected keys exist
     self assert: (snapshot includesKey: "counts")

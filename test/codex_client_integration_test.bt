@@ -24,17 +24,23 @@ TestCase subclass: CodexClientIntegrationTest
     config := Config fromMap: #{
       "codex" => #{"command" => "codex app-server", "read_timeout_ms" => 30000}
     }
-    client := CodexClient start: self.tmpDir config: config onEvent: nil
-    sessionResult := [client startSession] on: Error do: [:e |
-      client stopProcess
-      client stop
-      ^self skip: "codex handshake error"
-    ]
-    sessionResult isError ifTrue: [
-      client stopProcess
-      client stop
-      ^self skip: "codex session error"
-    ]
+    client := CodexClient
+      start: self.tmpDir
+      config: config
+      onEvent: nil
+    sessionResult := [client startSession]
+      on: Error
+      do: [:e |
+        client stopProcess
+        client stop
+        ^self skip: "codex handshake error"
+      ]
+    sessionResult isError
+      ifTrue: [
+        client stopProcess
+        client stop
+        ^self skip: "codex session error"
+      ]
     data := sessionResult unwrap
     self deny: (data at: "threadId") isNil
     client stopProcess
@@ -42,32 +48,50 @@ TestCase subclass: CodexClientIntegrationTest
 
   testStartTurn =>
     self.hasCodex ifFalse: [^self skip: "codex not installed"]
-    config := Config fromMap: #{
-      "codex" => #{"command" => "codex app-server", "read_timeout_ms" => 30000, "turn_timeout_ms" => 60000}
-    }
-    client := CodexClient start: self.tmpDir config: config onEvent: nil
-    sessionResult := [client startSession] on: Error do: [:e |
-      client stopProcess
-      client stop
-      ^self skip: "codex session error"
-    ]
-    sessionResult isError ifTrue: [
-      client stopProcess
-      client stop
-      ^self skip: "codex session error"
-    ]
+    config := Config
+      fromMap: #{
+        "codex" => #{
+          "command" => "codex app-server",
+          "read_timeout_ms" => 30000,
+          "turn_timeout_ms" => 60000
+        }
+      }
+    client := CodexClient
+      start: self.tmpDir
+      config: config
+      onEvent: nil
+    sessionResult := [client startSession]
+      on: Error
+      do: [:e |
+        client stopProcess
+        client stop
+        ^self skip: "codex session error"
+      ]
+    sessionResult isError
+      ifTrue: [
+        client stopProcess
+        client stop
+        ^self skip: "codex session error"
+      ]
     threadId := (sessionResult unwrap) at: "threadId"
-    turnResult := [client startTurn: threadId prompt: "Say hello and nothing else." title: "test"]
-      on: Error do: [:e |
+    turnResult := [
+      client
+        startTurn: threadId
+        prompt: "Say hello and nothing else."
+        title: "test"
+    ]
+      on: Error
+      do: [:e |
         client stopProcess
         client stop
         ^self skip: "codex turn error"
       ]
-    turnResult isError ifTrue: [
-      client stopProcess
-      client stop
-      ^self skip: "codex turn error"
-    ]
+    turnResult isError
+      ifTrue: [
+        client stopProcess
+        client stop
+        ^self skip: "codex turn error"
+      ]
     self deny: ((turnResult unwrap) at: "turnId") isNil
     streamResult := client streamTurn: 60000
     self assert: streamResult isOk
@@ -76,10 +100,17 @@ TestCase subclass: CodexClientIntegrationTest
 
   testLaunchFailsWithBadCommand =>
     self.hasCodex ifFalse: [^self skip: "codex not installed"]
-    config := Config fromMap: #{
-      "codex" => #{"command" => "nonexistent_command_xyz", "read_timeout_ms" => 2000}
-    }
-    client := CodexClient start: self.tmpDir config: config onEvent: nil
+    config := Config
+      fromMap: #{
+        "codex" => #{
+          "command" => "nonexistent_command_xyz",
+          "read_timeout_ms" => 2000
+        }
+      }
+    client := CodexClient
+      start: self.tmpDir
+      config: config
+      onEvent: nil
     result := [client startSession] on: Error do: [:e | Result error: e message]
     self assert: result isError
     client stopProcess

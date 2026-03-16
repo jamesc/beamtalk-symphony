@@ -13,28 +13,31 @@ Supervisor subclass: SymphonySupervisor
     DotEnv load: File cwd ++ "/.env"
 
     wfResult := WorkflowLoader load: "./WORKFLOW.md"
-    wfResult isError ifTrue: [
-      Logger error: "failed to load WORKFLOW.md"
-      ^#()
-    ]
+    wfResult isError
+      ifTrue: [
+        Logger error: "failed to load WORKFLOW.md"
+        ^#()
+      ]
     wf := wfResult unwrap
     config := Config fromMap: (wf at: "config")
     validation := config validate
-    validation isError ifTrue: [
-      Logger error: "config validation failed"
-      ^#()
-    ]
+    validation isError
+      ifTrue: [
+        Logger error: "config validation failed"
+        ^#()
+      ]
 
     promptTemplate := wf at: "prompt_template"
     linearClient := LinearClient fromConfig: config
     workspaceManager := WorkspaceManager fromConfig: config
 
-    orchestratorSpec := (Orchestrator supervisionSpec withRestart: #permanent) withArgs: #{
-      #config => config,
-      #linearClient => linearClient,
-      #workspaceManager => workspaceManager,
-      #promptTemplate => promptTemplate
-    }
+    orchestratorSpec := (Orchestrator supervisionSpec withRestart: #permanent)
+      withArgs: #{
+        #config => config,
+        #linearClient => linearClient,
+        #workspaceManager => workspaceManager,
+        #promptTemplate => promptTemplate
+      }
     watcherSpec := WorkflowWatcher supervisionSpec withRestart: #permanent
 
     specs := #(orchestratorSpec, watcherSpec)
@@ -42,5 +45,7 @@ Supervisor subclass: SymphonySupervisor
     port := config serverPort
     port isNil ifTrue: [^specs]
 
-    httpSpec := (HttpServer supervisionSpec withRestart: #permanent) withArgs: #{#port => port}
+    httpSpec := (HttpServer supervisionSpec withRestart: #permanent) withArgs: #{
+      #port => port
+    }
     specs add: httpSpec

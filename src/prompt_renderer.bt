@@ -10,27 +10,39 @@ Object subclass: PromptRenderer
   state: openTag = ""
   state: closeTag = ""
 
-  class shared =>
-    self new initShared
+  class shared => self new initShared
+
+  class render: template issue: issue attempt: attempt =>
+    renderer := self shared
+    renderer
+      render: template
+      issue: issue
+      attempt: attempt
 
   initShared =>
     // Match without spaces — trim handles both {{ x }} and {{x}}
     self.openVar := "\{\{"
-    self.closeVar := "\}\}"
+    self.closeVar := "}}"
     self.openTag := "\{%"
-    self.closeTag := "%\}"
+    self.closeTag := "%}"
     self
 
-  class render: template issue: issue attempt: attempt =>
-    renderer := self shared
-    renderer render: template issue: issue attempt: attempt
-
   render: template issue: issue attempt: attempt =>
-    template isNil ifTrue: [^Result ok: "You are working on an issue from Linear."]
-    template trim isEmpty ifTrue: [^Result ok: "You are working on an issue from Linear."]
+    template isNil ifTrue: [
+      ^Result ok: "You are working on an issue from Linear."
+    ]
+    template trim isEmpty ifTrue: [
+      ^Result ok: "You are working on an issue from Linear."
+    ]
     vars := #{"issue" => issue, "attempt" => attempt}
     result := [self processAll: template vars: vars]
-      on: Error do: [:e | ^Result error: #{"kind" => "template_render_error", "detail" => e message}]
+      on: Error
+      do: [:e |
+        ^Result error: #{
+          "kind" => "template_render_error",
+          "detail" => e message
+        }
+      ]
     Result ok: result
 
   processAll: text vars: vars =>
@@ -39,7 +51,6 @@ Object subclass: PromptRenderer
     self interpolate: result vars: vars
 
   // --- If/Endif ---
-
   processIfs: text vars: vars =>
     ifOpen := self.openTag ++ " if "
     result := text
@@ -64,13 +75,13 @@ Object subclass: PromptRenderer
     prefix := text take: startIdx - 1
     val := self resolveVar: varName vars: vars
     isTruthy := self checkTruthy: val
-    result := isTruthy
-      ifTrue: [prefix ++ blockBody ++ afterEndif]
-      ifFalse: [prefix ++ afterEndif]
+    result := isTruthy ifTrue: [
+      prefix ++ blockBody ++ afterEndif
+    ] ifFalse: [prefix ++ afterEndif]
     // Check for more if blocks
-    (result includesSubstring: ifOpen)
-      ifTrue: [self processOneIf: result vars: vars]
-      ifFalse: [result]
+    (result includesSubstring: ifOpen) ifTrue: [
+      self processOneIf: result vars: vars
+    ] ifFalse: [result]
 
   checkTruthy: val =>
     val isNil ifTrue: [^false]
@@ -80,7 +91,6 @@ Object subclass: PromptRenderer
     true
 
   // --- For/Endfor ---
-
   processFors: text vars: vars =>
     forOpen := self.openTag ++ " for "
     (text includesSubstring: forOpen) ifFalse: [^text]
@@ -110,28 +120,33 @@ Object subclass: PromptRenderer
     prefix := text take: startIdx - 1
 
     coll := self resolveVar: collName vars: vars
-    rendered := self renderForBody: blockBody items: coll itemName: itemName vars: vars
+    rendered := self
+      renderForBody: blockBody
+      items: coll
+      itemName: itemName
+      vars: vars
     result := prefix ++ rendered ++ afterEndfor
-    (result includesSubstring: forOpen)
-      ifTrue: [self processOneFor: result vars: vars]
-      ifFalse: [result]
+    (result includesSubstring: forOpen) ifTrue: [
+      self processOneFor: result vars: vars
+    ] ifFalse: [result]
 
   renderForBody: body items: coll itemName: itemName vars: vars =>
     coll isNil ifTrue: [^""]
     (coll isKindOf: List) ifFalse: [^""]
-    coll inject: "" into: [:acc :item |
-      innerVars := vars at: itemName put: item
-      acc ++ (self interpolate: body vars: innerVars)
-    ]
+    coll
+      inject: ""
+      into: [:acc :item |
+        innerVars := vars at: itemName put: item
+        acc ++ (self interpolate: body vars: innerVars)
+      ]
 
   // --- Interpolation ---
-
   interpolate: text vars: vars =>
     (text includesSubstring: self.openVar) ifFalse: [^text]
     result := self interpolateOne: text vars: vars
-    (result includesSubstring: self.openVar)
-      ifTrue: [self interpolate: result vars: vars]
-      ifFalse: [result]
+    (result includesSubstring: self.openVar) ifTrue: [
+      self interpolate: result vars: vars
+    ] ifFalse: [result]
 
   interpolateOne: text vars: vars =>
     startIdx := text indexOf: self.openVar
@@ -141,21 +156,26 @@ Object subclass: PromptRenderer
     endIdx isNil ifTrue: [^text]
     varExpr := (afterStart take: endIdx - 1) trim
     rawVal := self resolveVar: varExpr vars: vars
-    valStr := rawVal isNil
-      ifTrue: [""]
-      ifFalse: [(rawVal isKindOf: String) ifTrue: [rawVal] ifFalse: [rawVal displayString]]
+    valStr := rawVal isNil ifTrue: [
+      ""
+    ] ifFalse: [
+      (rawVal isKindOf: String) ifTrue: [rawVal] ifFalse: [rawVal displayString]
+    ]
     prefix := text take: startIdx - 1
     suffix := afterStart drop: endIdx + self.closeVar size - 1
     prefix ++ valStr ++ suffix
 
   // --- Variable resolution ---
-
   resolveVar: expr vars: vars =>
     parts := expr split: "."
-    parts inject: vars into: [:val :part |
-      val isNil ifTrue: [nil] ifFalse: [
-        (val isKindOf: Dictionary)
-          ifTrue: [val at: part ifAbsent: [nil]]
-          ifFalse: [nil]
+    parts
+      inject: vars
+      into: [:val :part |
+        val isNil
+          ifTrue: [nil]
+          ifFalse: [
+            (val isKindOf: Dictionary) ifTrue: [
+              val at: part ifAbsent: [nil]
+            ] ifFalse: [nil]
+          ]
       ]
-    ]

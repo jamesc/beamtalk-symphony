@@ -11,29 +11,44 @@ TestCase subclass: TokenUsageTest
 
   testApplyAbsolute =>
     t := TokenUsage new
-    t2 := t applyAbsolute: 100 output: 50 total: 150
+    t2 := t
+      applyAbsolute: 100
+      output: 50
+      total: 150
     self assert: t2 input equals: 100
     self assert: t2 output equals: 50
     self assert: t2 total equals: 150
 
   testMarkReported =>
-    t := (TokenUsage new) applyAbsolute: 100 output: 50 total: 150
+    t := (TokenUsage new)
+      applyAbsolute: 100
+      output: 50
+      total: 150
     t2 := t markReported
     self assert: t2 lastReportedInput equals: 100
     self assert: t2 lastReportedOutput equals: 50
     self assert: t2 lastReportedTotal equals: 150
 
   testDeltas =>
-    t := (TokenUsage new) applyAbsolute: 100 output: 50 total: 150
+    t := (TokenUsage new)
+      applyAbsolute: 100
+      output: 50
+      total: 150
     t2 := t markReported
     // Apply new absolute values
-    t3 := t2 applyAbsolute: 250 output: 120 total: 370
+    t3 := t2
+      applyAbsolute: 250
+      output: 120
+      total: 370
     self assert: t3 inputDelta equals: 150
     self assert: t3 outputDelta equals: 70
     self assert: t3 totalDelta equals: 220
 
   testDeltasBeforeAnyReport =>
-    t := (TokenUsage new) applyAbsolute: 100 output: 50 total: 150
+    t := (TokenUsage new)
+      applyAbsolute: 100
+      output: 50
+      total: 150
     // lastReported is still 0, so deltas equal the current values
     self assert: t inputDelta equals: 100
     self assert: t outputDelta equals: 50
@@ -41,6 +56,9 @@ TestCase subclass: TokenUsageTest
 
   testImmutability =>
     t := TokenUsage new
-    t applyAbsolute: 999 output: 999 total: 999
+    t
+      applyAbsolute: 999
+      output: 999
+      total: 999
     // Original unchanged
     self assert: t input equals: 0
