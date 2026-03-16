@@ -1,4 +1,4 @@
-// Copyright 2026 symphony authors
+// Copyright 2026 James Casey
 // SPDX-License-Identifier: Apache-2.0
 
 /// DotEnv — loads KEY=VALUE pairs from a .env file into the process environment.

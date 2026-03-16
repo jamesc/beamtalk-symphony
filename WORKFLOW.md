@@ -2,7 +2,7 @@
 tracker:
   kind: linear
   api_key: $LINEAR_API_TOKEN
-  project_slug: c3c0717a652a
+  project_slug: $LINEAR_PROJECT_SLUG
   active_states:
     - Todo
     - In Progress
@@ -21,9 +21,7 @@ workspace:
 
 hooks:
   after_create: |
-    cp -r /home/james/source/todo-app/. .
-    git init || true
-    git add -A && git commit -m "Initial scaffold" || true
+    git clone --depth 1 $HOME/source/todo-app .
 
 server:
   port: 8080
@@ -39,11 +37,18 @@ You are an AI coding agent working on a software task from Linear.
 
 {{issue.description}}
 
+{% if attempt %}
+This is retry attempt #{{ attempt }}. Resume from the current workspace state.
+{% endif %}
+
 ## Instructions
 
-1. Understand the task described above.
-2. Make the necessary code changes in the workspace.
-3. Write or update tests as appropriate.
-4. Commit your changes with a clear message referencing the issue identifier.
+1. Create a feature branch: `git checkout -b {{issue.identifier}}`
+2. Understand the task described above.
+3. Make the necessary code changes in the workspace.
+4. Write or update tests as appropriate.
+5. Run tests to verify your changes work.
+6. Commit your changes with a clear message referencing {{issue.identifier}}.
+7. Push your branch: `git push origin {{issue.identifier}}`
 
-Work carefully and follow the existing code style.
+Work carefully and follow the existing code style. This is an unattended session — do not ask for human input.

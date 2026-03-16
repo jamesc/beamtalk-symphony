@@ -1,12 +1,12 @@
-// Copyright 2026 symphony authors
+// Copyright 2026 James Casey
 // SPDX-License-Identifier: Apache-2.0
 
 /// HttpServer — optional observability HTTP server exposing a dashboard
 /// and JSON API for monitoring running agents and token usage.
 Actor subclass: HttpServer
-  state: server = nil
-  state: port = 0
-  state: orchestrator = nil
+  state: server :: HTTPServer
+  state: port :: Integer = 0
+  state: orchestrator :: Orchestrator
 
   class supervisionPolicy => #permanent
 
@@ -261,7 +261,10 @@ Actor subclass: HttpServer
 
   /// Triggers an immediate poll/reconcile cycle on the orchestrator.
   handleRefresh =>
-    self.orchestrator isNil ifFalse: [self.orchestrator onTick!]
+    orch := [
+      SymphonySupervisor current which: Orchestrator
+    ] on: Error do: [:e | nil]
+    orch isNil ifFalse: [orch onTick!]
     body := Json generate: #{
       "queued" => true,
       "operations" => #("poll", "reconcile")
@@ -270,7 +273,11 @@ Actor subclass: HttpServer
 
   // --- Helpers ---
   getSnapshot =>
-    self.orchestrator isNil
+    // Lazy lookup — find the Orchestrator from the supervisor each time
+    orch := [
+      SymphonySupervisor current which: Orchestrator
+    ] on: Error do: [:e | nil]
+    orch isNil
       ifTrue: [
         ^#{
           "counts" => #{"running" => 0, "retrying" => 0},
@@ -284,4 +291,4 @@ Actor subclass: HttpServer
           "rate_limits" => nil
         }
       ]
-    self.orchestrator getSnapshot
+    orch getSnapshot

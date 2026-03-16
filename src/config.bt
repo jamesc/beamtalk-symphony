@@ -1,10 +1,10 @@
-// Copyright 2026 symphony authors
+// Copyright 2026 James Casey
 // SPDX-License-Identifier: Apache-2.0
 
 /// Config — typed getters over workflow YAML config with defaults,
 /// $VAR environment variable resolution, and dispatch preflight validation.
 Object subclass: Config
-  state: raw = nil
+  state: raw :: Dictionary
 
   /// Creates a Config from a parsed YAML dictionary.
   class fromMap: map => (self new) initWithMap: map
@@ -51,10 +51,15 @@ Object subclass: Config
     raw
 
   trackerProjectSlug =>
-    self
+    raw := self
       nested: "tracker"
       key: "project_slug"
       default: nil
+    raw isNil ifTrue: [^nil]
+    (raw isKindOf: String) ifTrue: [
+      (raw startsWith: "$") ifTrue: [^self resolveEnv: raw]
+    ]
+    raw
 
   trackerActiveStates =>
     self

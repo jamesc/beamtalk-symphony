@@ -1,15 +1,15 @@
-// Copyright 2026 symphony authors
+// Copyright 2026 James Casey
 // SPDX-License-Identifier: Apache-2.0
 
 /// WorkspaceManager — manages per-issue workspace directories with path
 /// sanitization, containment validation, lifecycle hooks, and cleanup.
 Object subclass: WorkspaceManager
-  state: root = ""
+  state: root :: String = ""
   state: hooksAfterCreate = nil
   state: hooksBeforeRun = nil
   state: hooksAfterRun = nil
   state: hooksBeforeRemove = nil
-  state: hooksTimeoutMs = 60000
+  state: hooksTimeoutMs :: Integer = 60000
 
   class new: opts => (self new) initWith: opts
 

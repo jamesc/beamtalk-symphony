@@ -1,16 +1,16 @@
-// Copyright 2026 symphony authors
+// Copyright 2026 James Casey
 // SPDX-License-Identifier: Apache-2.0
 
 /// SessionInfo — immutable value holding codex session IDs, event history,
 /// and turn count for a running agent.
 Value subclass: SessionInfo
-  state: sessionId = nil
-  state: threadId = nil
-  state: turnId = nil
-  state: codexPid = nil
-  state: lastEvent = nil
-  state: lastMessage = nil
-  state: lastTimestamp = nil
-  state: turnCount = 0
+  state: sessionId :: String
+  state: threadId :: String
+  state: turnId :: String
+  state: codexPid :: Pid
+  state: lastEvent :: String
+  state: lastMessage :: String
+  state: lastTimestamp :: Integer
+  state: turnCount :: Integer = 0
 
   incrementTurnCount => self withTurnCount: self turnCount + 1

@@ -1,4 +1,4 @@
-// Copyright 2026 symphony authors
+// Copyright 2026 James Casey
 // SPDX-License-Identifier: Apache-2.0
 
 /// WorkflowLoader — parses WORKFLOW.md into a YAML config dictionary

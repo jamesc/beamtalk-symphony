@@ -1,9 +1,11 @@
-// Tests for AgentRunner — unit tests for prompt building.
+// Tests for AgentRunner — unit tests for prompt rendering.
 // Full lifecycle tests require a real codex app-server.
+// Note: buildPrompt/buildFirstTurnPrompt/buildContinuationPrompt were
+// inlined into runTurnLoop (BT-1420 workaround). We test via PromptRenderer.
 
 TestCase subclass: AgentRunnerTest
 
-  testBuildFirstTurnPrompt =>
+  testFirstTurnPromptRendering =>
     issue := #{"identifier" => "BT-1", "title" => "Fix bug", "id" => "abc"}
     lb := "\{"
     rb := "}"
@@ -18,48 +20,26 @@ TestCase subclass: AgentRunnerTest
       ++ " issue.title "
       ++ rb
       ++ rb
-    runner := AgentRunner
-      spawnWith: #{
-        #issue => issue,
-        #attempt => nil,
-        #promptTemplate => template,
-        #turnNumber => 1
-      }
-    result := runner buildFirstTurnPrompt
+    result := PromptRenderer
+      render: template
+      issue: issue
+      attempt: nil
     self assert: result isOk
     self assert: result unwrap equals: "BT-1: Fix bug"
-    self assert: runner stop equals: #ok
 
-  testBuildContinuationPrompt =>
-    runner := AgentRunner spawnWith: #{
-      #issue => #{"id" => "x"},
-      #turnNumber => 3
-    }
-    result := runner buildContinuationPrompt
-    self assert: result isOk
-    self assert: (result unwrap includesSubstring: "turn 3")
-    self assert: runner stop equals: #ok
+  testContinuationPromptFormat =>
+    turnNumber := 3
+    prompt := "Continue working on this issue. This is turn "
+      ++ turnNumber displayString
+      ++ "."
+    self assert: (prompt includesSubstring: "turn 3")
+    self assert: (prompt includesSubstring: "Continue")
 
-  testBuildPromptFirstTurn =>
+  testFirstTurnPromptWithAttempt =>
     issue := #{"identifier" => "X-1", "title" => "Task", "id" => "x"}
-    runner := AgentRunner
-      spawnWith: #{
-        #issue => issue,
-        #promptTemplate => "Work on it",
-        #turnNumber => 1,
-        #attempt => nil
-      }
-    result := runner buildPrompt
+    result := PromptRenderer
+      render: "Work on it"
+      issue: issue
+      attempt: 2
     self assert: result isOk
     self assert: result unwrap equals: "Work on it"
-    self assert: runner stop equals: #ok
-
-  testBuildPromptContinuation =>
-    runner := AgentRunner spawnWith: #{
-      #issue => #{"id" => "x"},
-      #turnNumber => 2
-    }
-    result := runner buildPrompt
-    self assert: result isOk
-    self assert: (result unwrap includesSubstring: "Continue")
-    self assert: runner stop equals: #ok

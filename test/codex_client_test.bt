@@ -1,5 +1,7 @@
 // Tests for CodexClient — unit tests for protocol helpers and token extraction.
 // Integration tests require a real codex app-server.
+// Note: launch was inlined into startSession (BT-1420 workaround).
+// Protocol tests that need a subprocess use the integration test.
 
 TestCase subclass: CodexClientTest
 
@@ -12,43 +14,6 @@ TestCase subclass: CodexClientTest
       config: config
       onEvent: nil
     self assert: client isAlive
-    self assert: client stop equals: #ok
-
-  testSendAndReadJson =>
-    config := Config fromMap: #{
-      "codex" => #{"command" => "cat", "read_timeout_ms" => 2000}
-    }
-    client := CodexClient
-      start: "/tmp"
-      config: config
-      onEvent: nil
-    launchResult := client launch
-    launchResult isOk
-      ifTrue: [
-        client sendJson: #{"id" => 1, "result" => "ok"}
-        resp := client readResponse: 1 timeout: 2000
-        self assert: resp isOk
-        msg := resp unwrap
-        self assert: (msg at: "id") equals: 1
-      ]
-    client stopProcess
-    self assert: client stop equals: #ok
-
-  testReadResponseTimeout =>
-    config := Config fromMap: #{
-      "codex" => #{"command" => "sleep 10", "read_timeout_ms" => 500}
-    }
-    client := CodexClient
-      start: "/tmp"
-      config: config
-      onEvent: nil
-    launchResult := client launch
-    launchResult isOk
-      ifTrue: [
-        resp := client readResponse: 1 timeout: 500
-        self assert: resp isError
-      ]
-    client stopProcess
     self assert: client stop equals: #ok
 
   // --- Token extraction ---

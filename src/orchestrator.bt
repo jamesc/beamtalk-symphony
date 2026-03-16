@@ -1,21 +1,21 @@
-// Copyright 2026 symphony authors
+// Copyright 2026 James Casey
 // SPDX-License-Identifier: Apache-2.0
 
 /// Orchestrator — central polling authority for the Symphony pipeline.
 /// Owns the poll loop, dispatch, reconciliation, retry queue,
 /// and global token accounting.
 Actor subclass: Orchestrator
-  state: config = nil
-  state: linearClient = nil
-  state: workspaceManager = nil
-  state: promptTemplate = ""
-  state: running = nil
-  state: claimed = nil
-  state: retryAttempts = nil
-  state: completed = nil
-  state: codexTotals = nil
-  state: codexRateLimits = nil
-  state: pollTimerRef = nil
+  state: config :: Config
+  state: linearClient :: LinearClient
+  state: workspaceManager :: WorkspaceManager
+  state: promptTemplate :: String = ""
+  state: running :: Dictionary = #{}
+  state: claimed :: List = #()
+  state: retryAttempts :: Dictionary = #{}
+  state: completed :: List = #()
+  state: codexTotals :: TokenUsage = TokenUsage new
+  state: codexRateLimits :: Dictionary
+  state: pollTimerRef :: Timer
 
   /// Spawns a new Orchestrator with the given config and dependencies.
   class start: config linearClient: lc workspaceManager: wm promptTemplate: pt =>
@@ -27,14 +27,8 @@ Actor subclass: Orchestrator
         #promptTemplate => pt
       }
 
-  /// Lifecycle hook — initializes state maps and starts the poll loop.
+  /// Lifecycle hook — starts the poll loop.
   initialize =>
-    self.running := #{}
-    self.claimed := #()
-    self.retryAttempts := #{}
-    self.completed := #()
-    self.codexTotals := TokenUsage new
-    self.codexRateLimits := nil
     Logger info: "orchestrator initialized"
     self startupTerminalCleanup
     self scheduleTick: 0
@@ -91,8 +85,39 @@ Actor subclass: Orchestrator
       maxConcurrent: self.config maxConcurrentAgents
       maxByState: self.config maxConcurrentAgentsByState
 
+    // Step 4b: Dispatch eligible issues (inlined due to BT-1420)
     @expect all
-    eligible do: [:issue | self dispatchIssue: issue attempt: nil]
+    eligible
+      do: [:issue |
+        issueId := issue at: "id"
+        identifier := issue at: "identifier" ifAbsent: [""]
+
+        runner := AgentRunner
+          run: issue
+          attempt: nil
+          config: self.config
+          workspaceManager: self.workspaceManager
+          linearClient: self.linearClient
+          promptTemplate: self.promptTemplate
+          onEvent: [:event | self onCodexEvent: issueId event: event]
+
+        monitorRef := Erlang erlang monitor: #process arg: runner
+
+        entry := RunningEntry
+          forIssue: issue
+          identifier: identifier
+          startedAt: (DateTime now asTimestamp * 1000)
+        entry := (entry withWorkerPid: runner) withMonitorRef: monitorRef
+
+        self.running := self.running at: issueId put: entry
+        self.claimed := self.claimed add: issueId
+        self.retryAttempts := self.retryAttempts removeKey: issueId
+
+        Logger info: "dispatched" metadata: #{
+          "issue_id" => issueId,
+          "issue_identifier" => identifier
+        }
+      ]
 
     // Step 5: Schedule next tick
     self scheduleTick: self.config pollIntervalMs

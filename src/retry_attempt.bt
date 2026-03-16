@@ -1,15 +1,15 @@
-// Copyright 2026 symphony authors
+// Copyright 2026 James Casey
 // SPDX-License-Identifier: Apache-2.0
 
 /// RetryAttempt — immutable value tracking a scheduled retry for an issue.
 /// Holds issueId, attempt counter, due time, timer ref, and last error.
 Value subclass: RetryAttempt
-  state: issueId = ""
-  state: identifier = ""
-  state: attempt = 1
-  state: dueAtMs = 0
-  state: timerRef = nil
-  state: error = nil
+  state: issueId :: String = ""
+  state: identifier :: String = ""
+  state: attempt :: Integer = 1
+  state: dueAtMs :: Integer = 0
+  state: timerRef :: Reference
+  state: error :: String
 
   /// Computes exponential backoff delay: min(10s * 2^(attempt-1), maxMs).
   class backoffMs: attempt maxMs: maxMs =>

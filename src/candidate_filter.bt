@@ -1,12 +1,12 @@
-// Copyright 2026 symphony authors
+// Copyright 2026 James Casey
 // SPDX-License-Identifier: Apache-2.0
 
 /// CandidateFilter — pure computation helpers for dispatch eligibility,
 /// sorting by priority/age, and per-state concurrency control.
 Object subclass: CandidateFilter
-  state: activeStates = nil
-  state: terminalStates = nil
-  state: maxByState = nil
+  state: activeStates :: Array
+  state: terminalStates :: Array
+  state: maxByState :: Dictionary
 
   /// Returns issues eligible for dispatch, respecting concurrency and state limits.
   class eligible: issues running: running claimed: claimed activeStates: activeStates terminalStates: terminalStates maxConcurrent: maxConcurrent maxByState: maxByState =>

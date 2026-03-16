@@ -1,14 +1,14 @@
-// Copyright 2026 symphony authors
+// Copyright 2026 James Casey
 // SPDX-License-Identifier: Apache-2.0
 
 /// LinearClient — GraphQL client for the Linear issue tracker API.
 /// Handles transport, auth, error mapping, paginated candidate fetch,
 /// state refresh, and issue normalization.
 Object subclass: LinearClient
-  state: endpoint = "https://api.linear.app/graphql"
-  state: apiKey = ""
-  state: projectSlug = ""
-  state: timeout = 30000
+  state: endpoint :: String = "https://api.linear.app/graphql"
+  state: apiKey :: String
+  state: projectSlug :: String
+  state: timeout :: Integer = 30000
 
   class new: opts => (self new) initWith: opts
 

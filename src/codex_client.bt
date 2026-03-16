@@ -1,15 +1,19 @@
-// Copyright 2026 symphony authors
+// Copyright 2026 James Casey
 // SPDX-License-Identifier: Apache-2.0
 
 /// CodexClient — manages a codex app-server subprocess over stdio.
 /// Handles JSON-RPC protocol, session startup handshake,
 /// request/response matching, and turn streaming.
+///
+/// NOTE: Avoid self-calls that mutate state. The compiler does not thread
+/// state changes from safe_dispatch back to the caller (BT-1420).
+/// All state-mutating logic must be inlined into the method that needs it.
 Actor subclass: CodexClient
   state: proc = nil
-  state: nextId = 1
-  state: workspacePath = nil
-  state: config = nil
-  state: onEvent = nil
+  state: nextId :: Integer = 1
+  state: workspacePath :: String
+  state: config :: Config
+  state: onEvent :: Block
 
   /// Spawns a new CodexClient actor bound to the given workspace directory.
   class start: workspacePath config: config onEvent: callback =>
@@ -51,86 +55,82 @@ Actor subclass: CodexClient
     params at: "rate_limits" ifAbsent: [params at: "rateLimits" ifAbsent: [nil]]
 
   // --- Subprocess lifecycle ---
-  launch =>
-    procResult := [
-      Subprocess
-        open: "/bin/bash"
-        args: #("-lc", self.config codexCommand)
-        dir: self.workspacePath
-    ] on: Error do: [:e |
-      ^Result error: #{"kind" => "codex_not_found", "detail" => e message}
-    ]
-    procResult isError
-      ifTrue: [
-        ^Result error: #{
-          "kind" => "codex_not_found",
-          "detail" => procResult error displayString
-        }
-      ]
-    self.proc := procResult unwrap
-    Result ok: self
-
   stopProcess =>
+    Logger debug: "codex process stopping"
     self.proc isNil
       ifFalse: [
         self.proc close
-
         self.proc stop
         self.proc := nil
       ]
 
-  // --- JSON-RPC protocol ---
-  sendRequest: method params: params =>
+  // --- Inline helpers (avoid self-calls for state safety) ---
+
+  /// Writes a JSON-RPC message to the subprocess.
+  writeJson: msg =>
+    line := Json generate: msg
+    self.proc writeLine: line
+
+  /// Allocates a request ID, sends the request, and returns the ID.
+  writeRequest: method params: params =>
     id := self.nextId
     self.nextId := self.nextId + 1
     msg := #{"id" => id, "method" => method, "params" => params}
-    self sendJson: msg
+    line := Json generate: msg
+    Logger debug: "codex >> " ++ method ++ " (id=" ++ id displayString ++ ")"
+    self.proc writeLine: line
     id
 
-  sendNotification: method params: params =>
+  /// Sends a notification (no id, no response expected).
+  writeNotification: method params: params =>
     msg := #{"method" => method, "params" => params}
-    self sendJson: msg
-
-  sendJson: msg =>
     line := Json generate: msg
-
+    Logger debug: "codex >> " ++ method ++ " (notification)"
     self.proc writeLine: line
 
+  // --- Response reading (no state mutation, self-recursion is safe) ---
   readResponse: expectedId timeout: timeoutMs =>
-    // Read lines until we get a response matching expectedId
     deadline := (DateTime now asTimestamp * 1000) + timeoutMs
     self readUntilResponse: expectedId deadline: deadline
 
   readUntilResponse: expectedId deadline: deadline =>
     remaining := deadline - (DateTime now asTimestamp * 1000)
-    remaining <= 0 ifTrue: [
-      ^Result error: #{"kind" => "response_timeout", "id" => expectedId}
-    ]
+    remaining <= 0
+      ifTrue: [
+        Logger warn: "codex response timeout" metadata: #{
+          "id" => expectedId displayString
+        }
+        ^Result error: #{"kind" => "response_timeout", "id" => expectedId}
+      ]
     readTimeout := remaining > 1000 ifTrue: [1000] ifFalse: [remaining]
 
     line := self.proc readLine: readTimeout
     line isNil
       ifTrue: [
-        // Check if process exited
         exitCode := self.proc exitCode
-        exitCode isNil ifFalse: [
-          ^Result error: #{"kind" => "port_exit", "exit_code" => exitCode}
-        ]
-        // No line yet, keep trying
+        exitCode isNil
+          ifFalse: [
+            Logger warn: "codex process exited" metadata: #{
+              "exit_code" => exitCode displayString
+            }
+            ^Result error: #{"kind" => "port_exit", "exit_code" => exitCode}
+          ]
         ^self readUntilResponse: expectedId deadline: deadline
       ]
-    // Try to parse as JSON
+    Logger debug: "codex << " ++ line
+
     parsed := [Json parse: line] on: Error do: [:e | nil]
     parsed isNil
       ifTrue: [
-        // Non-JSON line (stderr leak or garbage), skip
+        Logger debug: "codex non-JSON line, skipping"
         ^self readUntilResponse: expectedId deadline: deadline
       ]
     parsedMsg := parsed unwrap
-    // Check if this is our response
     msgId := parsedMsg at: "id" ifAbsent: [nil]
     msgId == expectedId ifTrue: [^Result ok: parsedMsg]
-    // It's a notification or different response — emit as event
+    // Notification or different response — emit as event
+    method := parsedMsg at: "method" ifAbsent: ["?"]
+    Logger debug: "codex event: " ++ method displayString
     self emitEvent: parsedMsg
     self readUntilResponse: expectedId deadline: deadline
 
@@ -138,14 +138,41 @@ Actor subclass: CodexClient
 
   /// Launches the subprocess and performs the initialize/thread-start handshake.
   startSession =>
-    launchResult := self launch
-    launchResult isError ifTrue: [^launchResult]
+    Logger info: "codex session starting" metadata: #{
+      "workspace" => self.workspacePath,
+      "command" => self.config codexCommand
+    }
+
+    // Inline subprocess launch (avoid self-call state loss)
+    procResult := [
+      Subprocess
+        open: "/bin/bash"
+        args: #("-lc", self.config codexCommand)
+        dir: self.workspacePath
+    ]
+      on: Error
+      do: [:e |
+        Logger error: "codex launch failed" metadata: #{"error" => e message}
+        ^Result error: #{"kind" => "codex_not_found", "detail" => e message}
+      ]
+    procResult isError
+      ifTrue: [
+        Logger error: "codex launch error" metadata: #{
+          "error" => procResult error displayString
+        }
+        ^Result error: #{
+          "kind" => "codex_not_found",
+          "detail" => procResult error displayString
+        }
+      ]
+    self.proc := procResult unwrap
+    Logger info: "codex process launched"
 
     readTimeout := self.config codexReadTimeoutMs
 
-    // Step 1: initialize request
+    // Step 1: initialize request (inline to preserve nextId state)
     initId := self
-      sendRequest: "initialize"
+      writeRequest: "initialize"
       params: #{
         "clientInfo" => #{"name" => "symphony", "version" => "1.0"},
         "capabilities" => #{}
@@ -153,6 +180,9 @@ Actor subclass: CodexClient
     initResp := self readResponse: initId timeout: readTimeout
     initResp isError
       ifTrue: [
+        Logger error: "codex initialize failed" metadata: #{
+          "error" => initResp error displayString
+        }
         self stopProcess
         ^Result
           error: #{
@@ -161,17 +191,21 @@ Actor subclass: CodexClient
             "detail" => initResp error
           }
       ]
+    Logger info: "codex initialized"
 
     // Step 2: initialized notification
-    self sendNotification: "initialized" params: #{}
+    self writeNotification: "initialized" params: #{}
 
     // Step 3: thread/start request
-    threadId := self sendRequest: "thread/start" params: #{
+    threadReqId := self writeRequest: "thread/start" params: #{
       "cwd" => self.workspacePath
     }
-    threadResp := self readResponse: threadId timeout: readTimeout
+    threadResp := self readResponse: threadReqId timeout: readTimeout
     threadResp isError
       ifTrue: [
+        Logger error: "codex thread/start failed" metadata: #{
+          "error" => threadResp error displayString
+        }
         self stopProcess
         ^Result
           error: #{
@@ -187,51 +221,77 @@ Actor subclass: CodexClient
     thread := threadResult at: "thread" ifAbsent: [#{}]
     tid := thread at: "id" ifAbsent: [nil]
 
+    Logger info: "codex session ready" metadata: #{
+      "threadId" => tid displayString
+    }
     Result ok: #{"threadId" => tid}
 
   // --- Turn management ---
 
   /// Sends a turn/start request with the given prompt and waits for acknowledgement.
   startTurn: threadId prompt: prompt title: title =>
+    Logger info: "codex turn starting" metadata: #{
+      "title" => title,
+      "prompt_length" => prompt length displayString
+    }
     readTimeout := self.config codexReadTimeoutMs
     turnId := self
-      sendRequest: "turn/start"
+      writeRequest: "turn/start"
       params: #{
         "threadId" => threadId,
         "input" => #(#{"type" => "text", "text" => prompt}),
         "cwd" => self.workspacePath,
-        "title" => title
+        "title" => title,
+        "sandboxPolicy" => #{"type" => "dangerFullAccess"}
       }
     turnResp := self readResponse: turnId timeout: readTimeout
-    turnResp isError ifTrue: [^turnResp]
+    turnResp isError
+      ifTrue: [
+        Logger error: "codex turn/start failed" metadata: #{
+          "error" => turnResp error displayString
+        }
+        ^turnResp
+      ]
 
     turnData := turnResp unwrap
     turnResult := turnData at: "result" ifAbsent: [#{}]
     turn := turnResult at: "turn" ifAbsent: [#{}]
     tuid := turn at: "id" ifAbsent: [nil]
 
+    Logger info: "codex turn started" metadata: #{
+      "turnId" => tuid displayString
+    }
     Result ok: #{"turnId" => tuid}
 
   /// Streams events until the turn completes, fails, or times out.
   streamTurn: turnTimeoutMs =>
-    // Read events until turn completes, fails, or times out
     deadline := (DateTime now asTimestamp * 1000) + turnTimeoutMs
     self streamUntilDone: deadline
 
   streamUntilDone: deadline =>
     remaining := deadline - (DateTime now asTimestamp * 1000)
-    remaining <= 0 ifTrue: [^Result error: #{"kind" => "turn_timeout"}]
+    remaining <= 0
+      ifTrue: [
+        Logger warn: "codex turn timed out"
+        ^Result error: #{"kind" => "turn_timeout"}
+      ]
     readTimeout := remaining > 1000 ifTrue: [1000] ifFalse: [remaining]
 
     line := self.proc readLine: readTimeout
     line isNil
       ifTrue: [
         exitCode := self.proc exitCode
-        exitCode isNil ifFalse: [
-          ^Result error: #{"kind" => "port_exit", "exit_code" => exitCode}
-        ]
+        exitCode isNil
+          ifFalse: [
+            Logger warn: "codex process exited during stream" metadata: #{
+              "exit_code" => exitCode displayString
+            }
+            ^Result error: #{"kind" => "port_exit", "exit_code" => exitCode}
+          ]
         ^self streamUntilDone: deadline
       ]
+    Logger debug: "codex << " ++ line
+
     parsed := [Json parse: line] on: Error do: [:e | nil]
     parsed isNil ifTrue: [^self streamUntilDone: deadline]
     msg := parsed unwrap
@@ -243,25 +303,36 @@ Actor subclass: CodexClient
     // Check for turn completion
     method == "turn/completed"
       ifTrue: [
+        Logger info: "codex turn completed"
         self emitEvent: msg
         ^Result ok: #{"status" => "completed", "message" => msg}
       ]
     method == "turn/failed"
       ifTrue: [
+        Logger error: "codex turn failed" metadata: #{
+          "method" => method displayString
+        }
         self emitEvent: msg
         ^Result error: #{"kind" => "turn_failed", "message" => msg}
       ]
     method == "turn/cancelled"
       ifTrue: [
+        Logger warn: "codex turn cancelled"
         self emitEvent: msg
         ^Result error: #{"kind" => "turn_cancelled", "message" => msg}
       ]
 
-    // Handle approval requests — auto-approve
+    // Handle approval requests — auto-approve all types
     id := msg at: "id" ifAbsent: [nil]
-    (method == "item/approval/request")
+    ((method == "item/approval/request")
+      or: [
+        (method == "item/commandExecution/requestApproval") or: [
+          method == "item/fileChange/requestApproval"
+        ]
+      ])
       ifTrue: [
-        self sendJson: #{"id" => id, "result" => #{"approved" => true}}
+        Logger debug: "codex auto-approving: " ++ method
+        self writeJson: #{"id" => id, "result" => #{"approved" => true}}
         self emitEvent: msg
         ^self streamUntilDone: deadline
       ]
@@ -269,6 +340,7 @@ Actor subclass: CodexClient
     // Handle user input required — hard failure
     (method == "item/tool/requestUserInput")
       ifTrue: [
+        Logger warn: "codex requires user input, failing turn"
         self emitEvent: msg
         ^Result error: #{"kind" => "turn_input_required", "message" => msg}
       ]
@@ -276,8 +348,11 @@ Actor subclass: CodexClient
     // Handle unsupported tool calls
     (method == "item/tool/call")
       ifTrue: [
+        Logger warn: "codex unsupported tool call" metadata: #{
+          "method" => method displayString
+        }
         self
-          sendJson: #{
+          writeJson: #{
             "id" => id,
             "result" => #{
               "success" => false,
@@ -288,7 +363,8 @@ Actor subclass: CodexClient
         ^self streamUntilDone: deadline
       ]
 
-    // Any other message — emit as event and continue
+    // Any other message — log method and continue
+    method isNil ifFalse: [Logger debug: "codex event: " ++ method]
     self emitEvent: msg
     self streamUntilDone: deadline
 

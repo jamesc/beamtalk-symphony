@@ -1,10 +1,12 @@
-// Copyright 2026 symphony authors
+// Copyright 2026 James Casey
 // SPDX-License-Identifier: Apache-2.0
 
 /// SymphonySupervisor — OTP supervision tree for the Symphony service.
 /// Loads WORKFLOW.md config at startup, creates clients, and starts
 /// Orchestrator, WorkflowWatcher, and optionally HttpServer.
 Supervisor subclass: SymphonySupervisor
+
+  class start => self supervise
 
   class strategy => #oneForOne
 

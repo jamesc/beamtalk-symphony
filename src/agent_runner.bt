@@ -1,20 +1,24 @@
-// Copyright 2026 symphony authors
+// Copyright 2026 James Casey
 // SPDX-License-Identifier: Apache-2.0
 
 /// AgentRunner — full worker lifecycle for a single issue attempt.
 /// Manages workspace creation, prompt rendering, codex session,
 /// multi-turn loop, hook execution, and event forwarding.
+///
+/// NOTE: All state-mutating logic is inlined due to BT-1420 (self-call
+/// state mutations lost via safe_dispatch). Do not extract into helper
+/// methods that set self.x — the mutations will be silently discarded.
 Actor subclass: AgentRunner
-  state: issue = nil
-  state: attempt = nil
-  state: config = nil
-  state: workspaceManager = nil
-  state: linearClient = nil
-  state: promptTemplate = nil
-  state: onEvent = nil
-  state: codexClient = nil
-  state: threadId = nil
-  state: turnNumber = 0
+  state: issue :: Dictionary
+  state: attempt :: Integer
+  state: config :: Config
+  state: workspaceManager :: WorkspaceManager
+  state: linearClient :: LinearClient
+  state: promptTemplate :: String
+  state: onEvent :: Block
+  state: codexClient :: CodexClient
+  state: threadId :: String
+  state: turnNumber :: Integer = 0
 
   /// Spawns a new AgentRunner and starts the run lifecycle asynchronously.
   class run: issue attempt: attempt config: config workspaceManager: wm linearClient: lc promptTemplate: pt onEvent: callback =>
@@ -28,34 +32,41 @@ Actor subclass: AgentRunner
         #promptTemplate => pt,
         #onEvent => callback
       }
-    runner start!
+    runner begin!
     runner
 
   // --- Main lifecycle ---
-  start =>
-    result := self doRun
-    result isError
-      ifTrue: [
-        Logger
-          error: "agent run failed"
-          metadata: #{
-            "issue_identifier" => (self.issue at: "identifier" ifAbsent: [""]),
-            "error" => result error displayString
-          }
-        self error: result error displayString
-      ]
-
-  doRun =>
+  // begin delegates to doBegin: which returns nil on all error paths
+  // instead of raising. This is a self-call (BT-1420 loses state) but
+  // that's OK — begin doesn't read state after the call.
+  begin =>
     identifier := self.issue at: "identifier" ifAbsent: [""]
+    Logger info: "agent run starting" metadata: #{"issue" => identifier}
+    self doBegin: identifier
 
+  doBegin: identifier =>
     // Step 1: Create/reuse workspace
     wsResult := self.workspaceManager createForIssue: identifier
-    wsResult isError ifTrue: [^wsResult]
+    wsResult isError
+      ifTrue: [
+        Logger error: "agent run failed" metadata: #{
+          "issue_identifier" => identifier,
+          "error" => wsResult error displayString
+        }
+        ^nil
+      ]
     wsPath := wsResult unwrap at: "path"
 
     // Step 2: Run before_run hook
     hookResult := self.workspaceManager runBeforeRun: wsPath
-    hookResult isError ifTrue: [^hookResult]
+    hookResult isError
+      ifTrue: [
+        Logger error: "agent run failed" metadata: #{
+          "issue_identifier" => identifier,
+          "error" => hookResult error displayString
+        }
+        ^nil
+      ]
 
     // Step 3: Start codex session
     self.codexClient := CodexClient
@@ -65,10 +76,16 @@ Actor subclass: AgentRunner
     sessionResult := self.codexClient startSession
     sessionResult isError
       ifTrue: [
-        self runAfterRunHook: wsPath
+        self.workspaceManager runAfterRun: wsPath
         self.codexClient stopProcess
         self.codexClient stop
-        ^sessionResult
+        Logger
+          error: "agent run failed"
+          metadata: #{
+            "issue_identifier" => identifier,
+            "error" => sessionResult error displayString
+          }
+        ^nil
       ]
 
     sessionData := sessionResult unwrap
@@ -82,18 +99,43 @@ Actor subclass: AgentRunner
     // Step 5: Cleanup
     self.codexClient stopProcess
     self.codexClient stop
-    self runAfterRunHook: wsPath
+    self.workspaceManager runAfterRun: wsPath
 
-    turnLoopResult
+    turnLoopResult isError
+      ifTrue: [
+        Logger
+          error: "agent run failed"
+          metadata: #{
+            "issue_identifier" => identifier,
+            "error" => turnLoopResult error displayString
+          }
+      ]
+      ifFalse: [
+        Logger info: "agent run completed" metadata: #{
+          "issue_identifier" => identifier,
+          "result" => turnLoopResult displayString
+        }
+      ]
 
-  // --- Turn loop ---
+  // --- Turn loop (reads state but doesn't need to mutate across self-calls) ---
 
   /// Executes the prompt-send-stream cycle for the current turn, then recurses.
   runTurnLoop: wsPath maxTurns: maxTurns =>
     // Build prompt for this turn
-    prompt := self buildPrompt
-    prompt isError ifTrue: [^prompt]
-    promptText := prompt unwrap
+    promptText := self.turnNumber == 1
+      ifTrue: [
+        pr := PromptRenderer
+          render: self.promptTemplate
+          issue: self.issue
+          attempt: self.attempt
+        pr isError ifTrue: [^pr]
+        pr unwrap
+      ]
+      ifFalse: [
+        "Continue working on this issue. This is turn "
+          ++ self.turnNumber displayString
+          ++ "."
+      ]
 
     // Start the turn
     title := (self.issue at: "identifier" ifAbsent: [""])
@@ -110,10 +152,6 @@ Actor subclass: AgentRunner
     streamResult := self.codexClient streamTurn: turnTimeoutMs
     streamResult isError ifTrue: [^streamResult]
 
-    // Turn completed successfully — check if we should continue
-    self shouldContinue: wsPath maxTurns: maxTurns
-
-  shouldContinue: wsPath maxTurns: maxTurns =>
     // Check if max turns reached
     self.turnNumber >= maxTurns ifTrue: [
       ^Result ok: #{"status" => "max_turns_reached"}
@@ -141,33 +179,3 @@ Actor subclass: AgentRunner
     // Continue with next turn
     self.turnNumber := self.turnNumber + 1
     self runTurnLoop: wsPath maxTurns: maxTurns
-
-  // --- Prompt building ---
-  buildPrompt =>
-    self.turnNumber == 1 ifTrue: [
-      self buildFirstTurnPrompt
-    ] ifFalse: [self buildContinuationPrompt]
-
-  buildFirstTurnPrompt =>
-    PromptRenderer
-      render: self.promptTemplate
-      issue: self.issue
-      attempt: self.attempt
-
-  buildContinuationPrompt =>
-    // Continuation turns get guidance, not the full prompt
-    guidance := "Continue working on this issue. This is turn "
-      ++ self.turnNumber displayString
-      ++ "."
-    Result ok: guidance
-
-  // --- Helpers ---
-  runAfterRunHook: wsPath =>
-    // after_run failures are logged and ignored
-    result := self.workspaceManager runAfterRun: wsPath
-    result isError
-      ifTrue: [
-        Logger warn: "after_run hook failed" metadata: #{
-          "error" => result error displayString
-        }
-      ]

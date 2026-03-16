@@ -1,14 +1,14 @@
-// Copyright 2026 symphony authors
+// Copyright 2026 James Casey
 // SPDX-License-Identifier: Apache-2.0
 
 /// PromptRenderer — Liquid-compatible template rendering for agent prompts.
 /// Supports {{ var }} interpolation, {% if %}/{% endif %},
 /// and {% for %}/{% endfor %} control flow.
 Object subclass: PromptRenderer
-  state: openVar = ""
-  state: closeVar = ""
-  state: openTag = ""
-  state: closeTag = ""
+  state: openVar :: String = ""
+  state: closeVar :: String = ""
+  state: openTag :: String = ""
+  state: closeTag :: String = ""
 
   class shared => self new initShared
 
