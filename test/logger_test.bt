@@ -1,23 +1,26 @@
-// Tests for Logger
+// Tests for Logger (wraps Erlang logger)
 
 TestCase subclass: LoggerTest
 
-  testInfoReturnsMessage =>
-    line := Logger info: "service started"
-    self assert: line equals: "service started"
+  testInfoReturnsOk =>
+    result := Logger info: "service started"
+    self assert: result equals: #ok
 
-  testWarnReturnsMessage =>
-    line := Logger warn: "something unusual"
-    self assert: line equals: "something unusual"
+  testWarnReturnsOk =>
+    result := Logger warn: "something unusual"
+    self assert: result equals: #ok
 
-  testErrorReturnsMessage =>
-    line := Logger error: "failed hard"
-    self assert: line equals: "failed hard"
+  testErrorReturnsOk =>
+    result := Logger error: "failed hard"
+    self assert: result equals: #ok
 
-  testInfoWithContextReturnsMessage =>
-    ctx := #{"issue_id" => "abc123"}
-    line := Logger info: "dispatched" context: ctx
-    self assert: line equals: "dispatched"
+  testDebugReturnsOk =>
+    result := Logger debug: "trace info"
+    self assert: result equals: #ok
+
+  testInfoWithContext =>
+    result := Logger info: "dispatched" context: #{"issue_id" => "abc"}
+    self assert: result equals: #ok
 
   testIssueContext =>
     issue := #{"id" => "abc", "identifier" => "BT-42"}
@@ -33,9 +36,5 @@ TestCase subclass: LoggerTest
     issue := #{"id" => "abc", "identifier" => "BT-42"}
     ctx := Logger issueContext: issue session: "s1"
     self assert: (ctx at: "issue_id") equals: "abc"
+    self assert: (ctx at: "issue_identifier") equals: "BT-42"
     self assert: (ctx at: "session_id") equals: "s1"
-
-  testTimestamp =>
-    ts := Logger timestamp
-    self assert: (ts isKindOf: String)
-    self assert: ts size > 0

@@ -1,44 +1,36 @@
 // Copyright 2026 symphony authors
 // SPDX-License-Identifier: Apache-2.0
 
-// Logger — structured logging with key=value format and issue/session context.
+// Logger — thin wrapper around Erlang logger for structured logging
+// with Symphony-specific context helpers.
 
 Object subclass: Logger
 
   class info: message =>
-    message
+    Erlang logger info: message metadata: #{}
 
-  class info: message context: _ctx =>
-    message
+  class info: message context: ctx =>
+    Erlang logger info: message metadata: ctx
 
   class warn: message =>
-    message
+    Erlang logger warning: message metadata: #{}
 
-  class warn: message context: _ctx =>
-    message
+  class warn: message context: ctx =>
+    Erlang logger warning: message metadata: ctx
 
   class error: message =>
-    message
+    Erlang logger error: message metadata: #{}
 
-  class error: message context: _ctx =>
-    message
+  class error: message context: ctx =>
+    Erlang logger error: message metadata: ctx
 
-  info: message =>
-    message
+  class debug: message =>
+    Erlang logger debug: message metadata: #{}
 
-  warn: message =>
-    message
+  class debug: message context: ctx =>
+    Erlang logger debug: message metadata: ctx
 
-  error: message =>
-    message
-
-  timestamp =>
-    now := Erlang erlang system_time: #second
-    Erlang erlang list_to_binary: (Erlang calendar system_time_to_rfc3339: now)
-
-  class timestamp =>
-    now := Erlang erlang system_time: #second
-    Erlang erlang list_to_binary: (Erlang calendar system_time_to_rfc3339: now)
+  // --- Context helpers ---
 
   class issueContext: issue =>
     #{
