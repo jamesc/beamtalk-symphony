@@ -12,10 +12,13 @@ Actor subclass: HttpServer
 
   /// Starts the HTTP server on the given port, backed by the orchestrator for state.
   class start: port orchestrator: orch =>
-    self spawnWith: #{#port => port, #orchestrator => orch}
+    srv := self spawnWith: #{#port => port, #orchestrator => orch}
+    srv doStart!
+    srv
 
-  /// Lifecycle hook — starts the HTTP listener after spawn.
-  initialize =>
+  /// Starts the HTTP listener. Called via doStart! after spawn.
+  /// Note: should use initialize once supervisor initialize bug is fixed.
+  doStart =>
     handler := [:req | self handleRequest: req]
     [
       self.server := HTTPServer start: self.port handler: handler
@@ -29,7 +32,6 @@ Actor subclass: HttpServer
           "port" => self.port displayString,
           "error" => e message
         }
-        e signal
       ]
 
   actualPort => self.server port
