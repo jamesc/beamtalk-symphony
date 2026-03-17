@@ -54,10 +54,6 @@ beamtalk repl
 | `Config` | Typed config with `$VAR` env resolution |
 | `CandidateFilter` | Priority sorting and concurrency control |
 
-## Known Limitations
-
-- **BT-1420**: Actor self-call state mutations are silently lost by the compiler. Workaround: state-mutating logic is inlined rather than factored into helper methods. Dashboard shows 0s until this is fixed.
-
 ## License
 
 Apache-2.0 — see [LICENSE](LICENSE).

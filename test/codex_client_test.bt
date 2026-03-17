@@ -1,7 +1,5 @@
 // Tests for CodexClient — unit tests for protocol helpers and token extraction.
 // Integration tests require a real codex app-server.
-// Note: launch was inlined into startSession (BT-1420 workaround).
-// Protocol tests that need a subprocess use the integration test.
 
 TestCase subclass: CodexClientTest
 

@@ -5,8 +5,7 @@
 /// Manages workspace creation, prompt rendering, codex session,
 /// multi-turn loop, hook execution, and event forwarding.
 ///
-/// NOTE: BT-1420 (self-call state mutations lost via safe_dispatch) is fixed.
-/// Helper methods that mutate state work correctly now.
+/// Uses helper methods for prompt building, turn management, and cleanup.
 Actor subclass: AgentRunner
   state: issue :: Dictionary
   state: attempt :: Integer

@@ -1,7 +1,5 @@
 // Tests for AgentRunner — unit tests for prompt rendering.
 // Full lifecycle tests require a real codex app-server.
-// Note: buildPrompt/buildFirstTurnPrompt/buildContinuationPrompt were
-// inlined into runTurnLoop (BT-1420 workaround). We test via PromptRenderer.
 
 TestCase subclass: AgentRunnerTest
 
