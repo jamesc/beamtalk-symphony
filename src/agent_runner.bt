@@ -5,9 +5,8 @@
 /// Manages workspace creation, prompt rendering, codex session,
 /// multi-turn loop, hook execution, and event forwarding.
 ///
-/// NOTE: All state-mutating logic is inlined due to BT-1420 (self-call
-/// state mutations lost via safe_dispatch). Do not extract into helper
-/// methods that set self.x — the mutations will be silently discarded.
+/// NOTE: BT-1420 (self-call state mutations lost via safe_dispatch) is fixed.
+/// Helper methods that mutate state work correctly now.
 Actor subclass: AgentRunner
   state: issue :: Dictionary
   state: attempt :: Integer
@@ -36,37 +35,34 @@ Actor subclass: AgentRunner
     runner
 
   // --- Main lifecycle ---
-  // begin delegates to doBegin: which returns nil on all error paths
-  // instead of raising. This is a self-call (BT-1420 loses state) but
-  // that's OK — begin doesn't read state after the call.
   begin =>
     identifier := self.issue at: "identifier" ifAbsent: [""]
     Logger info: "agent run starting" metadata: #{"issue" => identifier}
-    self doBegin: identifier
-
-  doBegin: identifier :: String =>
-    // Step 1: Create/reuse workspace
-    wsResult := self.workspaceManager createForIssue: identifier
-    wsResult isError
+    result := self doRun
+    result isError
       ifTrue: [
         Logger error: "agent run failed" metadata: #{
           "issue_identifier" => identifier,
-          "error" => wsResult error displayString
+          "error" => result error displayString
         }
-        ^nil
       ]
+      ifFalse: [
+        Logger info: "agent run completed" metadata: #{
+          "issue_identifier" => identifier,
+          "result" => result displayString
+        }
+      ]
+
+  doRun -> Result =>
+    identifier := self.issue at: "identifier" ifAbsent: [""]
+    // Step 1: Create/reuse workspace
+    wsResult := self.workspaceManager createForIssue: identifier
+    wsResult isError ifTrue: [^wsResult]
     wsPath := wsResult unwrap at: "path"
 
     // Step 2: Run before_run hook
     hookResult := self.workspaceManager runBeforeRun: wsPath
-    hookResult isError
-      ifTrue: [
-        Logger error: "agent run failed" metadata: #{
-          "issue_identifier" => identifier,
-          "error" => hookResult error displayString
-        }
-        ^nil
-      ]
+    hookResult isError ifTrue: [^hookResult]
 
     // Step 3: Start codex session
     self.codexClient := CodexClient
@@ -79,13 +75,7 @@ Actor subclass: AgentRunner
         self.workspaceManager runAfterRun: wsPath
         self.codexClient stopProcess
         self.codexClient stop
-        Logger
-          error: "agent run failed"
-          metadata: #{
-            "issue_identifier" => identifier,
-            "error" => sessionResult error displayString
-          }
-        ^nil
+        ^sessionResult
       ]
 
     sessionData := sessionResult unwrap
@@ -101,57 +91,35 @@ Actor subclass: AgentRunner
     self.codexClient stop
     self.workspaceManager runAfterRun: wsPath
 
-    turnLoopResult isError
-      ifTrue: [
-        Logger
-          error: "agent run failed"
-          metadata: #{
-            "issue_identifier" => identifier,
-            "error" => turnLoopResult error displayString
-          }
-      ]
-      ifFalse: [
-        Logger info: "agent run completed" metadata: #{
-          "issue_identifier" => identifier,
-          "result" => turnLoopResult displayString
-        }
-      ]
+    turnLoopResult
 
-  // --- Turn loop (reads state but doesn't need to mutate across self-calls) ---
+  // --- Prompt helpers ---
 
-  /// Executes the prompt-send-stream cycle for the current turn, then recurses.
-  runTurnLoop: wsPath :: String maxTurns: maxTurns :: Integer -> Result =>
-    // Build prompt for this turn
-    promptText := self.turnNumber == 1
-      ifTrue: [
-        pr := PromptRenderer
-          render: self.promptTemplate
-          issue: self.issue
-          attempt: self.attempt
-        pr isError ifTrue: [^pr]
-        pr unwrap
-      ]
-      ifFalse: [
-        "Continue working on this issue. This is turn "
-          ++ self.turnNumber displayString
-          ++ "."
-      ]
+  /// Builds the prompt text for the current turn.
+  buildPrompt -> Result =>
+    self.turnNumber == 1 ifTrue: [
+      self buildFirstTurnPrompt
+    ] ifFalse: [Result ok: (self buildContinuationPrompt)]
 
-    // Start the turn
-    title := (self.issue at: "identifier" ifAbsent: [""])
-      ++ ": "
-      ++ (self.issue at: "title" ifAbsent: [""])
-    turnResult := self.codexClient
-      startTurn: self.threadId
-      prompt: promptText
-      title: title
-    turnResult isError ifTrue: [^turnResult]
+  /// Renders the prompt template for the first turn.
+  buildFirstTurnPrompt -> Result =>
+    pr := PromptRenderer
+      render: self.promptTemplate
+      issue: self.issue
+      attempt: self.attempt
+    pr isError ifTrue: [^pr]
+    Result ok: pr unwrap
 
-    // Stream events until turn completes
-    turnTimeoutMs := self.config codexTurnTimeoutMs
-    streamResult := self.codexClient streamTurn: turnTimeoutMs
-    streamResult isError ifTrue: [^streamResult]
+  /// Returns a continuation prompt for subsequent turns.
+  buildContinuationPrompt -> String =>
+    "Continue working on this issue. This is turn "
+      ++ self.turnNumber displayString
+      ++ "."
 
+  // --- Turn continuation check ---
+
+  /// Returns a Result if the loop should stop, or nil to continue.
+  shouldContinue: maxTurns :: Integer =>
     // Check if max turns reached
     self.turnNumber >= maxTurns ifTrue: [
       ^Result ok: #{"status" => "max_turns_reached"}
@@ -175,6 +143,36 @@ Actor subclass: AgentRunner
         "state" => currentState
       }
     ]
+
+    nil
+
+  // --- Turn loop ---
+
+  /// Executes the prompt-send-stream cycle for the current turn, then recurses.
+  runTurnLoop: wsPath :: String maxTurns: maxTurns :: Integer -> Result =>
+    // Build prompt for this turn
+    promptResult := self buildPrompt
+    promptResult isError ifTrue: [^promptResult]
+    promptText := promptResult unwrap
+
+    // Start the turn
+    title := (self.issue at: "identifier" ifAbsent: [""])
+      ++ ": "
+      ++ (self.issue at: "title" ifAbsent: [""])
+    turnResult := self.codexClient
+      startTurn: self.threadId
+      prompt: promptText
+      title: title
+    turnResult isError ifTrue: [^turnResult]
+
+    // Stream events until turn completes
+    turnTimeoutMs := self.config codexTurnTimeoutMs
+    streamResult := self.codexClient streamTurn: turnTimeoutMs
+    streamResult isError ifTrue: [^streamResult]
+
+    // Check whether to continue
+    stopResult := self shouldContinue: maxTurns
+    stopResult isNil ifFalse: [^stopResult]
 
     // Continue with next turn
     self.turnNumber := self.turnNumber + 1

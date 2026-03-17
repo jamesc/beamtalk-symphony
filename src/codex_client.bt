@@ -5,9 +5,8 @@
 /// Handles JSON-RPC protocol, session startup handshake,
 /// request/response matching, and turn streaming.
 ///
-/// NOTE: Avoid self-calls that mutate state. The compiler does not thread
-/// state changes from safe_dispatch back to the caller (BT-1420).
-/// All state-mutating logic must be inlined into the method that needs it.
+/// NOTE: BT-1420 (self-call state mutations lost via safe_dispatch) is fixed.
+/// Helper methods that mutate state (launch, sendJson:, etc.) work correctly.
 Actor subclass: CodexClient
   state: proc = nil
   state: nextId :: Integer = 1
@@ -64,29 +63,56 @@ Actor subclass: CodexClient
         self.proc := nil
       ]
 
-  // --- Inline helpers (avoid self-calls for state safety) ---
+  // --- Subprocess launch ---
+
+  /// Opens the codex subprocess and sets self.proc.
+  launch -> Result =>
+    procResult := [
+      Subprocess
+        open: "/bin/bash"
+        args: #("-lc", self.config codexCommand)
+        dir: self.workspacePath
+    ]
+      on: Error
+      do: [:e |
+        Logger error: "codex launch failed" metadata: #{"error" => e message}
+        ^Result error: #{"kind" => "codex_not_found", "detail" => e message}
+      ]
+    procResult isError
+      ifTrue: [
+        Logger error: "codex launch error" metadata: #{
+          "error" => procResult error displayString
+        }
+        ^Result error: #{
+          "kind" => "codex_not_found",
+          "detail" => procResult error displayString
+        }
+      ]
+    self.proc := procResult unwrap
+    Logger info: "codex process launched"
+    Result ok: nil
+
+  // --- JSON-RPC helpers ---
 
   /// Writes a JSON-RPC message to the subprocess.
-  writeJson: msg :: Dictionary =>
+  sendJson: msg :: Dictionary =>
     line := Json generate: msg
     self.proc writeLine: line
 
   /// Allocates a request ID, sends the request, and returns the ID.
-  writeRequest: method :: String params: params :: Dictionary -> Integer =>
+  sendRequest: method :: String params: params :: Dictionary -> Integer =>
     id := self.nextId
     self.nextId := self.nextId + 1
     msg := #{"id" => id, "method" => method, "params" => params}
-    line := Json generate: msg
     Logger debug: "codex >> " ++ method ++ " (id=" ++ id displayString ++ ")"
-    self.proc writeLine: line
+    self sendJson: msg
     id
 
   /// Sends a notification (no id, no response expected).
-  writeNotification: method :: String params: params :: Dictionary =>
+  sendNotification: method :: String params: params :: Dictionary =>
     msg := #{"method" => method, "params" => params}
-    line := Json generate: msg
     Logger debug: "codex >> " ++ method ++ " (notification)"
-    self.proc writeLine: line
+    self sendJson: msg
 
   // --- Response reading (no state mutation, self-recursion is safe) ---
   readResponse: expectedId :: Integer timeout: timeoutMs :: Integer -> Result =>
@@ -143,36 +169,15 @@ Actor subclass: CodexClient
       "command" => self.config codexCommand
     }
 
-    // Inline subprocess launch (avoid self-call state loss)
-    procResult := [
-      Subprocess
-        open: "/bin/bash"
-        args: #("-lc", self.config codexCommand)
-        dir: self.workspacePath
-    ]
-      on: Error
-      do: [:e |
-        Logger error: "codex launch failed" metadata: #{"error" => e message}
-        ^Result error: #{"kind" => "codex_not_found", "detail" => e message}
-      ]
-    procResult isError
-      ifTrue: [
-        Logger error: "codex launch error" metadata: #{
-          "error" => procResult error displayString
-        }
-        ^Result error: #{
-          "kind" => "codex_not_found",
-          "detail" => procResult error displayString
-        }
-      ]
-    self.proc := procResult unwrap
-    Logger info: "codex process launched"
+    // Launch subprocess
+    launchResult := self launch
+    launchResult isError ifTrue: [^launchResult]
 
     readTimeout := self.config codexReadTimeoutMs
 
-    // Step 1: initialize request (inline to preserve nextId state)
+    // Step 1: initialize request
     initId := self
-      writeRequest: "initialize"
+      sendRequest: "initialize"
       params: #{
         "clientInfo" => #{"name" => "symphony", "version" => "1.0"},
         "capabilities" => #{}
@@ -194,10 +199,10 @@ Actor subclass: CodexClient
     Logger info: "codex initialized"
 
     // Step 2: initialized notification
-    self writeNotification: "initialized" params: #{}
+    self sendNotification: "initialized" params: #{}
 
     // Step 3: thread/start request
-    threadReqId := self writeRequest: "thread/start" params: #{
+    threadReqId := self sendRequest: "thread/start" params: #{
       "cwd" => self.workspacePath
     }
     threadResp := self readResponse: threadReqId timeout: readTimeout
@@ -237,7 +242,7 @@ Actor subclass: CodexClient
     }
     readTimeout := self.config codexReadTimeoutMs
     turnId := self
-      writeRequest: "turn/start"
+      sendRequest: "turn/start"
       params: #{
         "threadId" => threadId,
         "input" => #(#{"type" => "text", "text" => prompt}),
@@ -334,7 +339,7 @@ Actor subclass: CodexClient
       ])
       ifTrue: [
         Logger debug: "codex auto-approving: " ++ method
-        self writeJson: #{"id" => id, "result" => #{"approved" => true}}
+        self sendJson: #{"id" => id, "result" => #{"approved" => true}}
         self emitEvent: msg
         ^self streamUntilDone: deadline
       ]
@@ -354,7 +359,7 @@ Actor subclass: CodexClient
           "method" => method displayString
         }
         self
-          writeJson: #{
+          sendJson: #{
             "id" => id,
             "result" => #{
               "success" => false,

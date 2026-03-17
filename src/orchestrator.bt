@@ -85,39 +85,9 @@ Actor subclass: Orchestrator
       maxConcurrent: self.config maxConcurrentAgents
       maxByState: self.config maxConcurrentAgentsByState
 
-    // Step 4b: Dispatch eligible issues (inlined due to BT-1420)
+    // Step 4b: Dispatch eligible issues
     @expect all
-    eligible
-      do: [:issue |
-        issueId := issue at: "id"
-        identifier := issue at: "identifier" ifAbsent: [""]
-
-        runner := AgentRunner
-          run: issue
-          attempt: nil
-          config: self.config
-          workspaceManager: self.workspaceManager
-          linearClient: self.linearClient
-          promptTemplate: self.promptTemplate
-          onEvent: [:event | self onCodexEvent: issueId event: event]
-
-        monitorRef := Erlang erlang monitor: #process arg: runner
-
-        entry := RunningEntry
-          forIssue: issue
-          identifier: identifier
-          startedAt: (DateTime now asTimestamp * 1000)
-        entry := (entry withWorkerPid: runner) withMonitorRef: monitorRef
-
-        self.running := self.running at: issueId put: entry
-        self.claimed := self.claimed add: issueId
-        self.retryAttempts := self.retryAttempts removeKey: issueId
-
-        Logger info: "dispatched" metadata: #{
-          "issue_id" => issueId,
-          "issue_identifier" => identifier
-        }
-      ]
+    eligible do: [:issue | self dispatchIssue: issue attempt: nil]
 
     // Step 5: Schedule next tick
     self scheduleTick: self.config pollIntervalMs
