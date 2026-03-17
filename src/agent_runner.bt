@@ -34,6 +34,12 @@ Actor subclass: AgentRunner
     runner
 
   // --- Main lifecycle ---
+  terminate: _reason =>
+    self.codexClient isNil ifFalse: [
+      self.codexClient stopProcess
+      self.codexClient stop
+    ]
+
   begin =>
     identifier := self.issue at: "identifier" ifAbsent: [""]
     Logger info: "agent run starting" metadata: #{"issue" => identifier}
@@ -98,7 +104,7 @@ Actor subclass: AgentRunner
   buildPrompt -> Result =>
     self.turnNumber == 1 ifTrue: [
       self buildFirstTurnPrompt
-    ] ifFalse: [Result ok: (self buildContinuationPrompt)]
+    ] ifFalse: [Result ok: self buildContinuationPrompt]
 
   /// Renders the prompt template for the first turn.
   buildFirstTurnPrompt -> Result =>

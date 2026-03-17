@@ -8,7 +8,7 @@ Value subclass: RetryAttempt
   state: identifier :: String = ""
   state: attempt :: Integer = 1
   state: dueAtMs :: Integer = 0
-  state: timerRef :: Reference
+  state: timerRef :: Timer
   state: error :: String
 
   /// Computes exponential backoff delay: min(10s * 2^(attempt-1), maxMs).

@@ -33,6 +33,16 @@ Actor subclass: Orchestrator
     self startupTerminalCleanup
     self scheduleTick: 0
 
+  /// Lifecycle hook — cancels timers and kills running workers on shutdown.
+  terminate: _reason =>
+    self.pollTimerRef isNil ifFalse: [self.pollTimerRef cancel]
+    self.running do: [:entry |
+      entry workerPid isNil ifFalse: [entry workerPid kill]
+    ]
+    self.retryAttempts do: [:entry |
+      entry timerRef isNil ifFalse: [entry timerRef cancel]
+    ]
+
   // --- Config reload ---
 
   /// Hot-swaps config and prompt template without restarting running agents.
@@ -107,9 +117,16 @@ Actor subclass: Orchestrator
       workspaceManager: self.workspaceManager
       linearClient: self.linearClient
       promptTemplate: self.promptTemplate
-      onEvent: [:event | self onCodexEvent: issueId event: event]
+      onEvent: [:event |
+        orch := [SymphonySupervisor current which: Orchestrator] on: Error do: [:e | nil]
+        orch isNil ifFalse: [orch onCodexEvent: issueId event: event]
+      ]
 
-    // Track in running map (monitor disabled until Actor -> Pid conversion available)
+    runner onExit: [:reason |
+      orch := [SymphonySupervisor current which: Orchestrator] on: Error do: [:e | nil]
+      orch isNil ifFalse: [orch onWorkerExit: issueId reason: reason!]
+    ]
+
     entry := RunningEntry
       forIssue: issue
       identifier: identifier
@@ -137,34 +154,46 @@ Actor subclass: Orchestrator
     timestamp := event at: "timestamp" ifAbsent: [nil]
     session := entry session
     session := (session withLastEvent: method) withLastTimestamp: timestamp
+    // Increment turn count on turn completion
+    session := method == "turn/completed"
+      ifTrue: [session withTurnCount: session turnCount + 1]
+      ifFalse: [session]
     entry := entry withSession: session
 
-    // Update token usage if present
+    // Update token usage — call applyUsage: unconditionally to avoid block mutation
+    // (applyUsage: handles nil usage internally)
     usage := event at: "usage" ifAbsent: [nil]
-    usage isNil
-      ifFalse: [
-        input := usage at: "input" ifAbsent: [0]
-        output := usage at: "output" ifAbsent: [0]
-        total := usage at: "total" ifAbsent: [0]
-        oldTokens := entry tokens
-        newTokens := oldTokens
-          applyAbsolute: input
-          output: output
-          total: total
-        entry := entry withTokens: newTokens
+    entry := self applyUsage: usage toEntry: entry
 
-        // Accumulate into global totals
-        self.codexTotals := self.codexTotals
-          applyAbsolute: self.codexTotals input + (newTokens input - oldTokens input)
-          output: self.codexTotals output + (newTokens output - oldTokens output)
-          total: self.codexTotals total + (newTokens total - oldTokens total)
-      ]
-
-    // Update rate limits if present
-    rateLimits := event at: "rateLimits" ifAbsent: [nil]
-    rateLimits isNil ifFalse: [self.codexRateLimits := rateLimits]
+    // Update rate limits
+    self applyRateLimits: (event at: "rateLimits" ifAbsent: [nil])
 
     self.running := self.running at: issueId put: entry
+
+  /// Applies token usage to a running entry and accumulates global totals.
+  /// Returns entry unchanged if usage is nil.
+  applyUsage: usage toEntry: entry :: RunningEntry -> RunningEntry =>
+    usage isNil ifTrue: [^entry]
+    input := usage at: "input" ifAbsent: [0]
+    output := usage at: "output" ifAbsent: [0]
+    total := usage at: "total" ifAbsent: [0]
+    oldTokens := entry tokens
+    newTokens := oldTokens
+      applyAbsolute: input
+      output: output
+      total: total
+
+    // Accumulate into global totals
+    self.codexTotals := self.codexTotals
+      applyAbsolute: self.codexTotals input + (newTokens input - oldTokens input)
+      output: self.codexTotals output + (newTokens output - oldTokens output)
+      total: self.codexTotals total + (newTokens total - oldTokens total)
+
+    entry withTokens: newTokens
+
+  /// Updates rate limits if non-nil.
+  applyRateLimits: rateLimits =>
+    rateLimits isNil ifFalse: [self.codexRateLimits := rateLimits]
 
   // --- Worker exit handling ---
 
@@ -216,13 +245,11 @@ Actor subclass: Orchestrator
     existing := self.retryAttempts at: issueId ifAbsent: [nil]
     existing isNil
       ifFalse: [
-        existing timerRef isNil ifFalse: [
-          Erlang erlang cancel_timer: existing timerRef
-        ]
+        existing timerRef isNil ifFalse: [existing timerRef cancel]
       ]
 
     dueAt := (DateTime now asTimestamp * 1000) + delayMs
-    timerRef := Timer after: delayMs do: [self onRetryTimer: issueId]
+    timerRef := Timer after: delayMs do: [self onRetryTimer: issueId!]
 
     entry := RetryAttempt
       new: #{

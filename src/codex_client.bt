@@ -28,10 +28,15 @@ Actor subclass: CodexClient
   class extractUsage: msg :: Dictionary -> Dictionary =>
     // Look for token usage in common payload shapes
     params := msg at: "params" ifAbsent: [#{}]
-    // Prefer total_token_usage, fallback to usage
-    usage := params at: "total_token_usage" ifAbsent: [nil]
+    // Try tokenUsage.total (codex format), then total_token_usage, then usage
+    tokenUsage := params at: "tokenUsage" ifAbsent: [nil]
+    usage := (tokenUsage isNil not and: [tokenUsage isKindOf: Dictionary])
+      ifTrue: [tokenUsage at: "total" ifAbsent: [nil]]
+      ifFalse: [nil]
     usage := usage isNil ifTrue: [
-      params at: "usage" ifAbsent: [nil]
+      params at: "total_token_usage" ifAbsent: [
+        params at: "usage" ifAbsent: [nil]
+      ]
     ] ifFalse: [usage]
     usage isNil ifTrue: [^nil]
     (usage isKindOf: Dictionary) ifFalse: [^nil]
@@ -53,6 +58,9 @@ Actor subclass: CodexClient
     params at: "rate_limits" ifAbsent: [params at: "rateLimits" ifAbsent: [nil]]
 
   // --- Subprocess lifecycle ---
+  terminate: _reason =>
+    self stopProcess
+
   stopProcess =>
     Logger debug: "codex process stopping"
     self.proc isNil

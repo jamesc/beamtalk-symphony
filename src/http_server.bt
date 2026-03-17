@@ -14,6 +14,10 @@ Actor subclass: HttpServer
   class start: port :: Integer orchestrator: orch :: Orchestrator -> HttpServer =>
     self spawnWith: #{#port => port, #orchestrator => orch}
 
+  /// Lifecycle hook — stops the HTTP listener on shutdown.
+  terminate: _reason =>
+    self.server isNil ifFalse: [self.server stop]
+
   /// Lifecycle hook — starts the HTTP listener after spawn.
   initialize =>
     handler := [:req | self handleRequest: req]
@@ -47,6 +51,7 @@ Actor subclass: HttpServer
   handleGet: path :: String -> HTTPResponse =>
     path == "/" ifTrue: [^self handleDashboard]
     path == "/api/v1/state" ifTrue: [^self handleState]
+    path == "/api/v1/refresh" ifTrue: [^self handleRefresh]
     (path startsWith: "/api/v1/") ifTrue: [
       ^self handleIssueDetail: (path drop: 8)
     ]
@@ -191,23 +196,21 @@ Actor subclass: HttpServer
 
   renderRunningRow: r :: Dictionary -> String =>
     identifier := r at: "issue_identifier" ifAbsent: ["?"]
-    state := r at: "state" ifAbsent: ["?"]
+    issueState := r at: "state" ifAbsent: ["?"]
     turns := r at: "turn_count" ifAbsent: [0]
-    lastEvent := r at: "last_event" ifAbsent: ["—"]
-    lastEvent isNil ifTrue: [lastEvent := "—"]
-    tokens := r at: "tokens" ifAbsent: [#{}]
-    total := tokens at: "total_tokens" ifAbsent: [0]
+    lastEvent := (r at: "last_event" ifAbsent: [nil]) isNil ifTrue: ["—"] ifFalse: [r at: "last_event"]
+    total := (r at: "tokens" ifAbsent: [#{}]) at: "total_tokens" ifAbsent: [0]
     "<tr><td><strong>"
       ++ identifier
       ++ "</strong></td>"
       ++ "<td><span class='badge badge-running'>"
-      ++ state
+      ++ issueState
       ++ "</span></td>"
       ++ "<td>"
       ++ turns displayString
       ++ "</td>"
       ++ "<td>"
-      ++ lastEvent asString
+      ++ lastEvent displayString
       ++ "</td>"
       ++ "<td>"
       ++ (self formatNumber: total)
@@ -216,8 +219,7 @@ Actor subclass: HttpServer
   renderRetryRow: r :: Dictionary -> String =>
     identifier := r at: "issue_identifier" ifAbsent: ["?"]
     attempt := r at: "attempt" ifAbsent: [0]
-    error := r at: "error" ifAbsent: ["—"]
-    error isNil ifTrue: [error := "—"]
+    errorMsg := (r at: "error" ifAbsent: [nil]) isNil ifTrue: ["—"] ifFalse: [r at: "error"]
     "<tr><td><strong>"
       ++ identifier
       ++ "</strong></td>"
@@ -225,7 +227,7 @@ Actor subclass: HttpServer
       ++ attempt displayString
       ++ "</span></td>"
       ++ "<td>"
-      ++ error asString
+      ++ errorMsg
       ++ "</td></tr>"
 
   formatNumber: n :: Integer -> String =>
@@ -262,17 +264,17 @@ Actor subclass: HttpServer
       ]
     self respond: 200 body: (Json generate: found)
 
-  /// Triggers an immediate poll/reconcile cycle on the orchestrator.
+  /// Triggers an immediate poll/reconcile cycle, then returns the snapshot.
   handleRefresh -> HTTPResponse =>
     orch := [
       SymphonySupervisor current which: Orchestrator
     ] on: Error do: [:e | nil]
-    orch isNil ifFalse: [orch onTick!]
-    body := Json generate: #{
-      "queued" => true,
-      "operations" => #("poll", "reconcile")
-    }
-    self respond: 202 body: body
+    orch isNil ifTrue: [
+      ^self respond: 503 body: (self errorJson: "no_orchestrator" msg: "Orchestrator not available")
+    ]
+    orch onTick
+    snapshot := orch getSnapshot
+    self respond: 200 body: (Json generate: snapshot)
 
   // --- Helpers ---
   getSnapshot -> Dictionary =>
