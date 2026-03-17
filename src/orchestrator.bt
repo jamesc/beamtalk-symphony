@@ -117,15 +117,9 @@ Actor subclass: Orchestrator
       workspaceManager: self.workspaceManager
       linearClient: self.linearClient
       promptTemplate: self.promptTemplate
-      onEvent: [:event |
-        orch := [SymphonySupervisor current which: Orchestrator] on: Error do: [:e | nil]
-        orch isNil ifFalse: [orch onCodexEvent: issueId event: event]
-      ]
+      onEvent: [:event | self onCodexEvent: issueId event: event]
 
-    runner onExit: [:reason |
-      orch := [SymphonySupervisor current which: Orchestrator] on: Error do: [:e | nil]
-      orch isNil ifFalse: [orch onWorkerExit: issueId reason: reason!]
-    ]
+    runner onExit: [:reason | self onWorkerExit: issueId reason: reason!]
 
     entry := RunningEntry
       forIssue: issue
