@@ -17,17 +17,20 @@ Actor subclass: HttpServer
   /// Lifecycle hook — starts the HTTP listener after spawn.
   initialize =>
     handler := [:req | self handleRequest: req]
-    [
-      self.server := HTTPServer start: self.port handler: handler
-      Logger info: "http server started" metadata: #{
-        "port" => self.server port displayString
-      }
-    ]
+    result := [HTTPServer start: self.port handler: handler]
       on: Error
       do: [:e |
         Logger error: "http server failed to start" metadata: #{
           "port" => self.port displayString,
           "error" => e message
+        }
+        nil
+      ]
+    result isNil
+      ifFalse: [
+        self.server := result
+        Logger info: "http server started" metadata: #{
+          "port" => self.server port displayString
         }
       ]
 

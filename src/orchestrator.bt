@@ -98,6 +98,7 @@ Actor subclass: Orchestrator
   dispatchIssue: issue :: Dictionary attempt: attempt :: Integer =>
     issueId := issue at: "id"
     identifier := issue at: "identifier" ifAbsent: [""]
+    Logger info: "dispatching" metadata: #{"issue" => identifier}
 
     runner := AgentRunner
       run: issue
@@ -108,15 +109,12 @@ Actor subclass: Orchestrator
       promptTemplate: self.promptTemplate
       onEvent: [:event | self onCodexEvent: issueId event: event]
 
-    // Monitor the worker process
-    monitorRef := Erlang erlang monitor: #process arg: runner
-
-    // Track in running map
+    // Track in running map (monitor disabled until Actor -> Pid conversion available)
     entry := RunningEntry
       forIssue: issue
       identifier: identifier
       startedAt: (DateTime now asTimestamp * 1000)
-    entry := (entry withWorkerPid: runner) withMonitorRef: monitorRef
+    entry := entry withWorkerPid: runner
 
     self.running := self.running at: issueId put: entry
     self.claimed := self.claimed add: issueId
