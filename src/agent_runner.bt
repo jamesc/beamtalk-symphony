@@ -21,7 +21,7 @@ Actor subclass: AgentRunner
   state: turnNumber :: Integer = 0
 
   /// Spawns a new AgentRunner and starts the run lifecycle asynchronously.
-  class run: issue attempt: attempt config: config workspaceManager: wm linearClient: lc promptTemplate: pt onEvent: callback =>
+  class run: issue :: Dictionary attempt: attempt :: Integer config: config :: Config workspaceManager: wm :: WorkspaceManager linearClient: lc :: LinearClient promptTemplate: pt :: String onEvent: callback :: Block -> AgentRunner =>
     runner := self
       spawnWith: #{
         #issue => issue,
@@ -44,7 +44,7 @@ Actor subclass: AgentRunner
     Logger info: "agent run starting" metadata: #{"issue" => identifier}
     self doBegin: identifier
 
-  doBegin: identifier =>
+  doBegin: identifier :: String =>
     // Step 1: Create/reuse workspace
     wsResult := self.workspaceManager createForIssue: identifier
     wsResult isError
@@ -120,7 +120,7 @@ Actor subclass: AgentRunner
   // --- Turn loop (reads state but doesn't need to mutate across self-calls) ---
 
   /// Executes the prompt-send-stream cycle for the current turn, then recurses.
-  runTurnLoop: wsPath maxTurns: maxTurns =>
+  runTurnLoop: wsPath :: String maxTurns: maxTurns :: Integer -> Result =>
     // Build prompt for this turn
     promptText := self.turnNumber == 1
       ifTrue: [

@@ -8,10 +8,10 @@ Supervisor subclass: SymphonySupervisor
 
   class start => self supervise
 
-  class strategy => #oneForOne
+  class strategy -> Symbol => #oneForOne
 
   /// Builds the child spec list: loads .env, parses WORKFLOW.md, creates clients.
-  class children =>
+  class children -> List =>
     DotEnv load: File cwd ++ "/.env"
 
     wfResult := WorkflowLoader load: "./WORKFLOW.md"

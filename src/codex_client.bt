@@ -16,7 +16,7 @@ Actor subclass: CodexClient
   state: onEvent :: Block
 
   /// Spawns a new CodexClient actor bound to the given workspace directory.
-  class start: workspacePath config: config onEvent: callback =>
+  class start: workspacePath :: String config: config :: Config onEvent: callback :: Block -> CodexClient =>
     client := self spawnWith: #{
       #workspacePath => workspacePath,
       #config => config,
@@ -27,7 +27,7 @@ Actor subclass: CodexClient
   // --- Token and rate-limit extraction ---
 
   /// Extracts token usage counters from a codex event message, or nil.
-  class extractUsage: msg =>
+  class extractUsage: msg :: Dictionary -> Dictionary =>
     // Look for token usage in common payload shapes
     params := msg at: "params" ifAbsent: [#{}]
     // Prefer total_token_usage, fallback to usage
@@ -50,7 +50,7 @@ Actor subclass: CodexClient
     }
 
   /// Extracts rate limit info from a codex event message, or nil.
-  class extractRateLimits: msg =>
+  class extractRateLimits: msg :: Dictionary =>
     params := msg at: "params" ifAbsent: [#{}]
     params at: "rate_limits" ifAbsent: [params at: "rateLimits" ifAbsent: [nil]]
 
@@ -67,12 +67,12 @@ Actor subclass: CodexClient
   // --- Inline helpers (avoid self-calls for state safety) ---
 
   /// Writes a JSON-RPC message to the subprocess.
-  writeJson: msg =>
+  writeJson: msg :: Dictionary =>
     line := Json generate: msg
     self.proc writeLine: line
 
   /// Allocates a request ID, sends the request, and returns the ID.
-  writeRequest: method params: params =>
+  writeRequest: method :: String params: params :: Dictionary -> Integer =>
     id := self.nextId
     self.nextId := self.nextId + 1
     msg := #{"id" => id, "method" => method, "params" => params}
@@ -82,18 +82,18 @@ Actor subclass: CodexClient
     id
 
   /// Sends a notification (no id, no response expected).
-  writeNotification: method params: params =>
+  writeNotification: method :: String params: params :: Dictionary =>
     msg := #{"method" => method, "params" => params}
     line := Json generate: msg
     Logger debug: "codex >> " ++ method ++ " (notification)"
     self.proc writeLine: line
 
   // --- Response reading (no state mutation, self-recursion is safe) ---
-  readResponse: expectedId timeout: timeoutMs =>
+  readResponse: expectedId :: Integer timeout: timeoutMs :: Integer -> Result =>
     deadline := (DateTime now asTimestamp * 1000) + timeoutMs
     self readUntilResponse: expectedId deadline: deadline
 
-  readUntilResponse: expectedId deadline: deadline =>
+  readUntilResponse: expectedId :: Integer deadline: deadline :: Integer -> Result =>
     remaining := deadline - (DateTime now asTimestamp * 1000)
     remaining <= 0
       ifTrue: [
@@ -137,7 +137,7 @@ Actor subclass: CodexClient
   // --- Session startup handshake ---
 
   /// Launches the subprocess and performs the initialize/thread-start handshake.
-  startSession =>
+  startSession -> Result =>
     Logger info: "codex session starting" metadata: #{
       "workspace" => self.workspacePath,
       "command" => self.config codexCommand
@@ -217,6 +217,7 @@ Actor subclass: CodexClient
 
     // Extract thread ID from response
     threadData := threadResp unwrap
+    @expect type  // Is Dictionary
     threadResult := threadData at: "result" ifAbsent: [#{}]
     thread := threadResult at: "thread" ifAbsent: [#{}]
     tid := thread at: "id" ifAbsent: [nil]
@@ -229,7 +230,7 @@ Actor subclass: CodexClient
   // --- Turn management ---
 
   /// Sends a turn/start request with the given prompt and waits for acknowledgement.
-  startTurn: threadId prompt: prompt title: title =>
+  startTurn: threadId :: String prompt: prompt :: String title: title :: String -> Result =>
     Logger info: "codex turn starting" metadata: #{
       "title" => title,
       "prompt_length" => prompt length displayString
@@ -254,6 +255,7 @@ Actor subclass: CodexClient
       ]
 
     turnData := turnResp unwrap
+    @expect type  // Is Dictionary
     turnResult := turnData at: "result" ifAbsent: [#{}]
     turn := turnResult at: "turn" ifAbsent: [#{}]
     tuid := turn at: "id" ifAbsent: [nil]
@@ -264,11 +266,11 @@ Actor subclass: CodexClient
     Result ok: #{"turnId" => tuid}
 
   /// Streams events until the turn completes, fails, or times out.
-  streamTurn: turnTimeoutMs =>
+  streamTurn: turnTimeoutMs :: Integer -> Result =>
     deadline := (DateTime now asTimestamp * 1000) + turnTimeoutMs
     self streamUntilDone: deadline
 
-  streamUntilDone: deadline =>
+  streamUntilDone: deadline :: Integer -> Result =>
     remaining := deadline - (DateTime now asTimestamp * 1000)
     remaining <= 0
       ifTrue: [
@@ -297,7 +299,7 @@ Actor subclass: CodexClient
     msg := parsed unwrap
     self handleStreamMessage: msg deadline: deadline
 
-  handleStreamMessage: msg deadline: deadline =>
+  handleStreamMessage: msg :: Dictionary deadline: deadline :: Integer -> Result =>
     method := msg at: "method" ifAbsent: [nil]
 
     // Check for turn completion
@@ -369,7 +371,7 @@ Actor subclass: CodexClient
     self streamUntilDone: deadline
 
   // --- Event emission ---
-  emitEvent: msg =>
+  emitEvent: msg :: Dictionary =>
     self.onEvent isNil
       ifFalse: [
         // Enrich with extracted usage and rate limits

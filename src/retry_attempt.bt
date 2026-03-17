@@ -12,8 +12,8 @@ Value subclass: RetryAttempt
   state: error :: String
 
   /// Computes exponential backoff delay: min(10s * 2^(attempt-1), maxMs).
-  class backoffMs: attempt maxMs: maxMs =>
+  class backoffMs: attempt :: Integer maxMs: maxMs :: Integer -> Integer =>
     delay := 10000 * (2 raisedTo: attempt - 1)
     delay > maxMs ifTrue: [maxMs] ifFalse: [delay]
 
-  class continuationDelayMs => 1000
+  class continuationDelayMs -> Integer => 1000

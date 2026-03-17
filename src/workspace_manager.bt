@@ -11,10 +11,10 @@ Object subclass: WorkspaceManager
   state: hooksBeforeRemove = nil
   state: hooksTimeoutMs :: Integer = 60000
 
-  class new: opts => (self new) initWith: opts
+  class new: opts :: Dictionary -> WorkspaceManager => (self new) initWith: opts
 
   /// Creates a WorkspaceManager from a Config, extracting root and hook settings.
-  class fromConfig: config =>
+  class fromConfig: config :: Config -> WorkspaceManager =>
     self
       new: #{
         "root" => config workspaceRoot,
@@ -25,7 +25,7 @@ Object subclass: WorkspaceManager
         "hooksTimeoutMs" => config hooksTimeoutMs
       }
 
-  initWith: opts =>
+  initWith: opts :: Dictionary =>
     self.root := opts at: "root" ifAbsent: ["/tmp/symphony_workspaces"]
     self.hooksAfterCreate := opts at: "hooksAfterCreate" ifAbsent: [nil]
     self.hooksBeforeRun := opts at: "hooksBeforeRun" ifAbsent: [nil]
@@ -37,17 +37,17 @@ Object subclass: WorkspaceManager
   root => self.root
 
   // --- Path derivation ---
-  sanitizeIdentifier: identifier =>
+  sanitizeIdentifier: identifier :: String -> String =>
     identifier collect: [:ch |
       (ch matchesRegex: "[A-Za-z0-9._-]") ifTrue: [ch] ifFalse: ["_"]
     ]
 
-  workspacePath: identifier =>
+  workspacePath: identifier :: String -> String =>
     key := self sanitizeIdentifier: identifier
     self.root ++ "/" ++ key
 
   // --- Containment validation ---
-  validateContainment: wsPath =>
+  validateContainment: wsPath :: String -> Result =>
     (File absolutePath: self.root)
       andThen: [:absRoot |
         (File absolutePath: wsPath) andThen: [:absWs |
@@ -55,7 +55,7 @@ Object subclass: WorkspaceManager
         ]
       ]
 
-  checkContainment: absRoot workspace: absWs =>
+  checkContainment: absRoot :: String workspace: absWs :: String -> Result =>
     (absWs startsWith: absRoot ++ "/") ifTrue: [^Result ok: true]
     absWs == absRoot
       ifTrue: [
@@ -75,7 +75,7 @@ Object subclass: WorkspaceManager
   // --- Create or reuse ---
 
   /// Creates or reuses a workspace directory for the issue, running after_create hook.
-  createForIssue: identifier =>
+  createForIssue: identifier :: String -> Result =>
     wsPath := self workspacePath: identifier
     containment := self validateContainment: wsPath
     containment isError ifTrue: [^containment]
@@ -122,19 +122,19 @@ Object subclass: WorkspaceManager
   // --- Hook execution ---
 
   /// Runs the before_run hook script in the workspace directory.
-  runBeforeRun: wsPath =>
+  runBeforeRun: wsPath :: String -> Result =>
     self.hooksBeforeRun isNil ifTrue: [^Result ok: true]
     self runHook: self.hooksBeforeRun inDir: wsPath
 
-  runAfterRun: wsPath =>
+  runAfterRun: wsPath :: String -> Result =>
     self.hooksAfterRun isNil ifTrue: [^Result ok: true]
     self runHook: self.hooksAfterRun inDir: wsPath
 
-  runBeforeRemove: wsPath =>
+  runBeforeRemove: wsPath :: String -> Result =>
     self.hooksBeforeRemove isNil ifTrue: [^Result ok: true]
     self runHook: self.hooksBeforeRemove inDir: wsPath
 
-  runHook: script inDir: dir =>
+  runHook: script :: String inDir: dir :: String -> Result =>
     procResult := [
       Subprocess
         open: "/bin/sh"
@@ -164,7 +164,7 @@ Object subclass: WorkspaceManager
   // --- Cleanup ---
 
   /// Runs the before_remove hook and deletes the workspace directory.
-  removeWorkspace: identifier =>
+  removeWorkspace: identifier :: String -> Result =>
     wsPath := self workspacePath: identifier
     (File isDirectory: wsPath) ifFalse: [^Result ok: true]
     self runBeforeRemove: wsPath
@@ -172,7 +172,7 @@ Object subclass: WorkspaceManager
     Result ok: true
 
   // --- Validation for agent launch ---
-  validateCwd: cwd forIssue: identifier =>
+  validateCwd: cwd :: String forIssue: identifier :: String -> Result =>
     expected := self workspacePath: identifier
     (File absolutePath: expected)
       andThen: [:absExpected |
@@ -181,7 +181,7 @@ Object subclass: WorkspaceManager
         ]
       ]
 
-  checkCwd: absExpected actual: absCwd =>
+  checkCwd: absExpected :: String actual: absCwd :: String -> Result =>
     absExpected == absCwd
       ifTrue: [Result ok: true]
       ifFalse: [

@@ -13,4 +13,4 @@ Value subclass: SessionInfo
   state: lastTimestamp :: Integer
   state: turnCount :: Integer = 0
 
-  incrementTurnCount => self withTurnCount: self turnCount + 1
+  incrementTurnCount -> SessionInfo => self withTurnCount: self turnCount + 1

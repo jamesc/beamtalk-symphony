@@ -10,7 +10,7 @@ Actor subclass: WorkflowWatcher
   state: onReload :: Block
 
   /// Starts polling the given path for changes, calling callback on reload.
-  class start: path onReload: callback =>
+  class start: path :: String onReload: callback :: Block -> WorkflowWatcher =>
     watcher := self spawnWith: #{
       #path => path,
       #onReload => callback,
@@ -55,7 +55,7 @@ Actor subclass: WorkflowWatcher
         }
       ]
 
-  getModTime: filePath =>
+  getModTime: filePath :: String =>
     // Returns modification time or nil
     result := [Erlang filelib last_modified: filePath] on: Error do: [:e | nil]
     result == 0 ifTrue: [nil] ifFalse: [result]

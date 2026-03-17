@@ -8,10 +8,10 @@ Actor subclass: HttpServer
   state: port :: Integer = 0
   state: orchestrator :: Orchestrator
 
-  class supervisionPolicy => #permanent
+  class supervisionPolicy -> Symbol => #permanent
 
   /// Starts the HTTP server on the given port, backed by the orchestrator for state.
-  class start: port orchestrator: orch =>
+  class start: port :: Integer orchestrator: orch :: Orchestrator -> HttpServer =>
     self spawnWith: #{#port => port, #orchestrator => orch}
 
   /// Lifecycle hook — starts the HTTP listener after spawn.
@@ -31,17 +31,17 @@ Actor subclass: HttpServer
         }
       ]
 
-  actualPort => self.server port
+  actualPort -> Integer => self.server port
 
   // --- Request routing ---
-  handleRequest: req =>
+  handleRequest: req -> HTTPResponse =>
     method := req method
     path := req path
     method == "GET" ifTrue: [^self handleGet: path]
     method == "POST" ifTrue: [^self handlePost: path]
     self respond: 405 body: (self errorJson: "method_not_allowed" msg: "Method not allowed")
 
-  handleGet: path =>
+  handleGet: path :: String -> HTTPResponse =>
     path == "/" ifTrue: [^self handleDashboard]
     path == "/api/v1/state" ifTrue: [^self handleState]
     (path startsWith: "/api/v1/") ifTrue: [
@@ -49,26 +49,26 @@ Actor subclass: HttpServer
     ]
     self respond: 404 body: (self errorJson: "not_found" msg: "Not found")
 
-  handlePost: path =>
+  handlePost: path :: String -> HTTPResponse =>
     path == "/api/v1/refresh" ifTrue: [^self handleRefresh]
     self respond: 404 body: (self errorJson: "not_found" msg: "Not found")
 
   // --- Response helpers ---
-  respond: status body: body =>
+  respond: status :: Integer body: body :: String -> HTTPResponse =>
     HTTPResponse new: #{#status => status, #body => body}
 
-  errorJson: code msg: message =>
+  errorJson: code :: String msg: message :: String -> String =>
     Json generate: #{"error" => #{"code" => code, "message" => message}}
 
   // --- Dashboard ---
 
   /// Renders the HTML dashboard with current agent counts and token totals.
-  handleDashboard =>
+  handleDashboard -> HTTPResponse =>
     snapshot := self getSnapshot
     html := self renderDashboard: snapshot
     self respond: 200 body: html
 
-  renderDashboard: snapshot =>
+  renderDashboard: snapshot :: Dictionary -> String =>
     counts := snapshot at: "counts"
     totals := snapshot at: "codex_totals"
     runningCount := counts at: "running"
@@ -86,7 +86,7 @@ Actor subclass: HttpServer
       ++ (self dashboardRetryTable: retryRows count: retryingCount)
       ++ self dashboardFooter
 
-  dashboardHead =>
+  dashboardHead -> String =>
     "<!DOCTYPE html><html><head><meta charset=utf-8><title>Symphony</title>"
       ++ "<meta http-equiv=refresh content=5>"
       ++ "<style>"
@@ -113,7 +113,7 @@ Actor subclass: HttpServer
       ++ "a:hover \{ text-decoration: underline; }"
       ++ "</style></head><body>"
 
-  dashboardHeader: running retrying: retrying =>
+  dashboardHeader: running :: Integer retrying: retrying :: Integer -> String =>
     "<h1>Symphony</h1>"
       ++ "<div class=stats>"
       ++ "<div class='stat stat-running'><div class=stat-value>"
@@ -124,7 +124,7 @@ Actor subclass: HttpServer
       ++ "</div><div class=stat-label>Retrying</div></div>"
       ++ "</div>"
 
-  dashboardTokens: totals =>
+  dashboardTokens: totals :: Dictionary -> String =>
     input := totals at: "input_tokens"
     output := totals at: "output_tokens"
     total := totals at: "total_tokens"
@@ -140,7 +140,7 @@ Actor subclass: HttpServer
       ++ "</div><div class=stat-label>Total Tokens</div></div>"
       ++ "</div>"
 
-  dashboardRunningTable: rows count: count =>
+  dashboardRunningTable: rows :: String count: count :: Integer -> String =>
     "<h2>Running Agents ("
       ++ count displayString
       ++ ")</h2>"
@@ -152,7 +152,7 @@ Actor subclass: HttpServer
             ++ "</table>"
         ])
 
-  dashboardRetryTable: rows count: count =>
+  dashboardRetryTable: rows :: String count: count :: Integer -> String =>
     "<h2>Retry Queue ("
       ++ count displayString
       ++ ")</h2>"
@@ -164,29 +164,29 @@ Actor subclass: HttpServer
             ++ "</table>"
         ])
 
-  dashboardFooter =>
+  dashboardFooter -> String =>
     "<div class=footer>Auto-refreshes every 5s · <a href=/api/v1/state>JSON API</a> · <a href=/api/v1/refresh>Trigger Refresh</a></div></body></html>"
 
-  renderRunningRows: list =>
+  renderRunningRows: list :: List -> String =>
     list isEmpty ifTrue: [^""]
     // Build rows one at a time to avoid self-capture in block
     self renderRunningRowsFrom: list accumulated: ""
 
-  renderRunningRowsFrom: list accumulated: acc =>
+  renderRunningRowsFrom: list :: List accumulated: acc :: String -> String =>
     list isEmpty ifTrue: [^acc]
     row := self renderRunningRow: list first
     self renderRunningRowsFrom: list rest accumulated: acc ++ row
 
-  renderRetryRows: list =>
+  renderRetryRows: list :: List -> String =>
     list isEmpty ifTrue: [^""]
     self renderRetryRowsFrom: list accumulated: ""
 
-  renderRetryRowsFrom: list accumulated: acc =>
+  renderRetryRowsFrom: list :: List accumulated: acc :: String -> String =>
     list isEmpty ifTrue: [^acc]
     row := self renderRetryRow: list first
     self renderRetryRowsFrom: list rest accumulated: acc ++ row
 
-  renderRunningRow: r =>
+  renderRunningRow: r :: Dictionary -> String =>
     identifier := r at: "issue_identifier" ifAbsent: ["?"]
     state := r at: "state" ifAbsent: ["?"]
     turns := r at: "turn_count" ifAbsent: [0]
@@ -210,7 +210,7 @@ Actor subclass: HttpServer
       ++ (self formatNumber: total)
       ++ "</td></tr>"
 
-  renderRetryRow: r =>
+  renderRetryRow: r :: Dictionary -> String =>
     identifier := r at: "issue_identifier" ifAbsent: ["?"]
     attempt := r at: "attempt" ifAbsent: [0]
     error := r at: "error" ifAbsent: ["—"]
@@ -225,7 +225,7 @@ Actor subclass: HttpServer
       ++ error asString
       ++ "</td></tr>"
 
-  formatNumber: n =>
+  formatNumber: n :: Integer -> String =>
     n >= 1000000 ifTrue: [^(n / 1000000) displayString ++ "M"]
     n >= 1000 ifTrue: [^(n / 1000) displayString ++ "K"]
     n displayString
@@ -233,11 +233,11 @@ Actor subclass: HttpServer
   // --- JSON API ---
 
   /// Returns the full orchestrator snapshot as JSON.
-  handleState =>
+  handleState -> HTTPResponse =>
     snapshot := self getSnapshot
     self respond: 200 body: (Json generate: snapshot)
 
-  handleIssueDetail: identifier =>
+  handleIssueDetail: identifier :: String -> HTTPResponse =>
     identifier isEmpty ifTrue: [
       ^self respond: 404 body: (self errorJson: "not_found" msg: "Not found")
     ]
@@ -260,7 +260,7 @@ Actor subclass: HttpServer
     self respond: 200 body: (Json generate: found)
 
   /// Triggers an immediate poll/reconcile cycle on the orchestrator.
-  handleRefresh =>
+  handleRefresh -> HTTPResponse =>
     orch := [
       SymphonySupervisor current which: Orchestrator
     ] on: Error do: [:e | nil]
@@ -272,7 +272,7 @@ Actor subclass: HttpServer
     self respond: 202 body: body
 
   // --- Helpers ---
-  getSnapshot =>
+  getSnapshot -> Dictionary =>
     // Lazy lookup — find the Orchestrator from the supervisor each time
     orch := [
       SymphonySupervisor current which: Orchestrator

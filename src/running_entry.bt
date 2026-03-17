@@ -14,7 +14,7 @@ Value subclass: RunningEntry
   state: startedAt :: Integer
 
   /// Creates a fresh RunningEntry with empty session and token counters.
-  class forIssue: issue identifier: identifier startedAt: startedAt =>
+  class forIssue: issue :: Dictionary identifier: identifier :: String startedAt: startedAt :: Integer -> RunningEntry =>
     RunningEntry
       new: #{
         #identifier => identifier,
@@ -24,9 +24,9 @@ Value subclass: RunningEntry
         #startedAt => startedAt
       }
 
-  elapsedMs =>
+  elapsedMs -> Integer =>
     self startedAt isNil ifTrue: [^0]
     now := DateTime now asTimestamp
     (now - self startedAt) * 1000
 
-  elapsedSeconds => self elapsedMs / 1000.0
+  elapsedSeconds -> Float => self elapsedMs / 1000.0

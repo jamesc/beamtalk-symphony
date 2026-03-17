@@ -9,7 +9,7 @@ Object subclass: CandidateFilter
   state: maxByState :: Dictionary
 
   /// Returns issues eligible for dispatch, respecting concurrency and state limits.
-  class eligible: issues running: running claimed: claimed activeStates: activeStates terminalStates: terminalStates maxConcurrent: maxConcurrent maxByState: maxByState =>
+  class eligible: issues :: Array running: running :: Dictionary claimed: claimed :: List activeStates: activeStates :: Array terminalStates: terminalStates :: Array maxConcurrent: maxConcurrent :: Integer maxByState: maxByState :: Dictionary -> Array =>
     filter := (self new)
       initStates: activeStates
       terminal: terminalStates
@@ -21,15 +21,15 @@ Object subclass: CandidateFilter
       maxConcurrent: maxConcurrent
 
   /// Sorts issues by priority (ascending), then created_at, then identifier.
-  class sortForDispatch: issues => (self new) doSort: issues
+  class sortForDispatch: issues :: List -> List => (self new) doSort: issues
 
-  initStates: active terminal: terminal byState: byState =>
+  initStates: active :: Array terminal: terminal :: Array byState: byState :: Dictionary =>
     self.activeStates := active
     self.terminalStates := terminal
     self.maxByState := byState
     self
 
-  doFilter: issues running: running claimed: claimed maxConcurrent: maxConcurrent =>
+  doFilter: issues :: Array running: running :: Dictionary claimed: claimed :: List maxConcurrent: maxConcurrent :: Integer -> Array =>
     runningCount := running size
     availableGlobal := maxConcurrent - runningCount
     availableGlobal <= 0 ifTrue: [^#()]
@@ -50,7 +50,7 @@ Object subclass: CandidateFilter
       ]
     finalAcc at: "result"
 
-  accumulate: acc issue: issue running: running claimed: claimed available: availableGlobal =>
+  accumulate: acc :: Dictionary issue: issue :: Dictionary running: running :: Dictionary claimed: claimed :: List available: availableGlobal :: Integer -> Dictionary =>
     slotsUsed := acc at: "slots"
     slotsUsed >= availableGlobal ifTrue: [^acc]
     runningByState := acc at: "byState"
@@ -67,7 +67,7 @@ Object subclass: CandidateFilter
     newByState := runningByState at: st put: cur + 1
     #{"result" => newResult, "slots" => newSlots, "byState" => newByState}
 
-  countRunningByState: running =>
+  countRunningByState: running :: Dictionary -> Dictionary =>
     running values
       inject: #{}
       into: [:acc :entry |
@@ -81,7 +81,7 @@ Object subclass: CandidateFilter
           ]
       ]
 
-  isEligible: issue running: running claimed: claimed runningByState: runningByState =>
+  isEligible: issue :: Dictionary running: running :: Dictionary claimed: claimed :: List runningByState: runningByState :: Dictionary -> Boolean =>
     id := issue at: "id" ifAbsent: [nil]
     id isNil ifTrue: [^false]
     identifier := issue at: "identifier" ifAbsent: [nil]
@@ -133,15 +133,15 @@ Object subclass: CandidateFilter
 
     true
 
-  isTerminalState: state =>
+  isTerminalState: state :: String -> Boolean =>
     stateLower := state lowercase
     self.terminalStates anySatisfy: [:s | s lowercase == stateLower]
 
-  doSort: issues =>
+  doSort: issues :: List -> List =>
     // sort: expects boolean comparator (a < b), not three-way
     issues sort: [:a :b | self shouldComeBefore: a than: b]
 
-  shouldComeBefore: a than: b =>
+  shouldComeBefore: a :: Dictionary than: b :: Dictionary -> Boolean =>
     pA := a at: "priority" ifAbsent: [nil]
     pB := b at: "priority" ifAbsent: [nil]
 

@@ -12,15 +12,15 @@ Value subclass: TokenUsage
   state: lastReportedTotal :: Integer = 0
 
   /// Applies absolute token totals from a codex event, replacing current values.
-  applyAbsolute: newInput output: newOutput total: newTotal =>
+  applyAbsolute: newInput :: Integer output: newOutput :: Integer total: newTotal :: Integer -> TokenUsage =>
     ((self withInput: newInput) withOutput: newOutput) withTotal: newTotal
 
   /// Snapshots current values as the last-reported baseline for delta computation.
-  markReported =>
+  markReported -> TokenUsage =>
     ((self withLastReportedInput: self input) withLastReportedOutput: self output) withLastReportedTotal: self total
 
-  inputDelta => self input - self lastReportedInput
+  inputDelta -> Integer => self input - self lastReportedInput
 
-  outputDelta => self output - self lastReportedOutput
+  outputDelta -> Integer => self output - self lastReportedOutput
 
-  totalDelta => self total - self lastReportedTotal
+  totalDelta -> Integer => self total - self lastReportedTotal

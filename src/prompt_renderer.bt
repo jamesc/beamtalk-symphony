@@ -10,10 +10,10 @@ Object subclass: PromptRenderer
   state: openTag :: String = ""
   state: closeTag :: String = ""
 
-  class shared => self new initShared
+  class shared -> PromptRenderer => self new initShared
 
   /// Renders a prompt template with issue and attempt variables, returning Result.
-  class render: template issue: issue attempt: attempt =>
+  class render: template :: String issue: issue :: Dictionary attempt: attempt :: Integer -> Result =>
     renderer := self shared
     renderer
       render: template
@@ -28,7 +28,7 @@ Object subclass: PromptRenderer
     self.closeTag := "%}"
     self
 
-  render: template issue: issue attempt: attempt =>
+  render: template :: String issue: issue :: Dictionary attempt: attempt :: Integer -> Result =>
     template isNil ifTrue: [
       ^Result ok: "You are working on an issue from Linear."
     ]
@@ -46,19 +46,19 @@ Object subclass: PromptRenderer
       ]
     Result ok: result
 
-  processAll: text vars: vars =>
+  processAll: text :: String vars: vars :: Dictionary -> String =>
     result := self processIfs: text vars: vars
     result := self processFors: result vars: vars
     self interpolate: result vars: vars
 
   // --- If/Endif ---
-  processIfs: text vars: vars =>
+  processIfs: text :: String vars: vars :: Dictionary -> String =>
     ifOpen := self.openTag ++ " if "
     result := text
     (result includesSubstring: ifOpen) ifFalse: [^result]
     self processOneIf: result vars: vars
 
-  processOneIf: text vars: vars =>
+  processOneIf: text :: String vars: vars :: Dictionary -> String =>
     ifOpen := self.openTag ++ " if "
     ifClose := self.openTag ++ " endif " ++ self.closeTag
     startIdx := text indexOf: ifOpen
@@ -84,7 +84,7 @@ Object subclass: PromptRenderer
       self processOneIf: result vars: vars
     ] ifFalse: [result]
 
-  checkTruthy: val =>
+  checkTruthy: val -> Boolean =>
     val isNil ifTrue: [^false]
     val == false ifTrue: [^false]
     val == "" ifTrue: [^false]
@@ -92,12 +92,12 @@ Object subclass: PromptRenderer
     true
 
   // --- For/Endfor ---
-  processFors: text vars: vars =>
+  processFors: text :: String vars: vars :: Dictionary -> String =>
     forOpen := self.openTag ++ " for "
     (text includesSubstring: forOpen) ifFalse: [^text]
     self processOneFor: text vars: vars
 
-  processOneFor: text vars: vars =>
+  processOneFor: text :: String vars: vars :: Dictionary -> String =>
     forOpen := self.openTag ++ " for "
     forClose := self.openTag ++ " endfor " ++ self.closeTag
     startIdx := text indexOf: forOpen
@@ -131,7 +131,7 @@ Object subclass: PromptRenderer
       self processOneFor: result vars: vars
     ] ifFalse: [result]
 
-  renderForBody: body items: coll itemName: itemName vars: vars =>
+  renderForBody: body :: String items: coll itemName: itemName :: String vars: vars :: Dictionary -> String =>
     coll isNil ifTrue: [^""]
     (coll isKindOf: List) ifFalse: [^""]
     coll
@@ -142,14 +142,14 @@ Object subclass: PromptRenderer
       ]
 
   // --- Interpolation ---
-  interpolate: text vars: vars =>
+  interpolate: text :: String vars: vars :: Dictionary -> String =>
     (text includesSubstring: self.openVar) ifFalse: [^text]
     result := self interpolateOne: text vars: vars
     (result includesSubstring: self.openVar) ifTrue: [
       self interpolate: result vars: vars
     ] ifFalse: [result]
 
-  interpolateOne: text vars: vars =>
+  interpolateOne: text :: String vars: vars :: Dictionary -> String =>
     startIdx := text indexOf: self.openVar
     startIdx isNil ifTrue: [^text]
     afterStart := text drop: startIdx + self.openVar size - 1
@@ -163,7 +163,7 @@ Object subclass: PromptRenderer
     prefix ++ valStr ++ suffix
 
   // --- Variable resolution ---
-  resolveVar: expr vars: vars =>
+  resolveVar: expr :: String vars: vars :: Dictionary =>
     parts := expr split: "."
     parts
       inject: vars

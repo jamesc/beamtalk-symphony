@@ -18,7 +18,7 @@ Actor subclass: Orchestrator
   state: pollTimerRef :: Timer
 
   /// Spawns a new Orchestrator with the given config and dependencies.
-  class start: config linearClient: lc workspaceManager: wm promptTemplate: pt =>
+  class start: config :: Config linearClient: lc :: LinearClient workspaceManager: wm :: WorkspaceManager promptTemplate: pt :: String -> Orchestrator =>
     self
       spawnWith: #{
         #config => config,
@@ -36,13 +36,13 @@ Actor subclass: Orchestrator
   // --- Config reload ---
 
   /// Hot-swaps config and prompt template without restarting running agents.
-  reloadConfig: newConfig prompt: newPrompt =>
+  reloadConfig: newConfig :: Config prompt: newPrompt :: String =>
     self.config := newConfig
     self.promptTemplate := newPrompt
     Logger info: "config reloaded"
 
   // --- Poll loop ---
-  scheduleTick: delayMs =>
+  scheduleTick: delayMs :: Integer =>
     self.pollTimerRef := Timer after: delayMs do: [self onTick!]
 
   /// Main poll tick: reconcile, fetch candidates, filter, dispatch, reschedule.
@@ -125,7 +125,7 @@ Actor subclass: Orchestrator
   // --- Dispatch ---
 
   /// Spawns an AgentRunner for the issue and tracks it in the running map.
-  dispatchIssue: issue attempt: attempt =>
+  dispatchIssue: issue :: Dictionary attempt: attempt :: Integer =>
     issueId := issue at: "id"
     identifier := issue at: "identifier" ifAbsent: [""]
 
@@ -160,7 +160,7 @@ Actor subclass: Orchestrator
   // --- Codex event handling ---
 
   /// Processes a codex stream event, updating session info and token counters.
-  onCodexEvent: issueId event: event =>
+  onCodexEvent: issueId :: String event: event :: Dictionary =>
     entry := self.running at: issueId ifAbsent: [nil]
     entry isNil ifTrue: [^nil]
 
@@ -201,7 +201,7 @@ Actor subclass: Orchestrator
   // --- Worker exit handling ---
 
   /// Handles worker process exit — schedules continuation or backoff retry.
-  onWorkerExit: issueId reason: reason =>
+  onWorkerExit: issueId :: String reason: reason =>
     entry := self.running at: issueId ifAbsent: [nil]
     entry isNil ifTrue: [^nil]
 
@@ -243,7 +243,7 @@ Actor subclass: Orchestrator
       ]
 
   // --- Retry queue ---
-  scheduleRetry: issueId identifier: identifier attempt: attempt delayMs: delayMs error: error =>
+  scheduleRetry: issueId :: String identifier: identifier :: String attempt: attempt :: Integer delayMs: delayMs :: Integer error: error =>
     // Cancel existing retry timer
     existing := self.retryAttempts at: issueId ifAbsent: [nil]
     existing isNil
@@ -276,7 +276,7 @@ Actor subclass: Orchestrator
         "delay_ms" => delayMs displayString
       }
 
-  onRetryTimer: issueId =>
+  onRetryTimer: issueId :: String =>
     retryEntry := self.retryAttempts at: issueId ifAbsent: [nil]
     retryEntry isNil ifTrue: [^nil]
     self.retryAttempts := self.retryAttempts removeKey: issueId
@@ -413,7 +413,7 @@ Actor subclass: Orchestrator
           ]
       ]
 
-  terminateWorker: issueId cleanup: cleanup =>
+  terminateWorker: issueId :: String cleanup: cleanup :: Boolean =>
     entry := self.running at: issueId ifAbsent: [nil]
     entry isNil ifTrue: [^nil]
 
@@ -458,7 +458,7 @@ Actor subclass: Orchestrator
   // --- Runtime snapshot ---
 
   /// Returns a serializable snapshot of running agents, retries, and token totals.
-  getSnapshot =>
+  getSnapshot -> Dictionary =>
     runningList := self.running values
       collect: [:entry |
         #{

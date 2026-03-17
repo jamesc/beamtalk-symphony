@@ -10,10 +10,10 @@ Object subclass: LinearClient
   state: projectSlug :: String
   state: timeout :: Integer = 30000
 
-  class new: opts => (self new) initWith: opts
+  class new: opts :: Dictionary -> LinearClient => (self new) initWith: opts
 
   /// Creates a LinearClient from a Config object, extracting endpoint and credentials.
-  class fromConfig: config =>
+  class fromConfig: config :: Config -> LinearClient =>
     apiKey := config trackerApiKey
     apiKey := apiKey isNil ifTrue: [""] ifFalse: [apiKey]
     slug := config trackerProjectSlug
@@ -27,13 +27,14 @@ Object subclass: LinearClient
       }
 
   // --- Error helpers ---
-  class errorKind: result =>
+  class errorKind: result :: Result -> String =>
     result isError ifFalse: [^nil]
     err := result error
+    @expect type  // Is Dictionary
     (err isKindOf: Dictionary) ifTrue: [^err at: "kind" ifAbsent: ["unknown"]]
     "unknown"
 
-  initWith: opts =>
+  initWith: opts :: Dictionary =>
     self.endpoint := opts at: "endpoint" ifAbsent: [
       "https://api.linear.app/graphql"
     ]
@@ -51,7 +52,7 @@ Object subclass: LinearClient
   // --- Core GraphQL transport ---
 
   /// Executes a GraphQL query against the Linear API and returns parsed data.
-  query: queryStr variables: vars =>
+  query: queryStr :: String variables: vars :: Dictionary -> Result =>
     body := Json generate: #{"query" => queryStr, "variables" => vars}
     httpResult := HTTPClient
       request: #post
@@ -73,7 +74,7 @@ Object subclass: LinearClient
     resp := httpResult unwrap
     self parseResponse: resp
 
-  parseResponse: resp =>
+  parseResponse: resp -> Result =>
     resp ok
       ifFalse: [
         ^Result error: #{
@@ -117,14 +118,14 @@ Object subclass: LinearClient
   // --- Candidate issue fetch (BT-1376) ---
 
   /// Fetches all issues in active states for the configured project, with pagination.
-  fetchCandidateIssues: activeStates =>
+  fetchCandidateIssues: activeStates :: Array -> Result =>
     activeStates isEmpty ifTrue: [^Result ok: #()]
     self
       fetchAllPages: activeStates
       cursor: nil
       accumulated: #()
 
-  fetchAllPages: activeStates cursor: cursor accumulated: acc =>
+  fetchAllPages: activeStates :: Array cursor: cursor accumulated: acc :: List -> Result =>
     vars := #{
       "projectSlug" => self.projectSlug,
       "states" => activeStates,
@@ -136,6 +137,7 @@ Object subclass: LinearClient
     result isError ifTrue: [^result]
 
     data := result unwrap
+    @expect type  // Is Dictionary
     issues := data at: "issues" ifAbsent: [nil]
     issues isNil
       ifTrue: [
@@ -162,7 +164,7 @@ Object subclass: LinearClient
       cursor: endCursor
       accumulated: newAcc
 
-  candidateQuery =>
+  candidateQuery -> String =>
     "query($projectSlug: String!, $states: [String!]!, $first: Int!, $after: String) \{
       issues(
         filter: \{
@@ -187,12 +189,13 @@ Object subclass: LinearClient
   // --- Issue state refresh (BT-1377) ---
 
   /// Fetches current state names for a list of issue IDs (used for reconciliation).
-  fetchIssueStatesByIds: ids =>
+  fetchIssueStatesByIds: ids :: Array -> Result =>
     ids isEmpty ifTrue: [^Result ok: #()]
     result := self query: self stateRefreshQuery variables: #{"ids" => ids}
     result isError ifTrue: [^result]
 
     data := result unwrap
+    @expect type  // Is Dictionary
     issues := data at: "issues" ifAbsent: [#{}]
     nodes := issues at: "nodes" ifAbsent: [#()]
     normalized := nodes
@@ -207,7 +210,7 @@ Object subclass: LinearClient
       ]
     Result ok: normalized
 
-  stateRefreshQuery =>
+  stateRefreshQuery -> String =>
     "query($ids: [ID!]!) \{
       issues(filter: \{ id: \{ in: $ids } }) \{
         nodes \{
@@ -220,7 +223,7 @@ Object subclass: LinearClient
   // --- Terminal issues fetch (BT-1377) ---
 
   /// Fetches issues in the given states (used for startup terminal cleanup).
-  fetchIssuesByStates: stateNames =>
+  fetchIssuesByStates: stateNames :: Array -> Result =>
     stateNames isEmpty ifTrue: [^Result ok: #()]
     result := self query: self terminalQuery variables: #{
       "projectSlug" => self.projectSlug,
@@ -229,12 +232,13 @@ Object subclass: LinearClient
     result isError ifTrue: [^result]
 
     data := result unwrap
+    @expect type  // Is Dictionary
     issues := data at: "issues" ifAbsent: [nil]
     issues isNil ifTrue: [^Result ok: #()]
     nodes := issues at: "nodes" ifAbsent: [#()]
     Result ok: (nodes collect: [:node | self normalizeIssue: node])
 
-  terminalQuery =>
+  terminalQuery -> String =>
     "query($projectSlug: String!, $states: [String!]!) \{
       issues(
         filter: \{
@@ -251,7 +255,7 @@ Object subclass: LinearClient
     }"
 
   // --- Issue normalization ---
-  normalizeIssue: node =>
+  normalizeIssue: node :: Dictionary -> Dictionary =>
     state := (node at: "state" ifAbsent: [#{}]) at: "name" ifAbsent: [nil]
     labels := self normalizeLabels: (node at: "labels" ifAbsent: [nil])
     blockers := self normalizeBlockers: (node at: "inverseRelations" ifAbsent: [
@@ -274,12 +278,12 @@ Object subclass: LinearClient
       "updated_at" => (node at: "updatedAt" ifAbsent: [nil])
     }
 
-  normalizeLabels: labelsObj =>
+  normalizeLabels: labelsObj -> Array =>
     labelsObj isNil ifTrue: [^#()]
     nodes := labelsObj at: "nodes" ifAbsent: [#()]
     nodes collect: [:l | (l at: "name" ifAbsent: [""]) lowercase]
 
-  normalizeBlockers: relationsObj =>
+  normalizeBlockers: relationsObj -> Array =>
     relationsObj isNil ifTrue: [^#()]
     nodes := relationsObj at: "nodes" ifAbsent: [#()]
     // Only include inverse relations of type "blocks"

@@ -7,22 +7,22 @@ Object subclass: Config
   state: raw :: Dictionary
 
   /// Creates a Config from a parsed YAML dictionary.
-  class fromMap: map => (self new) initWithMap: map
+  class fromMap: map :: Dictionary -> Config => (self new) initWithMap: map
 
-  initWithMap: map =>
+  initWithMap: map :: Dictionary =>
     self.raw := map
     self
 
   raw => self.raw
 
   // --- Tracker ---
-  trackerKind =>
+  trackerKind -> String =>
     self
       nested: "tracker"
       key: "kind"
       default: nil
 
-  trackerEndpoint =>
+  trackerEndpoint -> String =>
     kind := self trackerKind
     defaultEndpoint := kind == "linear" ifTrue: [
       "https://api.linear.app/graphql"
@@ -32,7 +32,7 @@ Object subclass: Config
       key: "endpoint"
       default: defaultEndpoint
 
-  trackerApiKey =>
+  trackerApiKey -> String =>
     raw := self
       nested: "tracker"
       key: "api_key"
@@ -50,7 +50,7 @@ Object subclass: Config
     ]
     raw
 
-  trackerProjectSlug =>
+  trackerProjectSlug -> String =>
     raw := self
       nested: "tracker"
       key: "project_slug"
@@ -61,20 +61,20 @@ Object subclass: Config
     ]
     raw
 
-  trackerActiveStates =>
+  trackerActiveStates -> Array =>
     self
       nested: "tracker"
       key: "active_states"
       default: #("Todo", "In Progress")
 
-  trackerTerminalStates =>
+  trackerTerminalStates -> Array =>
     self
       nested: "tracker"
       key: "terminal_states"
       default: #("Closed", "Cancelled", "Canceled", "Duplicate", "Done")
 
   // --- Polling ---
-  pollIntervalMs =>
+  pollIntervalMs -> Integer =>
     val := self
       nested: "polling"
       key: "interval_ms"
@@ -82,7 +82,7 @@ Object subclass: Config
     self coerceInt: val default: 30000
 
   // --- Workspace ---
-  workspaceRoot =>
+  workspaceRoot -> String =>
     raw := self
       nested: "workspace"
       key: "root"
@@ -101,28 +101,28 @@ Object subclass: Config
     raw
 
   // --- Agent ---
-  maxConcurrentAgents =>
+  maxConcurrentAgents -> Integer =>
     val := self
       nested: "agent"
       key: "max_concurrent_agents"
       default: 10
     self coerceInt: val default: 10
 
-  maxRetryBackoffMs =>
+  maxRetryBackoffMs -> Integer =>
     val := self
       nested: "agent"
       key: "max_retry_backoff_ms"
       default: 300000
     self coerceInt: val default: 300000
 
-  maxTurns =>
+  maxTurns -> Integer =>
     val := self
       nested: "agent"
       key: "max_turns"
       default: 20
     self coerceInt: val default: 20
 
-  maxConcurrentAgentsByState =>
+  maxConcurrentAgentsByState -> Dictionary =>
     raw := self
       nested: "agent"
       key: "max_concurrent_agents_by_state"
@@ -139,51 +139,51 @@ Object subclass: Config
           value: intVal
       ]
 
-  addToMap: acc key: k value: v =>
+  addToMap: acc :: Dictionary key: k :: String value: v -> Dictionary =>
     v isNil ifTrue: [^acc]
     v > 0 ifTrue: [^acc at: k put: v]
     acc
 
   // --- Codex ---
-  codexCommand =>
+  codexCommand -> String =>
     self
       nested: "codex"
       key: "command"
       default: "codex app-server"
 
-  codexApprovalPolicy =>
+  codexApprovalPolicy -> String =>
     self
       nested: "codex"
       key: "approval_policy"
       default: nil
 
-  codexThreadSandbox =>
+  codexThreadSandbox -> String =>
     self
       nested: "codex"
       key: "thread_sandbox"
       default: nil
 
-  codexTurnSandboxPolicy =>
+  codexTurnSandboxPolicy -> String =>
     self
       nested: "codex"
       key: "turn_sandbox_policy"
       default: nil
 
-  codexTurnTimeoutMs =>
+  codexTurnTimeoutMs -> Integer =>
     val := self
       nested: "codex"
       key: "turn_timeout_ms"
       default: 3600000
     self coerceInt: val default: 3600000
 
-  codexReadTimeoutMs =>
+  codexReadTimeoutMs -> Integer =>
     val := self
       nested: "codex"
       key: "read_timeout_ms"
       default: 5000
     self coerceInt: val default: 5000
 
-  codexStallTimeoutMs =>
+  codexStallTimeoutMs -> Integer =>
     val := self
       nested: "codex"
       key: "stall_timeout_ms"
@@ -191,31 +191,31 @@ Object subclass: Config
     self coerceInt: val default: 300000
 
   // --- Hooks ---
-  hooksAfterCreate =>
+  hooksAfterCreate -> String =>
     self
       nested: "hooks"
       key: "after_create"
       default: nil
 
-  hooksBeforeRun =>
+  hooksBeforeRun -> String =>
     self
       nested: "hooks"
       key: "before_run"
       default: nil
 
-  hooksAfterRun =>
+  hooksAfterRun -> String =>
     self
       nested: "hooks"
       key: "after_run"
       default: nil
 
-  hooksBeforeRemove =>
+  hooksBeforeRemove -> String =>
     self
       nested: "hooks"
       key: "before_remove"
       default: nil
 
-  hooksTimeoutMs =>
+  hooksTimeoutMs -> Integer =>
     val := self
       nested: "hooks"
       key: "timeout_ms"
@@ -224,7 +224,7 @@ Object subclass: Config
     result > 0 ifTrue: [result] ifFalse: [60000]
 
   // --- Server (extension) ---
-  serverPort =>
+  serverPort -> Integer =>
     raw := self.raw at: "server" ifAbsent: [nil]
     raw isNil ifTrue: [^nil]
     (raw isKindOf: Dictionary) ifFalse: [^nil]
@@ -235,7 +235,7 @@ Object subclass: Config
   // --- Validation ---
 
   /// Checks that all required config fields are present and valid for dispatch.
-  validate =>
+  validate -> Result =>
     kind := self trackerKind
     kind isNil ifTrue: [
       ^Result error: #{"check" => "tracker.kind", "reason" => "missing"}
@@ -289,14 +289,14 @@ Object subclass: Config
     Result ok: true
 
   // --- Helpers ---
-  nested: section key: key default: default =>
+  nested: section :: String key: key :: String default: default =>
     self.raw isNil ifTrue: [^default]
     sectionMap := self.raw at: section ifAbsent: [nil]
     sectionMap isNil ifTrue: [^default]
     (sectionMap isKindOf: Dictionary) ifFalse: [^default]
     sectionMap at: key ifAbsent: [default]
 
-  resolveEnv: varExpr =>
+  resolveEnv: varExpr :: String -> String =>
     varExpr isNil ifTrue: [^nil]
     name := (varExpr startsWith: "$") ifTrue: [
       varExpr drop: 1
@@ -307,7 +307,7 @@ Object subclass: Config
     val isEmpty ifTrue: [^nil]
     val
 
-  expandHome: path =>
+  expandHome: path :: String -> String =>
     (path startsWith: "~/")
       ifTrue: [
         home := System getEnv: "HOME"
@@ -322,7 +322,7 @@ Object subclass: Config
       ]
     path
 
-  coerceInt: val default: default =>
+  coerceInt: val default: default -> Integer =>
     val isNil ifTrue: [^default]
     (val isKindOf: Integer) ifTrue: [^val]
     (val isKindOf: String) ifTrue: [
