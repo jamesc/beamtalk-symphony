@@ -163,24 +163,53 @@ Actor subclass: CodexClient
   // --- Session startup handshake ---
 
   /// Launches the subprocess and performs the initialize/thread-start handshake.
+  /// NOTE: Inlines launch and sendRequest due to BT-1421
+  /// (assignment RHS self-calls don't thread state).
   startSession -> Result =>
     Logger info: "codex session starting" metadata: #{
       "workspace" => self.workspacePath,
       "command" => self.config codexCommand
     }
 
-    // Launch subprocess
-    launchResult := self launch
-    launchResult isError ifTrue: [^launchResult]
+    // Inline launch (BT-1421: assignment RHS loses state)
+    procResult := [
+      Subprocess
+        open: "/bin/bash"
+        args: #("-lc", self.config codexCommand)
+        dir: self.workspacePath
+    ]
+      on: Error
+      do: [:e |
+        Logger error: "codex launch failed" metadata: #{"error" => e message}
+        ^Result error: #{"kind" => "codex_not_found", "detail" => e message}
+      ]
+    procResult isError
+      ifTrue: [
+        Logger error: "codex launch error" metadata: #{
+          "error" => procResult error displayString
+        }
+        ^Result error: #{
+          "kind" => "codex_not_found",
+          "detail" => procResult error displayString
+        }
+      ]
+    self.proc := procResult unwrap
+    Logger info: "codex process launched"
 
     readTimeout := self.config codexReadTimeoutMs
 
-    // Step 1: initialize request
-    initId := self
-      sendRequest: "initialize"
-      params: #{
-        "clientInfo" => #{"name" => "symphony", "version" => "1.0"},
-        "capabilities" => #{}
+    // Step 1: initialize request (inline sendRequest for BT-1421)
+    initId := self.nextId
+    self.nextId := self.nextId + 1
+    Logger debug: "codex >> initialize (id=" ++ initId displayString ++ ")"
+    self
+      sendJson: #{
+        "id" => initId,
+        "method" => "initialize",
+        "params" => #{
+          "clientInfo" => #{"name" => "symphony", "version" => "1.0"},
+          "capabilities" => #{}
+        }
       }
     initResp := self readResponse: initId timeout: readTimeout
     initResp isError
@@ -201,10 +230,16 @@ Actor subclass: CodexClient
     // Step 2: initialized notification
     self sendNotification: "initialized" params: #{}
 
-    // Step 3: thread/start request
-    threadReqId := self sendRequest: "thread/start" params: #{
-      "cwd" => self.workspacePath
-    }
+    // Step 3: thread/start request (inline sendRequest for BT-1421)
+    threadReqId := self.nextId
+    self.nextId := self.nextId + 1
+    Logger debug: "codex >> thread/start (id=" ++ threadReqId displayString ++ ")"
+    self
+      sendJson: #{
+        "id" => threadReqId,
+        "method" => "thread/start",
+        "params" => #{"cwd" => self.workspacePath}
+      }
     threadResp := self readResponse: threadReqId timeout: readTimeout
     threadResp isError
       ifTrue: [
@@ -241,14 +276,21 @@ Actor subclass: CodexClient
       "prompt_length" => prompt length displayString
     }
     readTimeout := self.config codexReadTimeoutMs
-    turnId := self
-      sendRequest: "turn/start"
-      params: #{
-        "threadId" => threadId,
-        "input" => #(#{"type" => "text", "text" => prompt}),
-        "cwd" => self.workspacePath,
-        "title" => title,
-        "sandboxPolicy" => #{"type" => "dangerFullAccess"}
+    // Inline sendRequest for BT-1421
+    turnId := self.nextId
+    self.nextId := self.nextId + 1
+    Logger debug: "codex >> turn/start (id=" ++ turnId displayString ++ ")"
+    self
+      sendJson: #{
+        "id" => turnId,
+        "method" => "turn/start",
+        "params" => #{
+          "threadId" => threadId,
+          "input" => #(#{"type" => "text", "text" => prompt}),
+          "cwd" => self.workspacePath,
+          "title" => title,
+          "sandboxPolicy" => #{"type" => "dangerFullAccess"}
+        }
       }
     turnResp := self readResponse: turnId timeout: readTimeout
     turnResp isError
