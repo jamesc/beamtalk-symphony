@@ -19,6 +19,21 @@ TestCase subclass: HttpServerTest
 
   baseUrl => "http://localhost:" ++ self.srv actualPort displayString
 
+  /// Helper: assert HTTP status on a Result<HTTPResponse>.
+  assertStatus: expected :: Integer from: result :: Result =>
+    resp := result unwrap
+    self assert: (resp perform: #status) equals: expected
+
+  /// Helper: get response body as string from a Result<HTTPResponse>.
+  bodyFrom: result :: Result -> String =>
+    resp := result unwrap
+    resp perform: #body
+
+  /// Helper: get response body as JSON from a Result<HTTPResponse>.
+  jsonFrom: result :: Result -> Dictionary =>
+    resp := result unwrap
+    resp perform: #bodyAsJson
+
   testStartAndPort =>
     self.srv isNil ifTrue: [^self skip: "HTTPServer not available"]
     self assert: self.srv actualPort > 0
@@ -26,39 +41,33 @@ TestCase subclass: HttpServerTest
 
   testDashboard =>
     self.srv isNil ifTrue: [^self skip: "HTTPServer not available"]
-    resp := (HTTPClient get: self baseUrl ++ "/") unwrap
-
-    self assert: resp status equals: 200
-
-    self assert: (resp body includesSubstring: "Symphony")
+    result := HTTPClient get: self baseUrl ++ "/"
+    self assertStatus: 200 from: result
+    self assert: ((self bodyFrom: result) includesSubstring: "Symphony")
 
   testApiState =>
     self.srv isNil ifTrue: [^self skip: "HTTPServer not available"]
-    resp := (HTTPClient get: self baseUrl ++ "/api/v1/state") unwrap
+    result := HTTPClient get: self baseUrl ++ "/api/v1/state"
+    self assertStatus: 200 from: result
 
-    self assert: resp status equals: 200
-
-    json := resp bodyAsJson
+    json := self jsonFrom: result
     counts := json at: "counts"
     self assert: (counts at: "running") equals: 0
 
   testApiIssueNotFound =>
     self.srv isNil ifTrue: [^self skip: "HTTPServer not available"]
-    resp := (HTTPClient get: self baseUrl ++ "/api/v1/NONEXISTENT-99") unwrap
-
-    self assert: resp status equals: 404
+    result := HTTPClient get: self baseUrl ++ "/api/v1/NONEXISTENT-99"
+    self assertStatus: 404 from: result
 
   testApiRefresh =>
     self.srv isNil ifTrue: [^self skip: "HTTPServer not available"]
-    resp := (HTTPClient post: self baseUrl ++ "/api/v1/refresh" body: "") unwrap
+    result := HTTPClient post: self baseUrl ++ "/api/v1/refresh" body: ""
+    self assertStatus: 202 from: result
 
-    self assert: resp status equals: 202
-
-    json := resp bodyAsJson
+    json := self jsonFrom: result
     self assert: (json at: "queued") equals: true
 
   testNotFound =>
     self.srv isNil ifTrue: [^self skip: "HTTPServer not available"]
-    resp := (HTTPClient get: self baseUrl ++ "/nonexistent") unwrap
-
-    self assert: resp status equals: 404
+    result := HTTPClient get: self baseUrl ++ "/nonexistent"
+    self assertStatus: 404 from: result
