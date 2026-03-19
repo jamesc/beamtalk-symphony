@@ -64,6 +64,7 @@ Actor subclass: AgentRunner
     wsResult := self.workspaceManager createForIssue: identifier
     wsResult isError ifTrue: [^wsResult]
 
+    @expect type  // unwrap → Object, needs parameterized Result (BT-1547)
     wsPath := wsResult unwrap at: "path"
 
     // Step 2: Run before_run hook
@@ -85,7 +86,7 @@ Actor subclass: AgentRunner
       ]
 
     sessionData := sessionResult unwrap
-
+    @expect type  // unwrap → Object, needs parameterized Result (BT-1547)
     self.threadId := sessionData at: "threadId"
 
     // Step 4: Multi-turn loop
@@ -137,9 +138,9 @@ Actor subclass: AgentRunner
     refreshResult isError ifTrue: [^refreshResult]
 
     refreshed := refreshResult unwrap
-
+    @expect type  // unwrap → Object, needs parameterized Result (BT-1547)
     refreshed isEmpty ifTrue: [^Result ok: #{"status" => "issue_not_found"}]
-
+    @expect type  // unwrap → Object, needs parameterized Result (BT-1547)
     currentState := (refreshed at: 1) at: "state" ifAbsent: [nil]
     activeStates := self.config trackerActiveStates
     isActive := activeStates anySatisfy: [:s |
@@ -168,6 +169,7 @@ Actor subclass: AgentRunner
       ++ ": "
       ++ (self.issue at: "title" ifAbsent: [""])
 
+    @expect type  // Dictionary at:ifAbsent: → Object, needs parameterized Dictionary (BT-1547)
     turnResult := self.codexClient
       startTurn: self.threadId
       prompt: promptText

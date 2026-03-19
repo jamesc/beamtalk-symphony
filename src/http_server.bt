@@ -14,6 +14,9 @@ Actor subclass: HttpServer
   class start: port :: Integer orchestrator: orch :: Orchestrator -> HttpServer =>
     self spawnWith: #{#port => port, #orchestrator => orch}
 
+  /// Sets the orchestrator reference (used by supervisor initialize: to wire children).
+  orchestrator: orch :: Orchestrator => self.orchestrator := orch
+
   /// Lifecycle hook — stops the HTTP listener on shutdown.
   terminate: _reason =>
     self.server isNil ifFalse: [self.server stop]
@@ -266,23 +269,15 @@ Actor subclass: HttpServer
 
   /// Triggers an immediate poll/reconcile cycle, then returns the snapshot.
   handleRefresh -> HTTPResponse =>
-    orch := [
-      SymphonySupervisor current which: Orchestrator
-    ] on: Error do: [:e | nil]
-    orch isNil ifTrue: [
+    self.orchestrator isNil ifTrue: [
       ^self respond: 503 body: (self errorJson: "no_orchestrator" msg: "Orchestrator not available")
     ]
-    orch onTick
-    snapshot := orch getSnapshot
-    self respond: 200 body: (Json generate: snapshot)
+    self.orchestrator onTick
+    self respond: 202 body: (Json generate: #{"queued" => true})
 
   // --- Helpers ---
   getSnapshot -> Dictionary =>
-    // Lazy lookup — find the Orchestrator from the supervisor each time
-    orch := [
-      SymphonySupervisor current which: Orchestrator
-    ] on: Error do: [:e | nil]
-    orch isNil
+    self.orchestrator isNil
       ifTrue: [
         ^#{
           "counts" => #{"running" => 0, "retrying" => 0},
@@ -296,4 +291,4 @@ Actor subclass: HttpServer
           "rate_limits" => nil
         }
       ]
-    orch getSnapshot
+    self.orchestrator getSnapshot

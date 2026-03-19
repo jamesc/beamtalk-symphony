@@ -21,7 +21,7 @@ Supervisor subclass: SymphonySupervisor
         ^#()
       ]
     wf := wfResult unwrap
-
+    @expect type  // unwrap → Object, needs parameterized Result (BT-1547)
     rawConfig := wf at: "config"
     config := Config fromMap: rawConfig
     validation := config validate
@@ -31,7 +31,7 @@ Supervisor subclass: SymphonySupervisor
         ^#()
       ]
 
-
+    @expect type  // unwrap → Object, needs parameterized Result (BT-1547)
     promptTemplate := wf at: "prompt_template"
     linearClient := LinearClient fromConfig: config
     workspaceManager := WorkspaceManager fromConfig: config
@@ -43,14 +43,23 @@ Supervisor subclass: SymphonySupervisor
         #workspaceManager => workspaceManager,
         #promptTemplate => promptTemplate
       }
-    watcherSpec := WorkflowWatcher supervisionSpec withRestart: #permanent
+    watcherSpec := (WorkflowWatcher supervisionSpec withRestart: #permanent)
+      withArgs: #{#path => "./WORKFLOW.md"}
 
     specs := #(orchestratorSpec, watcherSpec)
 
     port := config serverPort
     port isNil ifTrue: [^specs]
 
-    httpSpec := (HttpServer supervisionSpec withRestart: #permanent) withArgs: #{
-      #port => port
-    }
+    httpSpec := (HttpServer supervisionSpec withRestart: #permanent)
+      withArgs: #{#port => port}
     specs add: httpSpec
+
+  /// Wires children together after all are started.
+  class initialize: sup =>
+    orch := sup which: Orchestrator
+    watcher := sup which: WorkflowWatcher
+    watcher onReload: [:config :prompt | orch reloadConfig: config prompt: prompt]
+
+    http := sup which: HttpServer
+    http isNil ifFalse: [http orchestrator: orch]

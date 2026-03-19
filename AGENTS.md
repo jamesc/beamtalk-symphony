@@ -100,19 +100,31 @@ whether code is correct, evaluate it directly rather than inferring from source.
 | `show_codegen` | Inspect generated Core Erlang |
 | `inspect` | Examine a live actor's state |
 
+### Debugging with Logs
+
+Beamtalk writes structured JSON logs to the workspace. Read them when
+actors crash, supervisors restart children, or HTTP handlers fail:
+
+```bash
+beamtalk workspace logs        # recent log output
+beamtalk workspace logs -f     # tail (follow mode)
+```
+
+From Claude Code, use `Bash` to read these — they're on the filesystem.
+Check logs **before** guessing at the cause of a runtime failure.
+
 ## Essential Patterns
 
 ### Class Hierarchy
 
 ```beamtalk
-// Immutable data — auto-generates getters, withX: setters, keyword constructor, equality
+// Immutable data — auto-generates getters, withX: setters, new: constructor, equality
 Value subclass: Point
-  state: x = 0
-  state: y = 0
+  field: x = 0
+  field: y = 0
 
-// Mutable state — manual getters/setters, self.field := works
-Object subclass: Config
-  state: raw = nil
+// Stateless utility — no instance data, class-side methods only
+Object subclass: MathUtils
 
 // Concurrent process — gen_server backed, async casts with !
 Actor subclass: Server
@@ -125,9 +137,9 @@ Supervisor subclass: MyApp
 ```
 
 Rules:
-- Pure data → `Value`
-- Mutable but not concurrent → `Object`
-- Concurrent process → `Actor`
+- Pure data with fields → `Value` (uses `field:`, immutable, auto-generated `new:` / `withX:`)
+- Stateless utilities → `Object` (no instance data — objects cannot have state)
+- Concurrent process → `Actor` (uses `state:`, mutable via `self.field :=`)
 - Long-running service with child processes → `Supervisor` with `beamtalk run`
 
 ### String Escaping

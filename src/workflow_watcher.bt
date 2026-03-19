@@ -19,6 +19,12 @@ Actor subclass: WorkflowWatcher
     watcher schedulePoll!
     watcher
 
+  /// Lifecycle hook — starts the poll loop after supervised spawn.
+  initialize => self schedulePoll!
+
+  /// Sets the reload callback (used by supervisor initialize: to wire children).
+  onReload: callback :: Block => self.onReload := callback
+
   schedulePoll => Timer after: self.pollIntervalMs do: [self checkForChanges!]
 
   checkForChanges =>
@@ -40,6 +46,7 @@ Actor subclass: WorkflowWatcher
 
   doReload =>
     result := WorkflowLoader load: self.path
+    @expect all  // unwrap → Object, needs parameterized Result (BT-1547)
     result isOk
       ifTrue: [
         wf := result unwrap
