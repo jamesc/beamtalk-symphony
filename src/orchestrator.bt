@@ -100,7 +100,10 @@ Actor subclass: Orchestrator
     @expect all  // unwrap → Object; self in do: is safe (BT-1547)
     eligible do: [:issue | self dispatchIssue: issue attempt: nil]
 
-    // Step 5: Schedule next tick
+    // Step 5: Publish snapshot to ETS for HTTP server
+    self publishSnapshot
+
+    // Step 6: Schedule next tick
     self scheduleTick: self.config pollIntervalMs
 
   // --- Dispatch ---
@@ -118,7 +121,7 @@ Actor subclass: Orchestrator
       workspaceManager: self.workspaceManager
       linearClient: self.linearClient
       promptTemplate: self.promptTemplate
-      onEvent: [:event | self onCodexEvent: issueId event: event]
+      onEvent: [:event | self onCodexEvent: issueId event: event!]
 
     runner onExit: [:reason | self onWorkerExit: issueId reason: reason!]
 
@@ -150,9 +153,9 @@ Actor subclass: Orchestrator
     session := entry session
     session := (session withLastEvent: method) withLastTimestamp: timestamp
     // Increment turn count on turn completion
-    session := method == "turn/completed"
-      ifTrue: [session withTurnCount: session turnCount + 1]
-      ifFalse: [session]
+    session := method == "turn/completed" ifTrue: [
+      session withTurnCount: session turnCount + 1
+    ] ifFalse: [session]
     entry := entry withSession: session
 
     // Update token usage — call applyUsage: unconditionally to avoid block mutation
@@ -164,6 +167,7 @@ Actor subclass: Orchestrator
     self applyRateLimits: (event at: "rateLimits" ifAbsent: [nil])
 
     self.running := self.running at: issueId put: entry
+    self publishSnapshot
 
   /// Applies token usage to a running entry and accumulates global totals.
   /// Returns entry unchanged if usage is nil.
@@ -238,10 +242,9 @@ Actor subclass: Orchestrator
   scheduleRetry: issueId :: String identifier: identifier :: String attempt: attempt :: Integer delayMs: delayMs :: Integer error: error =>
     // Cancel existing retry timer
     existing := self.retryAttempts at: issueId ifAbsent: [nil]
-    existing isNil
-      ifFalse: [
-        existing timerRef isNil ifFalse: [existing timerRef cancel]
-      ]
+    existing isNil ifFalse: [
+      existing timerRef isNil ifFalse: [existing timerRef cancel]
+    ]
 
     dueAt := (DateTime now asTimestamp * 1000) + delayMs
     timerRef := Timer after: delayMs do: [self onRetryTimer: issueId!]
@@ -496,3 +499,8 @@ Actor subclass: Orchestrator
       },
       "rate_limits" => self.codexRateLimits
     }
+
+  /// Publishes the current snapshot to the shared ETS table for HttpServer.
+  publishSnapshot =>
+    table := [Ets named: #symphony_http] on: Error do: [:e | nil]
+    table isNil ifFalse: [table at: #snapshot put: self getSnapshot]

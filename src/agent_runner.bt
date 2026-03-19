@@ -35,10 +35,8 @@ Actor subclass: AgentRunner
 
   // --- Main lifecycle ---
   terminate: _reason =>
-    self.codexClient isNil ifFalse: [
-      self.codexClient stopProcess
-      self.codexClient stop
-    ]
+    self.codexClient isNil
+      ifFalse: [self.codexClient stopProcess]
 
   begin =>
     identifier := self.issue at: "identifier" ifAbsent: [""]
@@ -81,7 +79,6 @@ Actor subclass: AgentRunner
       ifTrue: [
         self.workspaceManager runAfterRun: wsPath
         self.codexClient stopProcess
-        self.codexClient stop
         ^sessionResult
       ]
 
@@ -96,7 +93,6 @@ Actor subclass: AgentRunner
 
     // Step 5: Cleanup
     self.codexClient stopProcess
-    self.codexClient stop
     self.workspaceManager runAfterRun: wsPath
 
     turnLoopResult
@@ -155,6 +151,27 @@ Actor subclass: AgentRunner
 
     nil
 
+  // --- Stream loop (runs in AgentRunner's process) ---
+
+  /// Loops calling codexClient streamStep until turn completes or times out.
+  /// Each streamStep call is short (~1s), avoiding gen_server timeout.
+  streamUntilDone: turnTimeoutMs :: Integer -> Result =>
+    deadline := (DateTime now asTimestamp * 1000) + turnTimeoutMs
+    self streamLoop: deadline
+
+  streamLoop: deadline :: Integer -> Result =>
+    remaining := deadline - (DateTime now asTimestamp * 1000)
+    remaining <= 0
+      ifTrue: [
+        Logger warn: "codex turn timed out"
+        ^Result error: #{"kind" => "turn_timeout"}
+      ]
+    stepResult := self.codexClient streamStep
+    // nil means no terminal event yet — keep going
+    stepResult isNil ifTrue: [^self streamLoop: deadline]
+    // Got a Result (ok or error) — return it
+    stepResult
+
   // --- Turn loop ---
 
   /// Executes the prompt-send-stream cycle for the current turn, then recurses.
@@ -176,9 +193,9 @@ Actor subclass: AgentRunner
       title: title
     turnResult isError ifTrue: [^turnResult]
 
-    // Stream events until turn completes
+    // Stream events until turn completes (step-by-step to avoid gen_server timeout)
     turnTimeoutMs := self.config codexTurnTimeoutMs
-    streamResult := self.codexClient streamTurn: turnTimeoutMs
+    streamResult := self streamUntilDone: turnTimeoutMs
     streamResult isError ifTrue: [^streamResult]
 
     // Check whether to continue

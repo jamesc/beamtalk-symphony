@@ -11,7 +11,12 @@ Value subclass: PromptRenderer
   field: closeTag :: String = ""
 
   class shared -> PromptRenderer =>
-    self new: #{#openVar => "\{\{", #closeVar => "}}", #openTag => "\{%", #closeTag => "%}"}
+    self new: #{
+      #openVar => "\{\{",
+      #closeVar => "}}",
+      #openTag => "\{%",
+      #closeTag => "%}"
+    }
 
   /// Renders a prompt template with issue and attempt variables, returning Result.
   class render: template :: String issue: issue :: Dictionary attempt: attempt :: Integer -> Result =>
@@ -20,7 +25,6 @@ Value subclass: PromptRenderer
       render: template
       issue: issue
       attempt: attempt
-
 
   render: template :: String issue: issue :: Dictionary attempt: attempt :: Integer -> Result =>
     template isNil ifTrue: [

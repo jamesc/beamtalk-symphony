@@ -23,7 +23,6 @@ Value subclass: WorkspaceManager
         #hooksTimeoutMs => config hooksTimeoutMs
       }
 
-
   // --- Path derivation ---
   sanitizeIdentifier: identifier :: String -> String =>
     identifier collect: [:ch |

@@ -25,7 +25,6 @@ Value subclass: CandidateFilter
   /// Sorts issues by priority (ascending), then created_at, then identifier.
   class sortForDispatch: issues :: List -> List => (self new) doSort: issues
 
-
   doFilter: issues :: List running: running :: Dictionary claimed: claimed :: List maxConcurrent: maxConcurrent :: Integer -> List =>
     runningCount := running size
     availableGlobal := maxConcurrent - runningCount

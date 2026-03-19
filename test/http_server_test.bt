@@ -59,13 +59,14 @@ TestCase subclass: HttpServerTest
     result := HTTPClient get: self baseUrl ++ "/api/v1/NONEXISTENT-99"
     self assertStatus: 404 from: result
 
-  testApiRefreshWithoutOrchestrator =>
+  testApiRefreshReturnsSnapshot =>
     self.srv isNil ifTrue: [^self skip: "HTTPServer not available"]
     result := HTTPClient post: self baseUrl ++ "/api/v1/refresh" body: ""
-    self assertStatus: 503 from: result
+    self assertStatus: 200 from: result
 
     json := self jsonFrom: result
-    self assert: ((json at: "error") at: "code") equals: "no_orchestrator"
+    counts := json at: "counts"
+    self assert: (counts at: "running") equals: 0
 
   testNotFound =>
     self.srv isNil ifTrue: [^self skip: "HTTPServer not available"]

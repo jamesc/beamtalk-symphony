@@ -43,23 +43,27 @@ Supervisor subclass: SymphonySupervisor
         #workspaceManager => workspaceManager,
         #promptTemplate => promptTemplate
       }
-    watcherSpec := (WorkflowWatcher supervisionSpec withRestart: #permanent)
-      withArgs: #{#path => "./WORKFLOW.md"}
+    watcherSpec := (WorkflowWatcher supervisionSpec withRestart: #permanent) withArgs: #{
+      #path => "./WORKFLOW.md"
+    }
 
     specs := #(orchestratorSpec, watcherSpec)
 
     port := config serverPort
     port isNil ifTrue: [^specs]
 
-    httpSpec := (HttpServer supervisionSpec withRestart: #permanent)
-      withArgs: #{#port => port}
+    httpSpec := (HttpServer supervisionSpec withRestart: #permanent) withArgs: #{
+      #port => port
+    }
     specs add: httpSpec
 
-  /// Wires children together after all are started.
+  /// Wires children together after all are started (called by Supervisor).
   class initialize: sup =>
     orch := sup which: Orchestrator
     watcher := sup which: WorkflowWatcher
-    watcher onReload: [:config :prompt | orch reloadConfig: config prompt: prompt]
+    watcher onReload: [:config :prompt |
+      orch reloadConfig: config prompt: prompt
+    ]
 
     http := sup which: HttpServer
     http isNil ifFalse: [http orchestrator: orch]

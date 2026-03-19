@@ -29,11 +29,8 @@ Value subclass: LinearClient
     result isError ifFalse: [^nil]
     err := result error
     @expect type  // Result error → Object, needs parameterized Result (BT-1547)
-    (err isKindOf: Dictionary) ifTrue: [
-      ^err at: "kind" ifAbsent: ["unknown"]
-    ]
+    (err isKindOf: Dictionary) ifTrue: [^err at: "kind" ifAbsent: ["unknown"]]
     "unknown"
-
 
   // --- Core GraphQL transport ---
 

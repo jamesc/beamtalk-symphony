@@ -3,26 +3,42 @@
 
 /// HttpServer — optional observability HTTP server exposing a dashboard
 /// and JSON API for monitoring running agents and token usage.
+///
+/// Uses an ETS table (#symphony_http) to share state with the cowboy handler,
+/// since handler blocks run in cowboy's process and can't make actor calls.
+/// The orchestrator pushes its snapshot to ETS via `publishSnapshot:`.
 Actor subclass: HttpServer
   state: server :: HTTPServer
   state: port :: Integer = 0
-  state: orchestrator :: Orchestrator
+  state: refs :: Ets
 
   class supervisionPolicy -> Symbol => #permanent
 
-  /// Starts the HTTP server on the given port, backed by the orchestrator for state.
-  class start: port :: Integer orchestrator: orch :: Orchestrator -> HttpServer =>
-    self spawnWith: #{#port => port, #orchestrator => orch}
+  /// Starts the HTTP server on the given port.
+  class start: port :: Integer orchestrator: _orch -> HttpServer =>
+    self spawnWith: #{#port => port}
 
-  /// Sets the orchestrator reference (used by supervisor initialize: to wire children).
-  orchestrator: orch :: Orchestrator => self.orchestrator := orch
+  /// Sets the orchestrator reference via ETS (visible to cowboy handler).
+  orchestrator: orch =>
+    self.refs isNil ifFalse: [self.refs at: #orchestrator put: orch]
+
+  /// Called by the orchestrator (or supervisor wiring) to push current snapshot.
+  publishSnapshot: snapshot :: Dictionary =>
+    self.refs isNil ifFalse: [self.refs at: #snapshot put: snapshot]
 
   /// Lifecycle hook — stops the HTTP listener on shutdown.
   terminate: _reason =>
     self.server isNil ifFalse: [self.server stop]
+    self.refs isNil ifFalse: [
+      [self.refs delete] on: Error do: [:e | nil]
+    ]
 
   /// Lifecycle hook — starts the HTTP listener after spawn.
   initialize =>
+    // Delete any stale table from a previous instance, then create fresh
+    [Ets named: #symphony_http] on: Error do: [:e | nil]
+    [(Ets named: #symphony_http) delete] on: Error do: [:e | nil]
+    self.refs := Ets new: #symphony_http type: #set
     handler := [:req | self handleRequest: req]
     result := [HTTPServer start: self.port handler: handler]
       on: Error
@@ -70,6 +86,24 @@ Actor subclass: HttpServer
 
   errorJson: code :: String msg: message :: String -> String =>
     Json generate: #{"error" => #{"code" => code, "message" => message}}
+
+  // --- ETS-backed snapshot (safe from cowboy handler) ---
+  emptySnapshot -> Dictionary =>
+    #{
+      "counts" => #{"running" => 0, "retrying" => 0},
+      "running" => #(),
+      "retrying" => #(),
+      "codex_totals" => #{
+        "input_tokens" => 0,
+        "output_tokens" => 0,
+        "total_tokens" => 0
+      },
+      "rate_limits" => nil
+    }
+
+  getSnapshot -> Dictionary =>
+    self.refs isNil ifTrue: [^self emptySnapshot]
+    self.refs at: #snapshot ifAbsent: [self emptySnapshot]
 
   // --- Dashboard ---
 
@@ -176,7 +210,7 @@ Actor subclass: HttpServer
         ])
 
   dashboardFooter -> String =>
-    "<div class=footer>Auto-refreshes every 5s · <a href=/api/v1/state>JSON API</a> · <a href=/api/v1/refresh>Trigger Refresh</a></div></body></html>"
+    "<div class=footer>Auto-refreshes every 5s · <a href=/api/v1/state>JSON API</a></div></body></html>"
 
   renderRunningRows: list :: List -> String =>
     list isEmpty ifTrue: [^""]
@@ -201,7 +235,9 @@ Actor subclass: HttpServer
     identifier := r at: "issue_identifier" ifAbsent: ["?"]
     issueState := r at: "state" ifAbsent: ["?"]
     turns := r at: "turn_count" ifAbsent: [0]
-    lastEvent := (r at: "last_event" ifAbsent: [nil]) isNil ifTrue: ["—"] ifFalse: [r at: "last_event"]
+    lastEvent := (r at: "last_event" ifAbsent: [
+      nil
+    ]) isNil ifTrue: ["—"] ifFalse: [r at: "last_event"]
     total := (r at: "tokens" ifAbsent: [#{}]) at: "total_tokens" ifAbsent: [0]
     "<tr><td><strong>"
       ++ identifier
@@ -222,7 +258,9 @@ Actor subclass: HttpServer
   renderRetryRow: r :: Dictionary -> String =>
     identifier := r at: "issue_identifier" ifAbsent: ["?"]
     attempt := r at: "attempt" ifAbsent: [0]
-    errorMsg := (r at: "error" ifAbsent: [nil]) isNil ifTrue: ["—"] ifFalse: [r at: "error"]
+    errorMsg := (r at: "error" ifAbsent: [
+      nil
+    ]) isNil ifTrue: ["—"] ifFalse: [r at: "error"]
     "<tr><td><strong>"
       ++ identifier
       ++ "</strong></td>"
@@ -267,28 +305,7 @@ Actor subclass: HttpServer
       ]
     self respond: 200 body: (Json generate: found)
 
-  /// Triggers an immediate poll/reconcile cycle, then returns the snapshot.
+  /// Returns current snapshot and signals data is fresh from last tick.
   handleRefresh -> HTTPResponse =>
-    self.orchestrator isNil ifTrue: [
-      ^self respond: 503 body: (self errorJson: "no_orchestrator" msg: "Orchestrator not available")
-    ]
-    self.orchestrator onTick
-    self respond: 202 body: (Json generate: #{"queued" => true})
-
-  // --- Helpers ---
-  getSnapshot -> Dictionary =>
-    self.orchestrator isNil
-      ifTrue: [
-        ^#{
-          "counts" => #{"running" => 0, "retrying" => 0},
-          "running" => #(),
-          "retrying" => #(),
-          "codex_totals" => #{
-            "input_tokens" => 0,
-            "output_tokens" => 0,
-            "total_tokens" => 0
-          },
-          "rate_limits" => nil
-        }
-      ]
-    self.orchestrator getSnapshot
+    snapshot := self getSnapshot
+    self respond: 200 body: (Json generate: snapshot)

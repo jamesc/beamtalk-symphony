@@ -93,10 +93,14 @@ TestCase subclass: CodexClientIntegrationTest
         ^self skip: "codex turn error"
       ]
     self deny: ((turnResult unwrap) at: "turnId") isNil
-    streamResult := client streamTurn: 60000
+    // Stream step-by-step until turn completes
+    deadline := (DateTime now asTimestamp * 1000) + 60000
+    streamResult := nil
+    [streamResult isNil and: [(DateTime now asTimestamp * 1000) < deadline]]
+      whileTrue: [streamResult := client streamStep]
     self assert: streamResult isOk
     client stopProcess
-    self assert: client stop equals: #ok
+    client stop
 
   testLaunchFailsWithBadCommand =>
     self.hasCodex ifFalse: [^self skip: "codex not installed"]

@@ -15,12 +15,11 @@ Actor subclass: CodexClient
 
   /// Spawns a new CodexClient actor bound to the given workspace directory.
   class start: workspacePath :: String config: config :: Config onEvent: callback :: Block -> CodexClient =>
-    client := self spawnWith: #{
+    self spawnWith: #{
       #workspacePath => workspacePath,
       #config => config,
       #onEvent => callback
     }
-    client
 
   // --- Token and rate-limit extraction ---
 
@@ -30,9 +29,9 @@ Actor subclass: CodexClient
     params := msg at: "params" ifAbsent: [#{}]
     // Try tokenUsage.total (codex format), then total_token_usage, then usage
     tokenUsage := params at: "tokenUsage" ifAbsent: [nil]
-    usage := (tokenUsage isNil not and: [tokenUsage isKindOf: Dictionary])
-      ifTrue: [tokenUsage at: "total" ifAbsent: [nil]]
-      ifFalse: [nil]
+    usage := (tokenUsage isNil not and: [
+      tokenUsage isKindOf: Dictionary
+    ]) ifTrue: [tokenUsage at: "total" ifAbsent: [nil]] ifFalse: [nil]
     usage := usage isNil ifTrue: [
       params at: "total_token_usage" ifAbsent: [
         params at: "usage" ifAbsent: [nil]
@@ -58,8 +57,7 @@ Actor subclass: CodexClient
     params at: "rate_limits" ifAbsent: [params at: "rateLimits" ifAbsent: [nil]]
 
   // --- Subprocess lifecycle ---
-  terminate: _reason =>
-    self stopProcess
+  terminate: _reason => self stopProcess
 
   stopProcess =>
     Logger debug: "codex process stopping"
@@ -182,10 +180,12 @@ Actor subclass: CodexClient
     readTimeout := self.config codexReadTimeoutMs
 
     // Step 1: initialize request
-    initId := self sendRequest: "initialize" params: #{
-      "clientInfo" => #{"name" => "symphony", "version" => "1.0"},
-      "capabilities" => #{}
-    }
+    initId := self
+      sendRequest: "initialize"
+      params: #{
+        "clientInfo" => #{"name" => "symphony", "version" => "1.0"},
+        "capabilities" => #{}
+      }
     initResp := self readResponse: initId timeout: readTimeout
     initResp isError
       ifTrue: [
@@ -206,7 +206,9 @@ Actor subclass: CodexClient
     self sendNotification: "initialized" params: #{}
 
     // Step 3: thread/start request
-    threadReqId := self sendRequest: "thread/start" params: #{"cwd" => self.workspacePath}
+    threadReqId := self sendRequest: "thread/start" params: #{
+      "cwd" => self.workspacePath
+    }
     threadResp := self readResponse: threadReqId timeout: readTimeout
     threadResp isError
       ifTrue: [
@@ -243,13 +245,15 @@ Actor subclass: CodexClient
       "prompt_length" => prompt length displayString
     }
     readTimeout := self.config codexReadTimeoutMs
-    turnId := self sendRequest: "turn/start" params: #{
-      "threadId" => threadId,
-      "input" => #(#{"type" => "text", "text" => prompt}),
-      "cwd" => self.workspacePath,
-      "title" => title,
-      "sandboxPolicy" => #{"type" => "dangerFullAccess"}
-    }
+    turnId := self
+      sendRequest: "turn/start"
+      params: #{
+        "threadId" => threadId,
+        "input" => #(#{"type" => "text", "text" => prompt}),
+        "cwd" => self.workspacePath,
+        "title" => title,
+        "sandboxPolicy" => #{"type" => "dangerFullAccess"}
+      }
     turnResp := self readResponse: turnId timeout: readTimeout
     turnResp isError
       ifTrue: [
@@ -270,21 +274,12 @@ Actor subclass: CodexClient
     }
     Result ok: #{"turnId" => tuid}
 
-  /// Streams events until the turn completes, fails, or times out.
-  streamTurn: turnTimeoutMs :: Integer -> Result =>
-    deadline := (DateTime now asTimestamp * 1000) + turnTimeoutMs
-    self streamUntilDone: deadline
-
-  streamUntilDone: deadline :: Integer -> Result =>
-    remaining := deadline - (DateTime now asTimestamp * 1000)
-    remaining <= 0
-      ifTrue: [
-        Logger warn: "codex turn timed out"
-        ^Result error: #{"kind" => "turn_timeout"}
-      ]
-    readTimeout := remaining > 1000 ifTrue: [1000] ifFalse: [remaining]
-
-    line := self.proc readLine: readTimeout
+  /// Reads and processes the next stream event. Returns:
+  /// - nil if no event yet (caller should call again)
+  /// - Result ok: ... if turn completed
+  /// - Result error: ... if turn failed/timed out
+  streamStep =>
+    line := self.proc readLine: 1000
     line isNil
       ifTrue: [
         exitCode := self.proc exitCode
@@ -295,16 +290,16 @@ Actor subclass: CodexClient
             }
             ^Result error: #{"kind" => "port_exit", "exit_code" => exitCode}
           ]
-        ^self streamUntilDone: deadline
+        ^nil  // No data yet, caller should retry
       ]
     Logger debug: "codex << " ++ line
 
     parsed := [Json parse: line] on: Error do: [:e | nil]
-    parsed isNil ifTrue: [^self streamUntilDone: deadline]
+    parsed isNil ifTrue: [^nil]
     msg := parsed unwrap
-    self handleStreamMessage: msg deadline: deadline
+    self handleStreamMessage: msg
 
-  handleStreamMessage: msg :: Dictionary deadline: deadline :: Integer -> Result =>
+  handleStreamMessage: msg :: Dictionary =>
     method := msg at: "method" ifAbsent: [nil]
 
     // Check for turn completion
@@ -341,7 +336,7 @@ Actor subclass: CodexClient
         Logger debug: "codex auto-approving: " ++ method
         self sendJson: #{"id" => id, "result" => #{"approved" => true}}
         self emitEvent: msg
-        ^self streamUntilDone: deadline
+        ^nil  // Continue streaming
       ]
 
     // Handle user input required — hard failure
@@ -367,13 +362,13 @@ Actor subclass: CodexClient
             }
           }
         self emitEvent: msg
-        ^self streamUntilDone: deadline
+        ^nil  // Continue streaming
       ]
 
     // Any other message — log method and continue
     method isNil ifFalse: [Logger debug: "codex event: " ++ method]
     self emitEvent: msg
-    self streamUntilDone: deadline
+    nil  // Continue streaming
 
   // --- Event emission ---
   emitEvent: msg :: Dictionary =>
