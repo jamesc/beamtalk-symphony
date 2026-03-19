@@ -3,17 +3,11 @@
 
 /// Config — typed getters over workflow YAML config with defaults,
 /// $VAR environment variable resolution, and dispatch preflight validation.
-Object subclass: Config
-  state: raw :: Dictionary
+Value subclass: Config
+  field: raw :: Dictionary
 
   /// Creates a Config from a parsed YAML dictionary.
-  class fromMap: map :: Dictionary -> Config => (self new) initWithMap: map
-
-  initWithMap: map :: Dictionary =>
-    self.raw := map
-    self
-
-  raw => self.raw
+  class fromMap: map :: Dictionary -> Config => self new: #{#raw => map}
 
   // --- Tracker ---
   trackerKind -> String =>
@@ -61,13 +55,13 @@ Object subclass: Config
     ]
     raw
 
-  trackerActiveStates -> Array =>
+  trackerActiveStates -> List =>
     self
       nested: "tracker"
       key: "active_states"
       default: #("Todo", "In Progress")
 
-  trackerTerminalStates -> Array =>
+  trackerTerminalStates -> List =>
     self
       nested: "tracker"
       key: "terminal_states"

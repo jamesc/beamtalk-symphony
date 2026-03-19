@@ -85,6 +85,7 @@ Actor subclass: Orchestrator
 
     // Step 4: Sort and dispatch
     candidates := fetchResult unwrap
+
     sorted := CandidateFilter sortForDispatch: candidates
     eligible := CandidateFilter
       eligible: sorted
@@ -96,7 +97,8 @@ Actor subclass: Orchestrator
       maxByState: self.config maxConcurrentAgentsByState
 
     // Step 4b: Dispatch eligible issues
-    @expect all
+
+
     eligible do: [:issue | self dispatchIssue: issue attempt: nil]
 
     // Step 5: Schedule next tick
@@ -285,6 +287,7 @@ Actor subclass: Orchestrator
       ]
 
     candidates := fetchResult unwrap
+
     issue := candidates detect: [:i | (i at: "id") == issueId] ifNone: [nil]
     issue isNil
       ifTrue: [
@@ -334,7 +337,8 @@ Actor subclass: Orchestrator
         elapsed > stallTimeout
       ]
 
-    @expect all
+
+
     stalledIds
       do: [:issueId |
         entry := self.running at: issueId
@@ -360,7 +364,7 @@ Actor subclass: Orchestrator
     terminalStates := self.config trackerTerminalStates
     activeStates := self.config trackerActiveStates
 
-    @expect all
+
     refreshed
       do: [:issueData |
         issueId := issueData at: "id" ifAbsent: [nil]
@@ -433,6 +437,7 @@ Actor subclass: Orchestrator
         ^nil
       ]
     issues := fetchResult unwrap
+
     issues
       do: [:issue |
         identifier := issue at: "identifier" ifAbsent: [nil]
@@ -440,6 +445,7 @@ Actor subclass: Orchestrator
           self.workspaceManager removeWorkspace: identifier
         ]
       ]
+
     Logger info: "startup cleanup done" metadata: #{
       "removed" => issues size displayString
     }

@@ -27,17 +27,17 @@ TestCase subclass: HttpServerTest
   testDashboard =>
     self.srv isNil ifTrue: [^self skip: "HTTPServer not available"]
     resp := (HTTPClient get: self baseUrl ++ "/") unwrap
-    @expect type
+
     self assert: resp status equals: 200
-    @expect type
+
     self assert: (resp body includesSubstring: "Symphony")
 
   testApiState =>
     self.srv isNil ifTrue: [^self skip: "HTTPServer not available"]
     resp := (HTTPClient get: self baseUrl ++ "/api/v1/state") unwrap
-    @expect type
+
     self assert: resp status equals: 200
-    @expect type
+
     json := resp bodyAsJson
     counts := json at: "counts"
     self assert: (counts at: "running") equals: 0
@@ -45,20 +45,20 @@ TestCase subclass: HttpServerTest
   testApiIssueNotFound =>
     self.srv isNil ifTrue: [^self skip: "HTTPServer not available"]
     resp := (HTTPClient get: self baseUrl ++ "/api/v1/NONEXISTENT-99") unwrap
-    @expect type
+
     self assert: resp status equals: 404
 
   testApiRefresh =>
     self.srv isNil ifTrue: [^self skip: "HTTPServer not available"]
     resp := (HTTPClient post: self baseUrl ++ "/api/v1/refresh" body: "") unwrap
-    @expect type
+
     self assert: resp status equals: 202
-    @expect type
+
     json := resp bodyAsJson
     self assert: (json at: "queued") equals: true
 
   testNotFound =>
     self.srv isNil ifTrue: [^self skip: "HTTPServer not available"]
     resp := (HTTPClient get: self baseUrl ++ "/nonexistent") unwrap
-    @expect type
+
     self assert: resp status equals: 404

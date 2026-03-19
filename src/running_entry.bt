@@ -4,14 +4,14 @@
 /// RunningEntry — immutable value tracking a running agent session.
 /// Composes SessionInfo and TokenUsage alongside worker metadata.
 Value subclass: RunningEntry
-  state: workerPid :: Pid
-  state: monitorRef :: Reference
-  state: identifier :: String = ""
-  state: issue :: Dictionary
-  state: session :: SessionInfo
-  state: tokens :: TokenUsage
-  state: retryAttempt :: Integer
-  state: startedAt :: Integer
+  field: workerPid :: Pid
+  field: monitorRef :: Reference
+  field: identifier :: String = ""
+  field: issue :: Dictionary
+  field: session :: SessionInfo
+  field: tokens :: TokenUsage
+  field: retryAttempt :: Integer
+  field: startedAt :: Integer
 
   /// Creates a fresh RunningEntry with empty session and token counters.
   class forIssue: issue :: Dictionary identifier: identifier :: String startedAt: startedAt :: Integer -> RunningEntry =>

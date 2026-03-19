@@ -4,13 +4,11 @@
 /// LinearClient — GraphQL client for the Linear issue tracker API.
 /// Handles transport, auth, error mapping, paginated candidate fetch,
 /// state refresh, and issue normalization.
-Object subclass: LinearClient
-  state: endpoint :: String = "https://api.linear.app/graphql"
-  state: apiKey :: String
-  state: projectSlug :: String
-  state: timeout :: Integer = 30000
-
-  class new: opts :: Dictionary -> LinearClient => (self new) initWith: opts
+Value subclass: LinearClient
+  field: endpoint :: String = "https://api.linear.app/graphql"
+  field: apiKey :: String = ""
+  field: projectSlug :: String = ""
+  field: timeout :: Integer = 30000
 
   /// Creates a LinearClient from a Config object, extracting endpoint and credentials.
   class fromConfig: config :: Config -> LinearClient =>
@@ -20,34 +18,22 @@ Object subclass: LinearClient
     slug := slug isNil ifTrue: [""] ifFalse: [slug]
     self
       new: #{
-        "endpoint" => config trackerEndpoint,
-        "apiKey" => apiKey,
-        "projectSlug" => slug,
-        "timeout" => 30000
+        #endpoint => config trackerEndpoint,
+        #apiKey => apiKey,
+        #projectSlug => slug,
+        #timeout => 30000
       }
 
   // --- Error helpers ---
   class errorKind: result :: Result -> String =>
     result isError ifFalse: [^nil]
     err := result error
-    @expect type  // Is Dictionary
-    (err isKindOf: Dictionary) ifTrue: [^err at: "kind" ifAbsent: ["unknown"]]
+
+    (err isKindOf: Dictionary) ifTrue: [
+      ^err at: "kind" ifAbsent: ["unknown"]
+    ]
     "unknown"
 
-  initWith: opts :: Dictionary =>
-    self.endpoint := opts at: "endpoint" ifAbsent: [
-      "https://api.linear.app/graphql"
-    ]
-    self.apiKey := opts at: "apiKey" ifAbsent: [""]
-    self.projectSlug := opts at: "projectSlug" ifAbsent: [""]
-    self.timeout := opts at: "timeout" ifAbsent: [30000]
-    self
-
-  endpoint => self.endpoint
-
-  apiKey => self.apiKey
-
-  projectSlug => self.projectSlug
 
   // --- Core GraphQL transport ---
 
@@ -118,14 +104,14 @@ Object subclass: LinearClient
   // --- Candidate issue fetch (BT-1376) ---
 
   /// Fetches all issues in active states for the configured project, with pagination.
-  fetchCandidateIssues: activeStates :: Array -> Result =>
+  fetchCandidateIssues: activeStates :: List -> Result =>
     activeStates isEmpty ifTrue: [^Result ok: #()]
     self
       fetchAllPages: activeStates
       cursor: nil
       accumulated: #()
 
-  fetchAllPages: activeStates :: Array cursor: cursor accumulated: acc :: List -> Result =>
+  fetchAllPages: activeStates :: List cursor: cursor accumulated: acc :: List -> Result =>
     vars := #{
       "projectSlug" => self.projectSlug,
       "states" => activeStates,
@@ -137,7 +123,7 @@ Object subclass: LinearClient
     result isError ifTrue: [^result]
 
     data := result unwrap
-    @expect type  // Is Dictionary
+
     issues := data at: "issues" ifAbsent: [nil]
     issues isNil
       ifTrue: [
@@ -189,13 +175,13 @@ Object subclass: LinearClient
   // --- Issue state refresh (BT-1377) ---
 
   /// Fetches current state names for a list of issue IDs (used for reconciliation).
-  fetchIssueStatesByIds: ids :: Array -> Result =>
+  fetchIssueStatesByIds: ids :: List -> Result =>
     ids isEmpty ifTrue: [^Result ok: #()]
     result := self query: self stateRefreshQuery variables: #{"ids" => ids}
     result isError ifTrue: [^result]
 
     data := result unwrap
-    @expect type  // Is Dictionary
+
     issues := data at: "issues" ifAbsent: [#{}]
     nodes := issues at: "nodes" ifAbsent: [#()]
     normalized := nodes
@@ -223,7 +209,7 @@ Object subclass: LinearClient
   // --- Terminal issues fetch (BT-1377) ---
 
   /// Fetches issues in the given states (used for startup terminal cleanup).
-  fetchIssuesByStates: stateNames :: Array -> Result =>
+  fetchIssuesByStates: stateNames :: List -> Result =>
     stateNames isEmpty ifTrue: [^Result ok: #()]
     result := self query: self terminalQuery variables: #{
       "projectSlug" => self.projectSlug,
@@ -232,7 +218,7 @@ Object subclass: LinearClient
     result isError ifTrue: [^result]
 
     data := result unwrap
-    @expect type  // Is Dictionary
+
     issues := data at: "issues" ifAbsent: [nil]
     issues isNil ifTrue: [^Result ok: #()]
     nodes := issues at: "nodes" ifAbsent: [#()]
@@ -278,12 +264,12 @@ Object subclass: LinearClient
       "updated_at" => (node at: "updatedAt" ifAbsent: [nil])
     }
 
-  normalizeLabels: labelsObj -> Array =>
+  normalizeLabels: labelsObj -> List =>
     labelsObj isNil ifTrue: [^#()]
     nodes := labelsObj at: "nodes" ifAbsent: [#()]
     nodes collect: [:l | (l at: "name" ifAbsent: [""]) lowercase]
 
-  normalizeBlockers: relationsObj -> Array =>
+  normalizeBlockers: relationsObj -> List =>
     relationsObj isNil ifTrue: [^#()]
     nodes := relationsObj at: "nodes" ifAbsent: [#()]
     // Only include inverse relations of type "blocks"

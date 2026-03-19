@@ -4,13 +4,14 @@
 /// PromptRenderer — Liquid-compatible template rendering for agent prompts.
 /// Supports {{ var }} interpolation, {% if %}/{% endif %},
 /// and {% for %}/{% endfor %} control flow.
-Object subclass: PromptRenderer
-  state: openVar :: String = ""
-  state: closeVar :: String = ""
-  state: openTag :: String = ""
-  state: closeTag :: String = ""
+Value subclass: PromptRenderer
+  field: openVar :: String = ""
+  field: closeVar :: String = ""
+  field: openTag :: String = ""
+  field: closeTag :: String = ""
 
-  class shared -> PromptRenderer => self new initShared
+  class shared -> PromptRenderer =>
+    self new: #{#openVar => "\{\{", #closeVar => "}}", #openTag => "\{%", #closeTag => "%}"}
 
   /// Renders a prompt template with issue and attempt variables, returning Result.
   class render: template :: String issue: issue :: Dictionary attempt: attempt :: Integer -> Result =>
@@ -20,13 +21,6 @@ Object subclass: PromptRenderer
       issue: issue
       attempt: attempt
 
-  initShared =>
-    // Match without spaces — trim handles both {{ x }} and {{x}}
-    self.openVar := "\{\{"
-    self.closeVar := "}}"
-    self.openTag := "\{%"
-    self.closeTag := "%}"
-    self
 
   render: template :: String issue: issue :: Dictionary attempt: attempt :: Integer -> Result =>
     template isNil ifTrue: [

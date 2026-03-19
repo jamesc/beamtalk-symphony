@@ -11,7 +11,7 @@ TestCase subclass: LinearClientIntegrationTest
     token := System getEnv: "LINEAR_API_TOKEN"
     self.hasToken := token isNil not
     self.client := self.hasToken ifTrue: [
-      LinearClient new: #{"apiKey" => token, "projectSlug" => "c3c0717a652a"}
+      LinearClient new: #{#apiKey => token, #projectSlug => "c3c0717a652a"}
     ] ifFalse: [nil]
     self
 
@@ -95,8 +95,8 @@ TestCase subclass: LinearClientIntegrationTest
   testInvalidApiKeyReturnsError =>
     self.hasToken ifFalse: [^self skip: "No connectivity"]
     badClient := LinearClient new: #{
-      "apiKey" => "invalid_token",
-      "projectSlug" => "c3c0717a652a"
+      #apiKey => "invalid_token",
+      #projectSlug => "c3c0717a652a"
     }
     result := [
       badClient fetchCandidateIssues: #("Todo")

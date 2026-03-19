@@ -63,6 +63,7 @@ Actor subclass: AgentRunner
     // Step 1: Create/reuse workspace
     wsResult := self.workspaceManager createForIssue: identifier
     wsResult isError ifTrue: [^wsResult]
+
     wsPath := wsResult unwrap at: "path"
 
     // Step 2: Run before_run hook
@@ -84,6 +85,7 @@ Actor subclass: AgentRunner
       ]
 
     sessionData := sessionResult unwrap
+
     self.threadId := sessionData at: "threadId"
 
     // Step 4: Multi-turn loop
@@ -135,6 +137,7 @@ Actor subclass: AgentRunner
     refreshResult isError ifTrue: [^refreshResult]
 
     refreshed := refreshResult unwrap
+
     refreshed isEmpty ifTrue: [^Result ok: #{"status" => "issue_not_found"}]
 
     currentState := (refreshed at: 1) at: "state" ifAbsent: [nil]
@@ -164,6 +167,7 @@ Actor subclass: AgentRunner
     title := (self.issue at: "identifier" ifAbsent: [""])
       ++ ": "
       ++ (self.issue at: "title" ifAbsent: [""])
+
     turnResult := self.codexClient
       startTurn: self.threadId
       prompt: promptText

@@ -12,18 +12,18 @@ TestCase subclass: WorkspaceManagerTest
     self
 
   testSanitizeIdentifier =>
-    wm := WorkspaceManager new: #{"root" => self.tmpDir}
+    wm := WorkspaceManager new: #{#root => self.tmpDir}
     self assert: (wm sanitizeIdentifier: "BT-123") equals: "BT-123"
     self assert: (wm sanitizeIdentifier: "PROJ/456") equals: "PROJ_456"
     self assert: (wm sanitizeIdentifier: "a b c") equals: "a_b_c"
     self assert: (wm sanitizeIdentifier: "hello_world.v2") equals: "hello_world.v2"
 
   testWorkspacePath =>
-    wm := WorkspaceManager new: #{"root" => "/tmp/ws"}
+    wm := WorkspaceManager new: #{#root => "/tmp/ws"}
     self assert: (wm workspacePath: "BT-99") equals: "/tmp/ws/BT-99"
 
   testCreateNewWorkspace =>
-    wm := WorkspaceManager new: #{"root" => self.tmpDir}
+    wm := WorkspaceManager new: #{#root => self.tmpDir}
     result := wm createForIssue: "TEST-1"
     self assert: result isOk
     ws := result unwrap
@@ -31,7 +31,7 @@ TestCase subclass: WorkspaceManagerTest
     self assert: (File isDirectory: (ws at: "path"))
 
   testReuseExistingWorkspace =>
-    wm := WorkspaceManager new: #{"root" => self.tmpDir}
+    wm := WorkspaceManager new: #{#root => self.tmpDir}
     wm createForIssue: "TEST-2"
     result := wm createForIssue: "TEST-2"
     self assert: result isOk
@@ -39,27 +39,27 @@ TestCase subclass: WorkspaceManagerTest
     self assert: (ws at: "created_now") equals: false
 
   testRemoveWorkspace =>
-    wm := WorkspaceManager new: #{"root" => self.tmpDir}
+    wm := WorkspaceManager new: #{#root => self.tmpDir}
     wm createForIssue: "TEST-3"
     self assert: (File isDirectory: self.tmpDir ++ "/TEST-3")
     wm removeWorkspace: "TEST-3"
     self deny: (File isDirectory: self.tmpDir ++ "/TEST-3")
 
   testRemoveNonexistentWorkspace =>
-    wm := WorkspaceManager new: #{"root" => self.tmpDir}
+    wm := WorkspaceManager new: #{#root => self.tmpDir}
     result := wm removeWorkspace: "NONEXISTENT"
     self assert: result isOk
 
   testDeterministicPath =>
-    wm := WorkspaceManager new: #{"root" => self.tmpDir}
+    wm := WorkspaceManager new: #{#root => self.tmpDir}
     path1 := wm workspacePath: "BT-42"
     path2 := wm workspacePath: "BT-42"
     self assert: path1 equals: path2
 
   testAfterCreateHookRuns =>
     wm := WorkspaceManager new: #{
-      "root" => self.tmpDir,
-      "hooksAfterCreate" => "touch hook_ran.txt"
+      #root => self.tmpDir,
+      #hooksAfterCreate => "touch hook_ran.txt"
     }
     result := wm createForIssue: "HOOK-1"
     self assert: result isOk
@@ -67,8 +67,8 @@ TestCase subclass: WorkspaceManagerTest
 
   testAfterCreateHookOnlyOnNew =>
     wm := WorkspaceManager new: #{
-      "root" => self.tmpDir,
-      "hooksAfterCreate" => "touch hook_ran2.txt"
+      #root => self.tmpDir,
+      #hooksAfterCreate => "touch hook_ran2.txt"
     }
     // First call creates
     wm createForIssue: "HOOK-2"
@@ -81,8 +81,8 @@ TestCase subclass: WorkspaceManagerTest
 
   testBeforeRunHook =>
     wm := WorkspaceManager new: #{
-      "root" => self.tmpDir,
-      "hooksBeforeRun" => "echo ok"
+      #root => self.tmpDir,
+      #hooksBeforeRun => "echo ok"
     }
     wm createForIssue: "HOOK-3"
     result := wm runBeforeRun: self.tmpDir ++ "/HOOK-3"
@@ -90,15 +90,15 @@ TestCase subclass: WorkspaceManagerTest
 
   testAfterRunHook =>
     wm := WorkspaceManager new: #{
-      "root" => self.tmpDir,
-      "hooksAfterRun" => "echo done"
+      #root => self.tmpDir,
+      #hooksAfterRun => "echo done"
     }
     wm createForIssue: "HOOK-4"
     result := wm runAfterRun: self.tmpDir ++ "/HOOK-4"
     self assert: result isOk
 
   testCwdValidation =>
-    wm := WorkspaceManager new: #{"root" => self.tmpDir}
+    wm := WorkspaceManager new: #{#root => self.tmpDir}
     wsPath := wm workspacePath: "VAL-1"
     result := wm validateCwd: wsPath forIssue: "VAL-1"
     self assert: result isOk

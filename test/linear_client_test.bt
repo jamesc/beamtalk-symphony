@@ -4,7 +4,7 @@
 TestCase subclass: LinearClientTest
 
   testNewWithDefaults =>
-    client := LinearClient new: #{}
+    client := LinearClient new
     self assert: client endpoint equals: "https://api.linear.app/graphql"
     self assert: client apiKey equals: ""
     self assert: client projectSlug equals: ""
@@ -12,9 +12,9 @@ TestCase subclass: LinearClientTest
   testNewWithOpts =>
     client := LinearClient
       new: #{
-        "endpoint" => "https://custom.api/graphql",
-        "apiKey" => "lin_test_key",
-        "projectSlug" => "my-proj"
+        #endpoint => "https://custom.api/graphql",
+        #apiKey => "lin_test_key",
+        #projectSlug => "my-proj"
       }
     self assert: client endpoint equals: "https://custom.api/graphql"
     self assert: client apiKey equals: "lin_test_key"
@@ -37,7 +37,7 @@ TestCase subclass: LinearClientTest
 
   // --- Normalization ---
   testNormalizeIssue =>
-    client := LinearClient new: #{}
+    client := LinearClient new
     node := #{
       "id" => "abc123",
       "identifier" => "BT-42",
@@ -61,7 +61,7 @@ TestCase subclass: LinearClientTest
     self assert: (issue at: "branch_name") equals: "fix-bug"
 
   testNormalizeLabelsToLowercase =>
-    client := LinearClient new: #{}
+    client := LinearClient new
     node := #{
       "id" => "x",
       "identifier" => "X-1",
@@ -76,7 +76,7 @@ TestCase subclass: LinearClientTest
     self deny: (labels includes: "Bug")
 
   testNormalizeBlockers =>
-    client := LinearClient new: #{}
+    client := LinearClient new
     node := #{
       "id" => "x",
       "identifier" => "X-1",
@@ -106,7 +106,7 @@ TestCase subclass: LinearClientTest
     self assert: ((blockers at: 1) at: "identifier") equals: "Y-1"
 
   testNormalizePriorityNonIntegerBecomesNil =>
-    client := LinearClient new: #{}
+    client := LinearClient new
     node := #{
       "id" => "x",
       "identifier" => "X-1",
@@ -118,19 +118,19 @@ TestCase subclass: LinearClientTest
     self assert: (issue at: "priority") equals: nil
 
   testFetchCandidateIssuesEmptyStates =>
-    client := LinearClient new: #{}
+    client := LinearClient new
     result := client fetchCandidateIssues: #()
     self assert: result isOk
     self assert: result unwrap equals: #()
 
   testFetchIssueStatesByIdsEmpty =>
-    client := LinearClient new: #{}
+    client := LinearClient new
     result := client fetchIssueStatesByIds: #()
     self assert: result isOk
     self assert: result unwrap equals: #()
 
   testFetchIssuesByStatesEmpty =>
-    client := LinearClient new: #{}
+    client := LinearClient new
     result := client fetchIssuesByStates: #()
     self assert: result isOk
     self assert: result unwrap equals: #()

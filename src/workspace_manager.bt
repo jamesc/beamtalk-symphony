@@ -3,38 +3,26 @@
 
 /// WorkspaceManager — manages per-issue workspace directories with path
 /// sanitization, containment validation, lifecycle hooks, and cleanup.
-Object subclass: WorkspaceManager
-  state: root :: String = ""
-  state: hooksAfterCreate = nil
-  state: hooksBeforeRun = nil
-  state: hooksAfterRun = nil
-  state: hooksBeforeRemove = nil
-  state: hooksTimeoutMs :: Integer = 60000
-
-  class new: opts :: Dictionary -> WorkspaceManager => (self new) initWith: opts
+Value subclass: WorkspaceManager
+  field: root :: String = ""
+  field: hooksAfterCreate = nil
+  field: hooksBeforeRun = nil
+  field: hooksAfterRun = nil
+  field: hooksBeforeRemove = nil
+  field: hooksTimeoutMs :: Integer = 60000
 
   /// Creates a WorkspaceManager from a Config, extracting root and hook settings.
   class fromConfig: config :: Config -> WorkspaceManager =>
     self
       new: #{
-        "root" => config workspaceRoot,
-        "hooksAfterCreate" => config hooksAfterCreate,
-        "hooksBeforeRun" => config hooksBeforeRun,
-        "hooksAfterRun" => config hooksAfterRun,
-        "hooksBeforeRemove" => config hooksBeforeRemove,
-        "hooksTimeoutMs" => config hooksTimeoutMs
+        #root => config workspaceRoot,
+        #hooksAfterCreate => config hooksAfterCreate,
+        #hooksBeforeRun => config hooksBeforeRun,
+        #hooksAfterRun => config hooksAfterRun,
+        #hooksBeforeRemove => config hooksBeforeRemove,
+        #hooksTimeoutMs => config hooksTimeoutMs
       }
 
-  initWith: opts :: Dictionary =>
-    self.root := opts at: "root" ifAbsent: ["/tmp/symphony_workspaces"]
-    self.hooksAfterCreate := opts at: "hooksAfterCreate" ifAbsent: [nil]
-    self.hooksBeforeRun := opts at: "hooksBeforeRun" ifAbsent: [nil]
-    self.hooksAfterRun := opts at: "hooksAfterRun" ifAbsent: [nil]
-    self.hooksBeforeRemove := opts at: "hooksBeforeRemove" ifAbsent: [nil]
-    self.hooksTimeoutMs := opts at: "hooksTimeoutMs" ifAbsent: [60000]
-    self
-
-  root => self.root
 
   // --- Path derivation ---
   sanitizeIdentifier: identifier :: String -> String =>

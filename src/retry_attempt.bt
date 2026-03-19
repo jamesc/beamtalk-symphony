@@ -4,12 +4,12 @@
 /// RetryAttempt — immutable value tracking a scheduled retry for an issue.
 /// Holds issueId, attempt counter, due time, timer ref, and last error.
 Value subclass: RetryAttempt
-  state: issueId :: String = ""
-  state: identifier :: String = ""
-  state: attempt :: Integer = 1
-  state: dueAtMs :: Integer = 0
-  state: timerRef :: Timer
-  state: error :: String
+  field: issueId :: String = ""
+  field: identifier :: String = ""
+  field: attempt :: Integer = 1
+  field: dueAtMs :: Integer = 0
+  field: timerRef :: Timer
+  field: error :: String
 
   /// Computes exponential backoff delay: min(10s * 2^(attempt-1), maxMs).
   class backoffMs: attempt :: Integer maxMs: maxMs :: Integer -> Integer =>

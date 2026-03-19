@@ -4,12 +4,12 @@
 /// TokenUsage — immutable token counters (input/output/total) with delta
 /// tracking relative to last reported values.
 Value subclass: TokenUsage
-  state: input :: Integer = 0
-  state: output :: Integer = 0
-  state: total :: Integer = 0
-  state: lastReportedInput :: Integer = 0
-  state: lastReportedOutput :: Integer = 0
-  state: lastReportedTotal :: Integer = 0
+  field: input :: Integer = 0
+  field: output :: Integer = 0
+  field: total :: Integer = 0
+  field: lastReportedInput :: Integer = 0
+  field: lastReportedOutput :: Integer = 0
+  field: lastReportedTotal :: Integer = 0
 
   /// Applies absolute token totals from a codex event, replacing current values.
   applyAbsolute: newInput :: Integer output: newOutput :: Integer total: newTotal :: Integer -> TokenUsage =>

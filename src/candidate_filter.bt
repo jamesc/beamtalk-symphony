@@ -3,17 +3,19 @@
 
 /// CandidateFilter — pure computation helpers for dispatch eligibility,
 /// sorting by priority/age, and per-state concurrency control.
-Object subclass: CandidateFilter
-  state: activeStates :: Array
-  state: terminalStates :: Array
-  state: maxByState :: Dictionary
+Value subclass: CandidateFilter
+  field: activeStates :: List
+  field: terminalStates :: List
+  field: maxByState :: Dictionary
 
   /// Returns issues eligible for dispatch, respecting concurrency and state limits.
-  class eligible: issues :: Array running: running :: Dictionary claimed: claimed :: List activeStates: activeStates :: Array terminalStates: terminalStates :: Array maxConcurrent: maxConcurrent :: Integer maxByState: maxByState :: Dictionary -> Array =>
-    filter := (self new)
-      initStates: activeStates
-      terminal: terminalStates
-      byState: maxByState
+  class eligible: issues :: List running: running :: Dictionary claimed: claimed :: List activeStates: activeStates :: List terminalStates: terminalStates :: List maxConcurrent: maxConcurrent :: Integer maxByState: maxByState :: Dictionary -> List =>
+    filter := self
+      new: #{
+        #activeStates => activeStates,
+        #terminalStates => terminalStates,
+        #maxByState => maxByState
+      }
     filter
       doFilter: issues
       running: running
@@ -23,13 +25,8 @@ Object subclass: CandidateFilter
   /// Sorts issues by priority (ascending), then created_at, then identifier.
   class sortForDispatch: issues :: List -> List => (self new) doSort: issues
 
-  initStates: active :: Array terminal: terminal :: Array byState: byState :: Dictionary =>
-    self.activeStates := active
-    self.terminalStates := terminal
-    self.maxByState := byState
-    self
 
-  doFilter: issues :: Array running: running :: Dictionary claimed: claimed :: List maxConcurrent: maxConcurrent :: Integer -> Array =>
+  doFilter: issues :: List running: running :: Dictionary claimed: claimed :: List maxConcurrent: maxConcurrent :: Integer -> List =>
     runningCount := running size
     availableGlobal := maxConcurrent - runningCount
     availableGlobal <= 0 ifTrue: [^#()]

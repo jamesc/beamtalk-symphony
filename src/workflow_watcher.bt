@@ -43,7 +43,8 @@ Actor subclass: WorkflowWatcher
     result isOk
       ifTrue: [
         wf := result unwrap
-        config := Config fromMap: (wf at: "config")
+        rawConfig := wf at: "config"
+        config := Config fromMap: rawConfig
         prompt := wf at: "prompt_template"
         Logger info: "workflow reloaded" metadata: #{"path" => self.path}
         self.onReload isNil ifFalse: [self.onReload value: config value: prompt]
