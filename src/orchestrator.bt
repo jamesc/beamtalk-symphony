@@ -336,7 +336,6 @@ Actor subclass: Orchestrator
         elapsed > stallTimeout
       ]
 
-    @expect all  // self in do: is safe — single-threaded stall check (BT-1547)
     stalledIds
       do: [:issueId |
         entry := self.running at: issueId
