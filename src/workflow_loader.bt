@@ -6,16 +6,14 @@
 Object subclass: WorkflowLoader
 
   /// Reads and parses a WORKFLOW.md file, returning config and prompt_template.
-  class load: path :: String -> Result => self new load: path
-
-  load: path :: String -> Result =>
+  class load: path :: String -> Result =>
     result := File readAll: path
     result isError ifTrue: [
       ^Result error: #{"kind" => "missing_workflow_file", "path" => path}
     ]
     self parse: result unwrap
 
-  parse: content -> Result =>
+  class parse: content -> Result =>
     lines := content lines
     lines isEmpty ifTrue: [
       ^Result ok: #{"config" => #{}, "prompt_template" => ""}
@@ -31,7 +29,7 @@ Object subclass: WorkflowLoader
     rest := lines rest
     self extractFrontMatter: rest
 
-  extractFrontMatter: rest :: List -> Result =>
+  class extractFrontMatter: rest :: List -> Result =>
     nl := String fromCodePoint: 10
     // Find closing --- index using inject (block mutations don't propagate)
     closingIdx := rest

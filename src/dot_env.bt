@@ -5,19 +5,17 @@
 Object subclass: DotEnv
 
   /// Reads the .env file at path and sets each KEY=VALUE in the OS environment.
-  class load: path :: String -> Result => self new load: path
-
-  load: path :: String -> Result =>
+  class load: path :: String -> Result =>
     result := File readAll: path
     result isError ifTrue: [^Result ok: 0]
     self parseAndLoad: result unwrap
 
-  parseAndLoad: content -> Result =>
+  class parseAndLoad: content -> Result =>
     lines := content lines
     count := lines inject: 0 into: [:acc :line | self loadLine: line count: acc]
     Result ok: count
 
-  loadLine: line :: String count: acc :: Integer -> Integer =>
+  class loadLine: line :: String count: acc :: Integer -> Integer =>
     trimmed := line trim
     trimmed isEmpty ifTrue: [^acc]
     (trimmed startsWith: "#") ifTrue: [^acc]
