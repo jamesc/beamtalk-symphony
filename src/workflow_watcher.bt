@@ -65,5 +65,5 @@ Actor subclass: WorkflowWatcher
 
   getModTime: filePath :: String =>
     // Returns modification time or nil
-    result := [Erlang filelib last_modified: filePath] on: Error do: [:e | nil]
-    result == 0 ifTrue: [nil] ifFalse: [result]
+    result := File lastModified: filePath
+    result isOk ifTrue: [result unwrap] ifFalse: [nil]

@@ -1,7 +1,7 @@
 // Tests for WorkspaceManager
 
 TestCase subclass: WorkspaceManagerTest
-  state: tmpDir = "target/bt-test-tmp/workspaces"
+  field: tmpDir = "target/bt-test-tmp/workspaces"
 
   setUp =>
     File mkdirAll: self.tmpDir

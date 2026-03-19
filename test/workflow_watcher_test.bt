@@ -3,9 +3,9 @@
 // and manual reload, not the poll loop.
 
 TestCase subclass: WorkflowWatcherTest
-  state: tmpDir = "target/bt-test-tmp/watcher"
-  state: lastConfig = nil
-  state: lastPrompt = nil
+  field: tmpDir = "target/bt-test-tmp/watcher"
+  field: lastConfig = nil
+  field: lastPrompt = nil
 
   setUp =>
     File mkdirAll: self.tmpDir
@@ -37,6 +37,6 @@ TestCase subclass: WorkflowWatcherTest
     watcher := WorkflowWatcher spawnWith: #{
       #path => self.tmpDir ++ "/missing.md"
     }
-    // Missing file returns 0 (Erlang filelib:last_modified returns 0)
+    // Missing file returns nil (File lastModified: returns error Result)
     watcher getModTime: self.tmpDir ++ "/missing.md"
     self assert: watcher stop equals: #ok

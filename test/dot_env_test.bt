@@ -1,7 +1,7 @@
 // Tests for DotEnv
 
 TestCase subclass: DotEnvTest
-  state: tmpDir = "target/bt-test-tmp/dotenv"
+  field: tmpDir = "target/bt-test-tmp/dotenv"
 
   setUp =>
     File mkdirAll: self.tmpDir

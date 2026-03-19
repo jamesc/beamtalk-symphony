@@ -1,7 +1,7 @@
 // Tests for WorkflowLoader
 
 TestCase subclass: WorkflowLoaderTest
-  state: tmpDir = "target/bt-test-tmp/workflow"
+  field: tmpDir = "target/bt-test-tmp/workflow"
 
   setUp =>
     File mkdirAll: self.tmpDir

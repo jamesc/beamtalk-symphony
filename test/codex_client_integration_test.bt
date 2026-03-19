@@ -2,13 +2,13 @@
 // Requires codex to be installed. Skipped if not available.
 
 TestCase subclass: CodexClientIntegrationTest
-  state: hasCodex = false
-  state: tmpDir = "target/bt-test-tmp/codex-integration"
+  field: hasCodex = false
+  field: tmpDir = "target/bt-test-tmp/codex-integration"
 
   setUp =>
-    self.hasCodex := [self checkCodexInstalled] on: Error do: [:e | false]
+    found := [self checkCodexInstalled] on: Error do: [:e | false]
     File mkdirAll: self.tmpDir
-    self
+    self withHasCodex: found
 
   checkCodexInstalled =>
     result := Erlang os find_executable: "codex"

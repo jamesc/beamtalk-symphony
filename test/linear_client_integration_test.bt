@@ -3,17 +3,17 @@
 // Skipped when credentials are unavailable.
 
 TestCase subclass: LinearClientIntegrationTest
-  state: client = nil
-  state: hasToken = false
+  field: client = nil
+  field: hasToken = false
 
   setUp =>
     DotEnv load: File cwd ++ "/.env"
     token := System getEnv: "LINEAR_API_TOKEN"
-    self.hasToken := token isNil not
-    self.client := self.hasToken ifTrue: [
+    found := token isNil not
+    c := found ifTrue: [
       LinearClient new: #{#apiKey => token, #projectSlug => "c3c0717a652a"}
     ] ifFalse: [nil]
-    self
+    (self withHasToken: found) withClient: c
 
   // --- Candidate fetch ---
   testFetchCandidateIssues =>

@@ -2,11 +2,11 @@
 // Requires cowboy HTTP infrastructure (may not be available in all test contexts).
 
 TestCase subclass: HttpServerTest
-  state: srv = nil
+  field: srv = nil
 
   setUp =>
-    self.srv := [self tryStartServer] on: Error do: [:e | nil]
-    self
+    server := [self tryStartServer] on: Error do: [:e | nil]
+    self withSrv: server
 
   tryStartServer =>
     server := HttpServer start: 0 orchestrator: nil
