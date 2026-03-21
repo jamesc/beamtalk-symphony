@@ -226,7 +226,6 @@ Actor subclass: CodexClient
 
     // Extract thread ID from response
     threadData := threadResp unwrap
-    @expect type  // unwrap → Object, needs parameterized Result (BT-1547)
     threadResult := threadData at: "result" ifAbsent: [#{}]
     thread := threadResult at: "thread" ifAbsent: [#{}]
     tid := thread at: "id" ifAbsent: [nil]
@@ -264,7 +263,6 @@ Actor subclass: CodexClient
       ]
 
     turnData := turnResp unwrap
-    @expect type  // unwrap → Object, needs parameterized Result (BT-1547)
     turnResult := turnData at: "result" ifAbsent: [#{}]
     turn := turnResult at: "turn" ifAbsent: [#{}]
     tuid := turn at: "id" ifAbsent: [nil]

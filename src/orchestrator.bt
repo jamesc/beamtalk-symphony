@@ -85,7 +85,6 @@ Actor subclass: Orchestrator
 
     // Step 4: Sort and dispatch
     candidates := fetchResult unwrap
-    @expect type  // unwrap → Object, needs parameterized Result (BT-1547)
     sorted := CandidateFilter sortForDispatch: candidates
     eligible := CandidateFilter
       eligible: sorted
@@ -97,7 +96,6 @@ Actor subclass: Orchestrator
       maxByState: self.config maxConcurrentAgentsByState
 
     // Step 4b: Dispatch eligible issues
-    @expect all  // unwrap → Object; self in do: is safe (BT-1547)
     eligible do: [:issue | self dispatchIssue: issue attempt: nil]
 
     // Step 5: Publish snapshot to ETS for HTTP server
@@ -289,7 +287,6 @@ Actor subclass: Orchestrator
       ]
 
     candidates := fetchResult unwrap
-    @expect type  // unwrap → Object, needs parameterized Result (BT-1547)
     issue := candidates detect: [:i | (i at: "id") == issueId] ifNone: [nil]
     issue isNil
       ifTrue: [
@@ -364,7 +361,6 @@ Actor subclass: Orchestrator
     terminalStates := self.config trackerTerminalStates
     activeStates := self.config trackerActiveStates
 
-    @expect all  // unwrap → Object; self in do: is safe — single-threaded reconcile (BT-1547)
     refreshed
       do: [:issueData |
         issueId := issueData at: "id" ifAbsent: [nil]
@@ -437,7 +433,6 @@ Actor subclass: Orchestrator
         ^nil
       ]
     issues := fetchResult unwrap
-    @expect all  // unwrap → Object; self in do: is safe — single-threaded cleanup (BT-1547)
     issues
       do: [:issue |
         identifier := issue at: "identifier" ifAbsent: [nil]
@@ -445,7 +440,6 @@ Actor subclass: Orchestrator
           self.workspaceManager removeWorkspace: identifier
         ]
       ]
-    @expect type  // unwrap → Object, needs parameterized Result (BT-1547)
     Logger info: "startup cleanup done" metadata: #{
       "removed" => issues size displayString
     }

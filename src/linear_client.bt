@@ -28,7 +28,6 @@ Value subclass: LinearClient
   class errorKind: result :: Result -> String =>
     result isError ifFalse: [^nil]
     err := result error
-    @expect type  // Result error → Object, needs parameterized Result (BT-1547)
     (err isKindOf: Dictionary) ifTrue: [^err at: "kind" ifAbsent: ["unknown"]]
     "unknown"
 
@@ -120,7 +119,6 @@ Value subclass: LinearClient
     result isError ifTrue: [^result]
 
     data := result unwrap
-    @expect type  // unwrap → Object, needs parameterized Result (BT-1547)
     issues := data at: "issues" ifAbsent: [nil]
     issues isNil
       ifTrue: [
@@ -178,7 +176,6 @@ Value subclass: LinearClient
     result isError ifTrue: [^result]
 
     data := result unwrap
-    @expect type  // unwrap → Object, needs parameterized Result (BT-1547)
     issues := data at: "issues" ifAbsent: [#{}]
     nodes := issues at: "nodes" ifAbsent: [#()]
     normalized := nodes
@@ -215,7 +212,6 @@ Value subclass: LinearClient
     result isError ifTrue: [^result]
 
     data := result unwrap
-    @expect type  // unwrap → Object, needs parameterized Result (BT-1547)
     issues := data at: "issues" ifAbsent: [nil]
     issues isNil ifTrue: [^Result ok: #()]
     nodes := issues at: "nodes" ifAbsent: [#()]

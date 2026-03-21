@@ -21,7 +21,6 @@ Supervisor subclass: SymphonySupervisor
         ^#()
       ]
     wf := wfResult unwrap
-    @expect type  // unwrap → Object, needs parameterized Result (BT-1547)
     rawConfig := wf at: "config"
     config := Config fromMap: rawConfig
     validation := config validate
@@ -31,7 +30,6 @@ Supervisor subclass: SymphonySupervisor
         ^#()
       ]
 
-    @expect type  // unwrap → Object, needs parameterized Result (BT-1547)
     promptTemplate := wf at: "prompt_template"
     linearClient := LinearClient fromConfig: config
     workspaceManager := WorkspaceManager fromConfig: config

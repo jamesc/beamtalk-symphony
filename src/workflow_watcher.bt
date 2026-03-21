@@ -46,7 +46,6 @@ Actor subclass: WorkflowWatcher
 
   doReload =>
     result := WorkflowLoader load: self.path
-    @expect all  // unwrap → Object, needs parameterized Result (BT-1547)
     result isOk
       ifTrue: [
         wf := result unwrap
