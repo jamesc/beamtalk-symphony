@@ -14,7 +14,7 @@ Actor subclass: CodexClient
   state: onEvent :: Block
 
   /// Spawns a new CodexClient actor bound to the given workspace directory.
-  class start: workspacePath :: String config: config :: Config onEvent: callback :: Block -> CodexClient =>
+  class start: workspacePath :: String config: config :: Config onEvent: callback :: Block | Nil -> CodexClient =>
     self spawnWith: #{
       #workspacePath => workspacePath,
       #config => config,
@@ -331,7 +331,7 @@ Actor subclass: CodexClient
         ]
       ])
       ifTrue: [
-        Logger debug: "codex auto-approving: " ++ method
+        Logger debug: "codex auto-approving: " ++ method displayString
         self sendJson: #{"id" => id, "result" => #{"approved" => true}}
         self emitEvent: msg
         ^nil  // Continue streaming
@@ -364,7 +364,7 @@ Actor subclass: CodexClient
       ]
 
     // Any other message — log method and continue
-    method isNil ifFalse: [Logger debug: "codex event: " ++ method]
+    method isNil ifFalse: [Logger debug: "codex event: " ++ method displayString]
     self emitEvent: msg
     nil  // Continue streaming
 

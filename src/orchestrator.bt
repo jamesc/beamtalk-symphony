@@ -96,7 +96,7 @@ Actor subclass: Orchestrator
       maxByState: self.config maxConcurrentAgentsByState
 
     // Step 4b: Dispatch eligible issues
-    eligible do: [:issue | self dispatchIssue: issue attempt: nil]
+    eligible do: [:issue | self dispatchIssue: issue attempt: 0]
 
     // Step 5: Publish snapshot to ETS for HTTP server
     self publishSnapshot

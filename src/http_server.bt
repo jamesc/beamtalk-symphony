@@ -240,10 +240,10 @@ Actor subclass: HttpServer
     ]) isNil ifTrue: ["—"] ifFalse: [r at: "last_event"]
     total := (r at: "tokens" ifAbsent: [#{}]) at: "total_tokens" ifAbsent: [0]
     "<tr><td><strong>"
-      ++ identifier
+      ++ identifier displayString
       ++ "</strong></td>"
       ++ "<td><span class='badge badge-running'>"
-      ++ issueState
+      ++ issueState displayString
       ++ "</span></td>"
       ++ "<td>"
       ++ turns displayString
@@ -262,7 +262,7 @@ Actor subclass: HttpServer
       nil
     ]) isNil ifTrue: ["—"] ifFalse: [r at: "error"]
     "<tr><td><strong>"
-      ++ identifier
+      ++ identifier displayString
       ++ "</strong></td>"
       ++ "<td><span class='badge badge-retry'>"
       ++ attempt displayString
