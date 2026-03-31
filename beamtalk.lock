@@ -7,6 +7,12 @@ url = "https://github.com/jamesc/beamtalk-http"
 reference = "tag:v0.1.0"
 sha = "facc44fcc68ef173a29cfb5c23d86b46a11b29fd"
 
+[[package]]
+name = "yaml"
+url = "https://github.com/jamesc/beamtalk-yaml"
+reference = "branch:main"
+sha = "1d82ef9a27ceda6b1fa0f7c10b2d605768dfa147"
+
 [[native_package]]
 name = "cowboy"
 version = "2.14.2"

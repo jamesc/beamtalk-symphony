@@ -10,3 +10,4 @@ supervisor = "SymphonySupervisor"
 
 [dependencies]
 http = { git = "https://github.com/jamesc/beamtalk-http", tag="v0.1.0" }
+yaml = { git = "https://github.com/jamesc/beamtalk-yaml", branch = "main" }
