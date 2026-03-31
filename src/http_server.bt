@@ -29,9 +29,7 @@ Actor subclass: HttpServer
   /// Lifecycle hook — stops the HTTP listener on shutdown.
   terminate: _reason =>
     self.server isNil ifFalse: [self.server stop]
-    self.refs isNil ifFalse: [
-      [self.refs delete] on: Error do: [:e | nil]
-    ]
+    self.refs isNil ifFalse: [[self.refs delete] on: Error do: [:e | nil]]
 
   /// Lifecycle hook — starts the HTTP listener after spawn.
   initialize =>

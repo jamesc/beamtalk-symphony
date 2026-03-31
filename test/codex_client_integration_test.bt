@@ -101,8 +101,9 @@ TestCase subclass: CodexClientIntegrationTest
 
   pollStreamStep: client deadline: deadline =>
     result := client streamStep
-    (result isNil and: [(DateTime now asTimestamp * 1000) < deadline])
-      ifTrue: [^self pollStreamStep: client deadline: deadline]
+    (result isNil and: [
+      (DateTime now asTimestamp * 1000) < deadline
+    ]) ifTrue: [^self pollStreamStep: client deadline: deadline]
     result
 
   testLaunchFailsWithBadCommand =>

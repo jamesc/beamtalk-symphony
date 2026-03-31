@@ -364,7 +364,9 @@ Actor subclass: CodexClient
       ]
 
     // Any other message — log method and continue
-    method isNil ifFalse: [Logger debug: "codex event: " ++ method displayString]
+    method isNil ifFalse: [
+      Logger debug: "codex event: " ++ method displayString
+    ]
     self emitEvent: msg
     nil  // Continue streaming
 
