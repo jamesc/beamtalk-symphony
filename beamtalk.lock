@@ -4,14 +4,14 @@
 [[package]]
 name = "http"
 url = "https://github.com/jamesc/beamtalk-http"
-reference = "tag:v0.1.0"
-sha = "facc44fcc68ef173a29cfb5c23d86b46a11b29fd"
+reference = "tag:v0.1.1"
+sha = "0ed13ef0737075c1a995637e5034b61238e17bb2"
 
 [[package]]
 name = "yaml"
 url = "https://github.com/jamesc/beamtalk-yaml"
-reference = "branch:main"
-sha = "1d82ef9a27ceda6b1fa0f7c10b2d605768dfa147"
+reference = "tag:v0.1.0"
+sha = "80f6c9c232d873463640153c4df8d3d974d2abb2"
 
 [[native_package]]
 name = "cowboy"
@@ -25,11 +25,16 @@ sha = ""
 
 [[native_package]]
 name = "gun"
-version = "2.1.0"
+version = "2.2.0"
 sha = ""
 
 [[native_package]]
 name = "ranch"
 version = "2.2.0"
+sha = ""
+
+[[native_package]]
+name = "yamerl"
+version = "0.10.0"
 sha = ""
 
