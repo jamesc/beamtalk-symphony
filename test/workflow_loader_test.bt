@@ -25,7 +25,8 @@ TestCase subclass: WorkflowLoaderTest
     path := self.tmpDir ++ "/wf1.md"
     File writeAll: path contents: content
     result := WorkflowLoader load: path
-    wf := self assertOk: result
+    self assertOk: result
+    wf := result unwrap
     config := wf at: "config"
     self assert: ((config at: "tracker") at: "kind") equals: "linear"
     self assert: (wf at: "prompt_template") equals: "You are an agent."
@@ -34,7 +35,8 @@ TestCase subclass: WorkflowLoaderTest
     path := self.tmpDir ++ "/wf2.md"
     File writeAll: path contents: "Just a prompt body."
     result := WorkflowLoader load: path
-    wf := self assertOk: result
+    self assertOk: result
+    wf := result unwrap
     self assert: (wf at: "config") equals: #{}
     self assert: (wf at: "prompt_template") equals: "Just a prompt body."
 
@@ -58,7 +60,8 @@ TestCase subclass: WorkflowLoaderTest
     path := self.tmpDir ++ "/wf4.md"
     File writeAll: path contents: ""
     result := WorkflowLoader load: path
-    wf := self assertOk: result
+    self assertOk: result
+    wf := result unwrap
     self assert: (wf at: "config") equals: #{}
 
   testTrimsPromptBody =>
@@ -78,7 +81,8 @@ TestCase subclass: WorkflowLoaderTest
     path := self.tmpDir ++ "/wf5.md"
     File writeAll: path contents: content
     result := WorkflowLoader load: path
-    wf := self assertOk: result
+    self assertOk: result
+    wf := result unwrap
     self assert: (wf at: "prompt_template") equals: "prompt body"
 
   testEmptyFrontMatterReturnsEmptyConfig =>
@@ -87,6 +91,7 @@ TestCase subclass: WorkflowLoaderTest
     path := self.tmpDir ++ "/wf6.md"
     File writeAll: path contents: content
     result := WorkflowLoader load: path
-    wf := self assertOk: result
+    self assertOk: result
+    wf := result unwrap
     self assert: (wf at: "config") equals: #{}
     self assert: (wf at: "prompt_template") equals: "body text"

@@ -93,9 +93,9 @@ TestCase subclass: PromptRendererTest
       render: template
       issue: issue
       attempt: nil
-    rendered := self assertOk: result
-    self assert: (rendered includesSubstring: "bug")
-    self assert: (rendered includesSubstring: "urgent")
+    self assertOk: result
+    self assert: (result unwrap includesSubstring: "bug")
+    self assert: (result unwrap includesSubstring: "urgent")
 
   testMultipleInterpolations =>
     template := (self var: "issue.identifier")
