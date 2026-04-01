@@ -81,17 +81,12 @@ Actor subclass: CodexClient
       on: Error
       do: [:e |
         Logger error: "codex launch failed" metadata: #{"error" => e message}
-        ^Result error: #{"kind" => "codex_not_found", "detail" => e message}
+        ^Result error: (CodexError notFound: e message)
       ]
     procResult isError
       ifTrue: [
-        Logger error: "codex launch error" metadata: #{
-          "error" => procResult error displayString
-        }
-        ^Result error: #{
-          "kind" => "codex_not_found",
-          "detail" => procResult error displayString
-        }
+        Logger error: "codex launch error" metadata: #{"error" => procResult error displayString}
+        ^Result error: (CodexError notFound: procResult error displayString)
       ]
     self.proc := procResult unwrap
     Logger info: "codex process launched"
@@ -131,7 +126,7 @@ Actor subclass: CodexClient
         Logger warn: "codex response timeout" metadata: #{
           "id" => expectedId displayString
         }
-        ^Result error: #{"kind" => "response_timeout", "id" => expectedId}
+        ^Result error: (CodexError responseTimeout: expectedId)
       ]
     readTimeout := remaining > 1000 ifTrue: [1000] ifFalse: [remaining]
 
@@ -144,26 +139,26 @@ Actor subclass: CodexClient
             Logger warn: "codex process exited" metadata: #{
               "exit_code" => exitCode displayString
             }
-            ^Result error: #{"kind" => "port_exit", "exit_code" => exitCode}
+            ^Result error: (CodexError portExit: exitCode)
           ]
         ^self readUntilResponse: expectedId deadline: deadline
       ]
     Logger debug: "codex << " ++ line
 
-    parsed := [Json parse: line] on: Error do: [:e | nil]
-    parsed isNil
-      ifTrue: [
-        Logger debug: "codex non-JSON line, skipping"
-        ^self readUntilResponse: expectedId deadline: deadline
+    ([Json parse: line] on: Error do: [:e | Result error: e message])
+      ifOk: [:parsedMsg |
+        msgId := parsedMsg at: "id" ifAbsent: [nil]
+        msgId == expectedId ifTrue: [^Result ok: parsedMsg]
+        // Notification or different response — emit as event
+        method := parsedMsg at: "method" ifAbsent: ["?"]
+        Logger debug: "codex event: " ++ method displayString
+        self emitEvent: parsedMsg
+        self readUntilResponse: expectedId deadline: deadline
       ]
-    parsedMsg := parsed unwrap
-    msgId := parsedMsg at: "id" ifAbsent: [nil]
-    msgId == expectedId ifTrue: [^Result ok: parsedMsg]
-    // Notification or different response — emit as event
-    method := parsedMsg at: "method" ifAbsent: ["?"]
-    Logger debug: "codex event: " ++ method displayString
-    self emitEvent: parsedMsg
-    self readUntilResponse: expectedId deadline: deadline
+      ifError: [:_e |
+        Logger debug: "codex non-JSON line, skipping"
+        self readUntilResponse: expectedId deadline: deadline
+      ]
 
   // --- Session startup handshake ---
 
@@ -193,12 +188,7 @@ Actor subclass: CodexClient
           "error" => initResp error displayString
         }
         self stopProcess
-        ^Result
-          error: #{
-            "kind" => "startup_failed",
-            "step" => "initialize",
-            "detail" => initResp error
-          }
+        ^Result error: (CodexError startupFailed: "initialize" detail: initResp error)
       ]
     Logger info: "codex initialized"
 
@@ -216,24 +206,19 @@ Actor subclass: CodexClient
           "error" => threadResp error displayString
         }
         self stopProcess
-        ^Result
-          error: #{
-            "kind" => "startup_failed",
-            "step" => "thread/start",
-            "detail" => threadResp error
-          }
+        ^Result error: (CodexError startupFailed: "thread/start" detail: threadResp error)
       ]
 
     // Extract thread ID from response
-    threadData := threadResp unwrap
-    threadResult := threadData at: "result" ifAbsent: [#{}]
-    thread := threadResult at: "thread" ifAbsent: [#{}]
-    tid := thread at: "id" ifAbsent: [nil]
-
-    Logger info: "codex session ready" metadata: #{
-      "threadId" => tid displayString
-    }
-    Result ok: #{"threadId" => tid}
+    threadResp map: [:threadData |
+      threadResult := threadData at: "result" ifAbsent: [#{}]
+      thread := threadResult at: "thread" ifAbsent: [#{}]
+      tid := thread at: "id" ifAbsent: [nil]
+      Logger info: "codex session ready" metadata: #{
+        "threadId" => tid displayString
+      }
+      #{"threadId" => tid}
+    ]
 
   // --- Turn management ---
 
@@ -261,16 +246,15 @@ Actor subclass: CodexClient
         }
         ^turnResp
       ]
-
-    turnData := turnResp unwrap
-    turnResult := turnData at: "result" ifAbsent: [#{}]
-    turn := turnResult at: "turn" ifAbsent: [#{}]
-    tuid := turn at: "id" ifAbsent: [nil]
-
-    Logger info: "codex turn started" metadata: #{
-      "turnId" => tuid displayString
-    }
-    Result ok: #{"turnId" => tuid}
+    turnResp map: [:turnData |
+      turnResult := turnData at: "result" ifAbsent: [#{}]
+      turn := turnResult at: "turn" ifAbsent: [#{}]
+      tuid := turn at: "id" ifAbsent: [nil]
+      Logger info: "codex turn started" metadata: #{
+        "turnId" => tuid displayString
+      }
+      #{"turnId" => tuid}
+    ]
 
   /// Reads and processes the next stream event. Returns:
   /// - nil if no event yet (caller should call again)
@@ -286,16 +270,15 @@ Actor subclass: CodexClient
             Logger warn: "codex process exited during stream" metadata: #{
               "exit_code" => exitCode displayString
             }
-            ^Result error: #{"kind" => "port_exit", "exit_code" => exitCode}
+            ^Result error: (CodexError portExit: exitCode)
           ]
         ^nil  // No data yet, caller should retry
       ]
     Logger debug: "codex << " ++ line
 
-    parsed := [Json parse: line] on: Error do: [:e | nil]
-    parsed isNil ifTrue: [^nil]
-    msg := parsed unwrap
-    self handleStreamMessage: msg
+    ([Json parse: line] on: Error do: [:e | Result error: e message])
+      ifOk: [:msg | self handleStreamMessage: msg]
+      ifError: [:_e | nil]
 
   handleStreamMessage: msg :: Dictionary =>
     method := msg at: "method" ifAbsent: [nil]
@@ -313,13 +296,13 @@ Actor subclass: CodexClient
           "method" => method displayString
         }
         self emitEvent: msg
-        ^Result error: #{"kind" => "turn_failed", "message" => msg}
+        ^Result error: (CodexError turnFailed: msg)
       ]
     method == "turn/cancelled"
       ifTrue: [
         Logger warn: "codex turn cancelled"
         self emitEvent: msg
-        ^Result error: #{"kind" => "turn_cancelled", "message" => msg}
+        ^Result error: (CodexError turnCancelled: msg)
       ]
 
     // Handle approval requests — auto-approve all types
@@ -342,7 +325,7 @@ Actor subclass: CodexClient
       ifTrue: [
         Logger warn: "codex requires user input, failing turn"
         self emitEvent: msg
-        ^Result error: #{"kind" => "turn_input_required", "message" => msg}
+        ^Result error: (CodexError turnInputRequired: msg)
       ]
 
     // Handle unsupported tool calls

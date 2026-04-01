@@ -45,24 +45,21 @@ Actor subclass: WorkflowWatcher
     self schedulePoll!
 
   doReload =>
-    result := WorkflowLoader load: self.path
-    result isOk
-      ifTrue: [
-        wf := result unwrap
+    (WorkflowLoader load: self.path)
+      ifOk: [:wf |
         rawConfig := wf at: "config"
         config := Config fromMap: rawConfig
         prompt := wf at: "prompt_template"
         Logger info: "workflow reloaded" metadata: #{"path" => self.path}
         self.onReload isNil ifFalse: [self.onReload value: config value: prompt]
       ]
-      ifFalse: [
+      ifError: [:e |
         Logger error: "workflow reload failed" metadata: #{
           "path" => self.path,
-          "error" => result error displayString
+          "error" => e displayString
         }
       ]
 
   getModTime: filePath :: String =>
     // Returns modification time or nil
-    result := File lastModified: filePath
-    result isOk ifTrue: [result unwrap] ifFalse: [nil]
+    (File lastModified: filePath) valueOr: nil

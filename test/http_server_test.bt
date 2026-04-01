@@ -21,17 +21,17 @@ TestCase subclass: HttpServerTest
 
   /// Helper: assert HTTP status on a Result<HTTPResponse>.
   assertStatus: expected :: Integer from: result :: Result =>
-    resp := result unwrap
+    resp := self assertOk: result
     self assert: (resp perform: #status) equals: expected
 
   /// Helper: get response body as string from a Result<HTTPResponse>.
   bodyFrom: result :: Result -> String =>
-    resp := result unwrap
+    resp := self assertOk: result
     resp perform: #body
 
   /// Helper: get response body as JSON from a Result<HTTPResponse>.
   jsonFrom: result :: Result -> Dictionary =>
-    resp := result unwrap
+    resp := self assertOk: result
     resp perform: #bodyAsJson
 
   testStartAndPort =>

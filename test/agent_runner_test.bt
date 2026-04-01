@@ -22,8 +22,7 @@ TestCase subclass: AgentRunnerTest
       render: template
       issue: issue
       attempt: nil
-    self assert: result isOk
-    self assert: result unwrap equals: "BT-1: Fix bug"
+    self assert: (self assertOk: result) equals: "BT-1: Fix bug"
 
   testContinuationPromptFormat =>
     turnNumber := 3
@@ -39,5 +38,4 @@ TestCase subclass: AgentRunnerTest
       render: "Work on it"
       issue: issue
       attempt: 2
-    self assert: result isOk
-    self assert: result unwrap equals: "Work on it"
+    self assert: (self assertOk: result) equals: "Work on it"

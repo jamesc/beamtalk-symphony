@@ -37,10 +37,7 @@ Value subclass: PromptRenderer
     result := [self processAll: template vars: vars]
       on: Error
       do: [:e |
-        ^Result error: #{
-          "kind" => "template_render_error",
-          "detail" => e message
-        }
+        ^Result error: (TemplateError renderError: e message)
       ]
     Result ok: result
 

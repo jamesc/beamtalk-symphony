@@ -23,8 +23,7 @@ TestCase subclass: PromptRendererTest
       render: template
       issue: issue
       attempt: nil
-    self assert: result isOk
-    self assert: result unwrap equals: "Work on BT-42: Fix the bug"
+    self assert: (self assertOk: result) equals: "Work on BT-42: Fix the bug"
 
   testRendersAttemptVariable =>
     template := "Attempt: " ++ (self var: "attempt")
@@ -33,8 +32,7 @@ TestCase subclass: PromptRendererTest
       render: template
       issue: issue
       attempt: 3
-    self assert: result isOk
-    self assert: result unwrap equals: "Attempt: 3"
+    self assert: (self assertOk: result) equals: "Attempt: 3"
 
   testNilAttemptRendersEmpty =>
     template := "Attempt: " ++ (self var: "attempt")
@@ -43,24 +41,21 @@ TestCase subclass: PromptRendererTest
       render: template
       issue: issue
       attempt: nil
-    self assert: result isOk
-    self assert: result unwrap equals: "Attempt: "
+    self assert: (self assertOk: result) equals: "Attempt: "
 
   testEmptyTemplateUsesDefault =>
     result := PromptRenderer
       render: ""
       issue: #{"id" => "x"}
       attempt: nil
-    self assert: result isOk
-    self assert: result unwrap equals: "You are working on an issue from Linear."
+    self assert: (self assertOk: result) equals: "You are working on an issue from Linear."
 
   testNilTemplateUsesDefault =>
     result := PromptRenderer
       render: nil
       issue: #{"id" => "x"}
       attempt: nil
-    self assert: result isOk
-    self assert: result unwrap equals: "You are working on an issue from Linear."
+    self assert: (self assertOk: result) equals: "You are working on an issue from Linear."
 
   testIfBlockTrue =>
     template := (self ifOpen: "issue.description")
@@ -72,8 +67,7 @@ TestCase subclass: PromptRendererTest
       render: template
       issue: issue
       attempt: nil
-    self assert: result isOk
-    self assert: result unwrap equals: "Desc: Some description"
+    self assert: (self assertOk: result) equals: "Desc: Some description"
 
   testIfBlockFalse =>
     template := "Start"
@@ -86,8 +80,7 @@ TestCase subclass: PromptRendererTest
       render: template
       issue: issue
       attempt: nil
-    self assert: result isOk
-    self assert: result unwrap equals: "Start end"
+    self assert: (self assertOk: result) equals: "Start end"
 
   testForLoop =>
     template := "Labels:"
@@ -100,9 +93,9 @@ TestCase subclass: PromptRendererTest
       render: template
       issue: issue
       attempt: nil
-    self assert: result isOk
-    self assert: (result unwrap includesSubstring: "bug")
-    self assert: (result unwrap includesSubstring: "urgent")
+    rendered := self assertOk: result
+    self assert: (rendered includesSubstring: "bug")
+    self assert: (rendered includesSubstring: "urgent")
 
   testMultipleInterpolations =>
     template := (self var: "issue.identifier")
@@ -116,5 +109,4 @@ TestCase subclass: PromptRendererTest
       render: template
       issue: issue
       attempt: 2
-    self assert: result isOk
-    self assert: result unwrap equals: "X-1: Do it (2)"
+    self assert: (self assertOk: result) equals: "X-1: Do it (2)"

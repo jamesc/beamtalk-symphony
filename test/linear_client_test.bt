@@ -20,12 +20,13 @@ TestCase subclass: LinearClientTest
     self assert: client apiKey equals: "lin_test_key"
     self assert: client projectSlug equals: "my-proj"
 
-  testErrorKindForErrorResult =>
-    err := Result error: #{
-      "kind" => "linear_api_request",
-      "detail" => "timeout"
-    }
-    self assert: (LinearClient errorKind: err) equals: "linear_api_request"
+  testErrorKindForLinearError =>
+    err := Result error: (LinearError apiRequest: "timeout")
+    self assert: (LinearClient errorKind: err) equals: "api_request"
+
+  testErrorKindForLegacyDictError =>
+    err := Result error: #{"kind" => "legacy_error"}
+    self assert: (LinearClient errorKind: err) equals: "legacy_error"
 
   testErrorKindForOkResult =>
     ok := Result ok: "data"
@@ -120,17 +121,14 @@ TestCase subclass: LinearClientTest
   testFetchCandidateIssuesEmptyStates =>
     client := LinearClient new
     result := client fetchCandidateIssues: #()
-    self assert: result isOk
-    self assert: result unwrap equals: #()
+    self assert: (self assertOk: result) equals: #()
 
   testFetchIssueStatesByIdsEmpty =>
     client := LinearClient new
     result := client fetchIssueStatesByIds: #()
-    self assert: result isOk
-    self assert: result unwrap equals: #()
+    self assert: (self assertOk: result) equals: #()
 
   testFetchIssuesByStatesEmpty =>
     client := LinearClient new
     result := client fetchIssuesByStates: #()
-    self assert: result isOk
-    self assert: result unwrap equals: #()
+    self assert: (self assertOk: result) equals: #()

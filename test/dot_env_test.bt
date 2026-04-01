@@ -16,7 +16,7 @@ TestCase subclass: DotEnvTest
     nl := String fromCodePoint: 10
     File writeAll: path contents: "FOO_TEST_1=bar" ++ nl ++ "BAZ_TEST_1=qux"
     result := DotEnv load: path
-    self assert: result isOk
+    self assertOk: result
     self assert: (Erlang os getenv: "FOO_TEST_1") equals: "bar"
     self assert: (Erlang os getenv: "BAZ_TEST_1") equals: "qux"
 
@@ -36,12 +36,11 @@ TestCase subclass: DotEnvTest
 
   testMissingFileReturnsOk =>
     result := DotEnv load: self.tmpDir ++ "/nonexistent"
-    self assert: result isOk
-    self assert: result unwrap equals: 0
+    self assert: (self assertOk: result) equals: 0
 
   testCountsLoadedVars =>
     path := self.tmpDir ++ "/.env4"
     nl := String fromCodePoint: 10
     File writeAll: path contents: "A_TEST_4=1" ++ nl ++ "B_TEST_4=2" ++ nl ++ "# skip"
     result := DotEnv load: path
-    self assert: result unwrap equals: 2
+    self assert: (self assertOk: result) equals: 2

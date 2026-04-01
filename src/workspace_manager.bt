@@ -46,18 +46,9 @@ Value subclass: WorkspaceManager
     (absWs startsWith: absRoot ++ "/") ifTrue: [^Result ok: true]
     absWs == absRoot
       ifTrue: [
-        ^Result error: #{
-          "kind" => "invalid_workspace_path",
-          "detail" => "workspace path equals root"
-        }
+        ^Result error: (WorkspaceError invalidPath: "workspace path equals root" workspace: absWs root: absRoot)
       ]
-    Result
-      error: #{
-        "kind" => "invalid_workspace_path",
-        "detail" => "workspace path outside root",
-        "workspace" => absWs,
-        "root" => absRoot
-      }
+    Result error: (WorkspaceError invalidPath: "workspace path outside root" workspace: absWs root: absRoot)
 
   // --- Create or reuse ---
 
@@ -73,10 +64,7 @@ Value subclass: WorkspaceManager
         mkResult := File mkdirAll: wsPath
         mkResult isError
           ifTrue: [
-            ^Result error: #{
-              "kind" => "workspace_create_error",
-              "detail" => mkResult error
-            }
+            ^Result error: (WorkspaceError createError: mkResult error)
           ]
       ]
 
@@ -91,10 +79,7 @@ Value subclass: WorkspaceManager
             hookResult isError
               ifTrue: [
                 File deleteAll: wsPath
-                ^Result error: #{
-                  "kind" => "hook_after_create_failed",
-                  "detail" => hookResult error
-                }
+                ^Result error: (WorkspaceError hookFailed: hookResult error phase: "after_create")
               ]
           ]
       ]
@@ -128,25 +113,21 @@ Value subclass: WorkspaceManager
         args: #("-c", script)
         dir: dir
     ] on: Error do: [:e |
-      ^Result error: #{"kind" => "hook_error", "detail" => e message}
+      ^Result error: (WorkspaceError hookFailed: e message phase: "launch")
     ]
-    procResult isError ifTrue: [
-      ^Result error: #{"kind" => "hook_error", "detail" => procResult error}
+    (procResult mapError: [:e |
+      WorkspaceError hookFailed: e phase: "launch"
+    ]) andThen: [:proc |
+      // Read all output and wait for exit
+      output := (proc lines asList) join: (String fromCodePoint: 10)
+      exitCode := proc exitCode
+      proc close
+      exitCode == 0
+        ifTrue: [Result ok: output]
+        ifFalse: [
+          Result error: (WorkspaceError hookError: script exitCode: exitCode output: output)
+        ]
     ]
-    proc := procResult unwrap
-    // Read all output and wait for exit
-    output := (proc lines asList) join: (String fromCodePoint: 10)
-    exitCode := proc exitCode
-    proc close
-    exitCode == 0
-      ifTrue: [Result ok: output]
-      ifFalse: [
-        Result error: #{
-          "kind" => "hook_error",
-          "exit_code" => exitCode,
-          "output" => output
-        }
-      ]
 
   // --- Cleanup ---
 
@@ -172,10 +153,5 @@ Value subclass: WorkspaceManager
     absExpected == absCwd
       ifTrue: [Result ok: true]
       ifFalse: [
-        Result
-          error: #{
-            "kind" => "invalid_workspace_cwd",
-            "expected" => absExpected,
-            "actual" => absCwd
-          }
+        Result error: (WorkspaceError invalidCwd: absExpected actual: absCwd)
       ]

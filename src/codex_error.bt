@@ -1,0 +1,38 @@
+// Copyright 2026 James Casey
+// SPDX-License-Identifier: Apache-2.0
+
+/// CodexError — typed error for codex subprocess failures.
+Value subclass: CodexError
+  field: kind :: String = ""
+  field: detail = nil
+  field: step = nil
+  field: exitCode = nil
+  field: message = nil
+
+  class notFound: detail :: String -> CodexError =>
+    self new: #{#kind => "not_found", #detail => detail}
+
+  class responseTimeout: requestId :: Integer -> CodexError =>
+    self new: #{#kind => "response_timeout", #detail => requestId}
+
+  class portExit: exitCode :: Integer -> CodexError =>
+    self new: #{#kind => "port_exit", #exitCode => exitCode}
+
+  class startupFailed: step :: String detail: detail -> CodexError =>
+    self new: #{#kind => "startup_failed", #step => step, #detail => detail}
+
+  class turnFailed: msg :: Dictionary -> CodexError =>
+    self new: #{#kind => "turn_failed", #message => msg}
+
+  class turnCancelled: msg :: Dictionary -> CodexError =>
+    self new: #{#kind => "turn_cancelled", #message => msg}
+
+  class turnTimeout -> CodexError =>
+    self new: #{#kind => "turn_timeout"}
+
+  class turnInputRequired: msg :: Dictionary -> CodexError =>
+    self new: #{#kind => "turn_input_required", #message => msg}
+
+  displayString =>
+    base := "CodexError(" ++ self.kind ++ ")"
+    self.detail isNil ifTrue: [base] ifFalse: [base ++ ": " ++ self.detail displayString]

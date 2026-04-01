@@ -1,0 +1,32 @@
+// Copyright 2026 James Casey
+// SPDX-License-Identifier: Apache-2.0
+
+/// WorkspaceError — typed error for workspace management failures.
+Value subclass: WorkspaceError
+  field: kind :: String = ""
+  field: detail = nil
+  field: workspace = nil
+  field: root = nil
+  field: expected = nil
+  field: actual = nil
+  field: exitCode = nil
+  field: output = nil
+
+  class invalidPath: detail :: String workspace: ws root: root -> WorkspaceError =>
+    self new: #{#kind => "invalid_path", #detail => detail, #workspace => ws, #root => root}
+
+  class createError: detail -> WorkspaceError =>
+    self new: #{#kind => "create_error", #detail => detail}
+
+  class hookFailed: detail phase: phase :: String -> WorkspaceError =>
+    self new: #{#kind => "hook_" ++ phase, #detail => detail}
+
+  class hookError: detail exitCode: exitCode output: output -> WorkspaceError =>
+    self new: #{#kind => "hook_error", #detail => detail, #exitCode => exitCode, #output => output}
+
+  class invalidCwd: expected :: String actual: actual :: String -> WorkspaceError =>
+    self new: #{#kind => "invalid_cwd", #expected => expected, #actual => actual}
+
+  displayString =>
+    base := "WorkspaceError(" ++ self.kind ++ ")"
+    self.detail isNil ifTrue: [base] ifFalse: [base ++ ": " ++ self.detail displayString]

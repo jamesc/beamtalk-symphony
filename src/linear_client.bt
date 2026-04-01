@@ -28,6 +28,7 @@ Value subclass: LinearClient
   class errorKind: result :: Result -> String =>
     result isError ifFalse: [^nil]
     err := result error
+    (err isKindOf: LinearError) ifTrue: [^err kind]
     (err isKindOf: Dictionary) ifTrue: [^err at: "kind" ifAbsent: ["unknown"]]
     "unknown"
 
@@ -45,54 +46,32 @@ Value subclass: LinearClient
         #timeout => self.timeout
       }
 
-    httpResult isError
-      ifTrue: [
-        ^Result error: #{
-          "kind" => "linear_api_request",
-          "detail" => httpResult error displayString
-        }
-      ]
-
-    resp := httpResult unwrap
-    self parseResponse: resp
+    (httpResult mapError: [:e |
+      LinearError apiRequest: e displayString
+    ]) andThen: [:resp | self parseResponse: resp]
 
   parseResponse: resp -> Result =>
     resp ok
       ifFalse: [
-        ^Result error: #{
-          "kind" => "linear_api_status",
-          "status" => resp status,
-          "body" => resp body
-        }
+        ^Result error: (LinearError apiStatus: resp status body: resp body)
       ]
 
     jsonBody := [resp bodyAsJson]
       on: Error
       do: [:e |
-        ^Result error: #{
-          "kind" => "linear_unknown_payload",
-          "detail" => e message
-        }
+        ^Result error: (LinearError unknownPayload: e message)
       ]
 
     errors := jsonBody at: "errors" ifAbsent: [nil]
     errors isNil
       ifFalse: [
-        ^Result
-          error: #{
-            "kind" => "linear_graphql_errors",
-            "errors" => errors,
-            "data" => (jsonBody at: "data" ifAbsent: [nil])
-          }
+        ^Result error: (LinearError graphqlErrors: errors data: (jsonBody at: "data" ifAbsent: [nil]))
       ]
 
     data := jsonBody at: "data" ifAbsent: [nil]
     data isNil
       ifTrue: [
-        ^Result error: #{
-          "kind" => "linear_unknown_payload",
-          "detail" => "missing data field"
-        }
+        ^Result error: (LinearError unknownPayload: "missing data field")
       ]
 
     Result ok: data
@@ -115,35 +94,31 @@ Value subclass: LinearClient
     }
     vars := cursor isNil ifTrue: [vars] ifFalse: [vars at: "after" put: cursor]
 
-    result := self query: self candidateQuery variables: vars
-    result isError ifTrue: [^result]
+    (self query: self candidateQuery variables: vars) andThen: [:data |
+      issues := data at: "issues" ifAbsent: [nil]
+      issues isNil
+        ifTrue: [
+          Result error: (LinearError unknownPayload: "missing issues")
+        ]
+        ifFalse: [
+          nodes := issues at: "nodes" ifAbsent: [#()]
+          normalized := nodes collect: [:node | self normalizeIssue: node]
+          newAcc := acc ++ normalized
 
-    data := result unwrap
-    issues := data at: "issues" ifAbsent: [nil]
-    issues isNil
-      ifTrue: [
-        ^Result error: #{
-          "kind" => "linear_unknown_payload",
-          "detail" => "missing issues"
-        }
-      ]
+          pageInfo := issues at: "pageInfo" ifAbsent: [#{}]
+          hasNext := pageInfo at: "hasNextPage" ifAbsent: [false]
+          hasNext ifFalse: [^Result ok: newAcc]
 
-    nodes := issues at: "nodes" ifAbsent: [#()]
-    normalized := nodes collect: [:node | self normalizeIssue: node]
-    newAcc := acc ++ normalized
-
-    pageInfo := issues at: "pageInfo" ifAbsent: [#{}]
-    hasNext := pageInfo at: "hasNextPage" ifAbsent: [false]
-    hasNext ifFalse: [^Result ok: newAcc]
-
-    endCursor := pageInfo at: "endCursor" ifAbsent: [nil]
-    endCursor isNil ifTrue: [
-      ^Result error: #{"kind" => "linear_missing_end_cursor"}
+          endCursor := pageInfo at: "endCursor" ifAbsent: [nil]
+          endCursor isNil ifTrue: [
+            ^Result error: LinearError missingEndCursor
+          ]
+          self
+            fetchAllPages: activeStates
+            cursor: endCursor
+            accumulated: newAcc
+        ]
     ]
-    self
-      fetchAllPages: activeStates
-      cursor: endCursor
-      accumulated: newAcc
 
   candidateQuery -> String =>
     "query($projectSlug: String!, $states: [String!]!, $first: Int!, $after: String) \{
@@ -172,23 +147,20 @@ Value subclass: LinearClient
   /// Fetches current state names for a list of issue IDs (used for reconciliation).
   fetchIssueStatesByIds: ids :: List -> Result =>
     ids isEmpty ifTrue: [^Result ok: #()]
-    result := self query: self stateRefreshQuery variables: #{"ids" => ids}
-    result isError ifTrue: [^result]
-
-    data := result unwrap
-    issues := data at: "issues" ifAbsent: [#{}]
-    nodes := issues at: "nodes" ifAbsent: [#()]
-    normalized := nodes
-      collect: [:node |
-        #{
-          "id" => (node at: "id" ifAbsent: [nil]),
-          "identifier" => (node at: "identifier" ifAbsent: [nil]),
-          "state" => ((node at: "state" ifAbsent: [
-            #{}
-          ]) at: "name" ifAbsent: [nil])
-        }
-      ]
-    Result ok: normalized
+    (self query: self stateRefreshQuery variables: #{"ids" => ids}) map: [:data |
+      issues := data at: "issues" ifAbsent: [#{}]
+      nodes := issues at: "nodes" ifAbsent: [#()]
+      nodes
+        collect: [:node |
+          #{
+            "id" => (node at: "id" ifAbsent: [nil]),
+            "identifier" => (node at: "identifier" ifAbsent: [nil]),
+            "state" => ((node at: "state" ifAbsent: [
+              #{}
+            ]) at: "name" ifAbsent: [nil])
+          }
+        ]
+    ]
 
   stateRefreshQuery -> String =>
     "query($ids: [ID!]!) \{
@@ -205,17 +177,15 @@ Value subclass: LinearClient
   /// Fetches issues in the given states (used for startup terminal cleanup).
   fetchIssuesByStates: stateNames :: List -> Result =>
     stateNames isEmpty ifTrue: [^Result ok: #()]
-    result := self query: self terminalQuery variables: #{
+    (self query: self terminalQuery variables: #{
       "projectSlug" => self.projectSlug,
       "states" => stateNames
-    }
-    result isError ifTrue: [^result]
-
-    data := result unwrap
-    issues := data at: "issues" ifAbsent: [nil]
-    issues isNil ifTrue: [^Result ok: #()]
-    nodes := issues at: "nodes" ifAbsent: [#()]
-    Result ok: (nodes collect: [:node | self normalizeIssue: node])
+    }) map: [:data |
+      issues := data at: "issues" ifAbsent: [nil]
+      issues isNil ifTrue: [^#()]
+      nodes := issues at: "nodes" ifAbsent: [#()]
+      nodes collect: [:node | self normalizeIssue: node]
+    ]
 
   terminalQuery -> String =>
     "query($projectSlug: String!, $states: [String!]!) \{

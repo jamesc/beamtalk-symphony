@@ -6,9 +6,9 @@ Object subclass: DotEnv
 
   /// Reads the .env file at path and sets each KEY=VALUE in the OS environment.
   class load: path :: String -> Result =>
-    result := File readAll: path
-    result isError ifTrue: [^Result ok: 0]
-    self parseAndLoad: result unwrap
+    (File readAll: path)
+      ifOk: [:content | self parseAndLoad: content]
+      ifError: [:_e | Result ok: 0]
 
   class parseAndLoad: content -> Result =>
     lines := content lines

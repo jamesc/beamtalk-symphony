@@ -19,13 +19,12 @@ TestCase subclass: LinearClientIntegrationTest
   testFetchCandidateIssues =>
     self.hasToken ifFalse: [^self skip: "LINEAR_API_TOKEN not set"]
     result := self.client fetchCandidateIssues: #("Todo", "In Progress")
-    self assert: result isOk
-    issues := result unwrap
+    issues := self assertOk: result
     self assert: issues size > 0
 
   testCandidateIssuesHaveRequiredFields =>
     self.hasToken ifFalse: [^self skip: "LINEAR_API_TOKEN not set"]
-    issues := (self.client fetchCandidateIssues: #("Todo")) unwrap
+    issues := self assertOk: (self.client fetchCandidateIssues: #("Todo"))
     issues isEmpty ifTrue: [^self skip: "No Todo issues in BTTEST"]
     issue := issues at: 1
     self deny: (issue at: "id") isNil
@@ -35,7 +34,7 @@ TestCase subclass: LinearClientIntegrationTest
 
   testCandidateLabelsAreLowercase =>
     self.hasToken ifFalse: [^self skip: "LINEAR_API_TOKEN not set"]
-    issues := (self.client fetchCandidateIssues: #("Todo")) unwrap
+    issues := self assertOk: (self.client fetchCandidateIssues: #("Todo"))
     issues
       do: [:issue |
         labels := issue at: "labels"
@@ -44,7 +43,7 @@ TestCase subclass: LinearClientIntegrationTest
 
   testCandidateBlockersNormalized =>
     self.hasToken ifFalse: [^self skip: "LINEAR_API_TOKEN not set"]
-    issues := (self.client fetchCandidateIssues: #("Todo")) unwrap
+    issues := self assertOk: (self.client fetchCandidateIssues: #("Todo"))
     // blockers should be a list (possibly empty) for every issue
     issues
       do: [:issue |
@@ -55,41 +54,37 @@ TestCase subclass: LinearClientIntegrationTest
   testEmptyStatesReturnsEmpty =>
     self.hasToken ifFalse: [^self skip: "LINEAR_API_TOKEN not set"]
     result := self.client fetchCandidateIssues: #()
-    self assert: result isOk
-    self assert: result unwrap equals: #()
+    self assert: (self assertOk: result) equals: #()
 
   // --- State refresh ---
   testFetchIssueStatesByIds =>
     self.hasToken ifFalse: [^self skip: "LINEAR_API_TOKEN not set"]
     // First get some issue IDs
-    issues := (self.client fetchCandidateIssues: #("Todo")) unwrap
+    issues := self assertOk: (self.client fetchCandidateIssues: #("Todo"))
     issues isEmpty ifTrue: [^self skip: "No Todo issues in BTTEST"]
     ids := issues collect: [:i | i at: "id"]
     // Now refresh their states
     result := self.client fetchIssueStatesByIds: ids
-    self assert: result isOk
-    refreshed := result unwrap
+    refreshed := self assertOk: result
     // nodes query may return fewer results if some IDs are filtered
     refreshed do: [:r | self deny: (r at: "id") isNil]
 
   testFetchIssueStatesByIdsEmpty =>
     self.hasToken ifFalse: [^self skip: "LINEAR_API_TOKEN not set"]
     result := self.client fetchIssueStatesByIds: #()
-    self assert: result isOk
-    self assert: result unwrap equals: #()
+    self assert: (self assertOk: result) equals: #()
 
   // --- Terminal fetch ---
   testFetchIssuesByStates =>
     self.hasToken ifFalse: [^self skip: "LINEAR_API_TOKEN not set"]
     result := self.client fetchIssuesByStates: #("Done", "Cancelled")
-    self assert: result isOk
+    self assertOk: result
 
   // May be empty if no terminal issues, but shouldn't error
   testFetchIssuesByStatesEmpty =>
     self.hasToken ifFalse: [^self skip: "LINEAR_API_TOKEN not set"]
     result := self.client fetchIssuesByStates: #()
-    self assert: result isOk
-    self assert: result unwrap equals: #()
+    self assert: (self assertOk: result) equals: #()
 
   // --- Error handling ---
   testInvalidApiKeyReturnsError =>
