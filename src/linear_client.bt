@@ -50,7 +50,7 @@ Value subclass: LinearClient
       LinearError apiRequest: e displayString
     ]) andThen: [:resp | self parseResponse: resp]
 
-  parseResponse: resp -> Result =>
+  parseResponse: resp :: HTTPResponse -> Result =>
     resp ok ifFalse: [
       ^Result error: (LinearError apiStatus: resp status body: resp body)
     ]
@@ -228,12 +228,12 @@ Value subclass: LinearClient
       "updated_at" => (node at: "updatedAt" ifAbsent: [nil])
     }
 
-  normalizeLabels: labelsObj -> List =>
+  normalizeLabels: labelsObj :: Dictionary -> List =>
     labelsObj isNil ifTrue: [^#()]
     nodes := labelsObj at: "nodes" ifAbsent: [#()]
     nodes collect: [:l | (l at: "name" ifAbsent: [""]) lowercase]
 
-  normalizeBlockers: relationsObj -> List =>
+  normalizeBlockers: relationsObj :: Dictionary -> List =>
     relationsObj isNil ifTrue: [^#()]
     nodes := relationsObj at: "nodes" ifAbsent: [#()]
     // Only include inverse relations of type "blocks"

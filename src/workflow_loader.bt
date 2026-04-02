@@ -11,7 +11,7 @@ Object subclass: WorkflowLoader
       WorkflowError missingFile: path
     ]) andThen: [:content | self parse: content]
 
-  class parse: content -> Result =>
+  class parse: content :: String -> Result =>
     lines := content lines
     lines isEmpty ifTrue: [
       ^Result ok: #{"config" => #{}, "prompt_template" => ""}

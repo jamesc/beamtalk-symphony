@@ -10,7 +10,7 @@ Object subclass: DotEnv
       self parseAndLoad: content
     ] ifError: [:_e | Result ok: 0]
 
-  class parseAndLoad: content -> Result =>
+  class parseAndLoad: content :: String -> Result =>
     lines := content lines
     count := lines inject: 0 into: [:acc :line | self loadLine: line count: acc]
     Result ok: count

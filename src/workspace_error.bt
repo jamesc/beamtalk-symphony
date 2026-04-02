@@ -42,7 +42,7 @@ Value subclass: WorkspaceError
       #actual => actual
     }
 
-  displayString =>
+  displayString -> String =>
     base := "WorkspaceError(" ++ self.kind ++ ")"
     self.detail isNil ifTrue: [
       base

@@ -16,7 +16,7 @@ Value subclass: WorkflowError
   class invalidFrontMatter: detail :: String -> WorkflowError =>
     self new: #{#kind => "invalid_front_matter", #detail => detail}
 
-  displayString =>
+  displayString -> String =>
     base := "WorkflowError(" ++ self.kind ++ ")"
     self.detail isNil ifTrue: [
       self.path isNil ifTrue: [base] ifFalse: [base ++ ": " ++ self.path]

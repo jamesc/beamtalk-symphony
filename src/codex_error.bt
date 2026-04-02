@@ -32,7 +32,7 @@ Value subclass: CodexError
   class turnInputRequired: msg :: Dictionary -> CodexError =>
     self new: #{#kind => "turn_input_required", #message => msg}
 
-  displayString =>
+  displayString -> String =>
     base := "CodexError(" ++ self.kind ++ ")"
     self.detail isNil ifTrue: [
       base

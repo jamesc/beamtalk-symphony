@@ -25,7 +25,7 @@ Value subclass: LinearError
   class missingEndCursor -> LinearError =>
     self new: #{#kind => "missing_end_cursor"}
 
-  displayString =>
+  displayString -> String =>
     base := "LinearError(" ++ self.kind ++ ")"
     self.detail isNil ifTrue: [
       base
