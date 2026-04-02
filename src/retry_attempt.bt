@@ -8,8 +8,8 @@ Value subclass: RetryAttempt
   field: identifier :: String = ""
   field: attempt :: Integer = 1
   field: dueAtMs :: Integer = 0
-  field: timerRef :: Timer
-  field: error :: String
+  field: timerRef :: Timer | Nil = nil
+  field: error :: String | Nil = nil
 
   /// Computes exponential backoff delay: min(10s * 2^(attempt-1), maxMs).
   class backoffMs: attempt :: Integer maxMs: maxMs :: Integer -> Integer =>

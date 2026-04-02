@@ -14,8 +14,8 @@ Actor subclass: Orchestrator
   state: retryAttempts :: Dictionary = #{}
   state: completed :: List = #()
   state: codexTotals :: TokenUsage = TokenUsage new
-  state: codexRateLimits :: Dictionary
-  state: pollTimerRef :: Timer
+  state: codexRateLimits :: Dictionary | Nil = nil
+  state: pollTimerRef :: Timer | Nil = nil
 
   /// Spawns a new Orchestrator with the given config and dependencies.
   class start: config :: Config linearClient: lc :: LinearClient workspaceManager: wm :: WorkspaceManager promptTemplate: pt :: String -> Orchestrator =>
