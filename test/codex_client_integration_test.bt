@@ -41,8 +41,7 @@ TestCase subclass: CodexClientIntegrationTest
         client stop
         ^self skip: "codex session error"
       ]
-    self assertOk: sessionResult
-    data := sessionResult unwrap
+    data := self assertOk: sessionResult
     self deny: (data at: "threadId") isNil
     client stopProcess
     self assert: client stop equals: #ok
@@ -74,8 +73,7 @@ TestCase subclass: CodexClientIntegrationTest
         client stop
         ^self skip: "codex session error"
       ]
-    self assertOk: sessionResult
-    threadId := sessionResult unwrap at: "threadId"
+    threadId := (self assertOk: sessionResult) at: "threadId"
     turnResult := [
       client
         startTurn: threadId
@@ -94,8 +92,7 @@ TestCase subclass: CodexClientIntegrationTest
         client stop
         ^self skip: "codex turn error"
       ]
-    self assertOk: turnResult
-    self deny: (turnResult unwrap at: "turnId") isNil
+    self deny: ((self assertOk: turnResult) at: "turnId") isNil
     // Stream step-by-step until turn completes
     streamResult := self pollStreamStep: client deadline: (DateTime now asTimestamp * 1000) + 60000
     self assertOk: streamResult

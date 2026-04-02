@@ -19,15 +19,13 @@ TestCase subclass: LinearClientIntegrationTest
   testFetchCandidateIssues =>
     self.hasToken ifFalse: [^self skip: "LINEAR_API_TOKEN not set"]
     result := self.client fetchCandidateIssues: #("Todo", "In Progress")
-    self assertOk: result
-    issues := result unwrap
+    issues := self assertOk: result
     self assert: issues size > 0
 
   testCandidateIssuesHaveRequiredFields =>
     self.hasToken ifFalse: [^self skip: "LINEAR_API_TOKEN not set"]
     result := self.client fetchCandidateIssues: #("Todo")
-    self assertOk: result
-    issues := result unwrap
+    issues := self assertOk: result
     issues isEmpty ifTrue: [^self skip: "No Todo issues in BTTEST"]
     issue := issues at: 1
     self deny: (issue at: "id") isNil
@@ -38,8 +36,7 @@ TestCase subclass: LinearClientIntegrationTest
   testCandidateLabelsAreLowercase =>
     self.hasToken ifFalse: [^self skip: "LINEAR_API_TOKEN not set"]
     result := self.client fetchCandidateIssues: #("Todo")
-    self assertOk: result
-    issues := result unwrap
+    issues := self assertOk: result
     issues
       do: [:issue |
         labels := issue at: "labels"
@@ -49,8 +46,7 @@ TestCase subclass: LinearClientIntegrationTest
   testCandidateBlockersNormalized =>
     self.hasToken ifFalse: [^self skip: "LINEAR_API_TOKEN not set"]
     result := self.client fetchCandidateIssues: #("Todo")
-    self assertOk: result
-    issues := result unwrap
+    issues := self assertOk: result
     // blockers should be a list (possibly empty) for every issue
     issues
       do: [:issue |
@@ -68,14 +64,12 @@ TestCase subclass: LinearClientIntegrationTest
     self.hasToken ifFalse: [^self skip: "LINEAR_API_TOKEN not set"]
     // First get some issue IDs
     result := self.client fetchCandidateIssues: #("Todo")
-    self assertOk: result
-    issues := result unwrap
+    issues := self assertOk: result
     issues isEmpty ifTrue: [^self skip: "No Todo issues in BTTEST"]
     ids := issues collect: [:i | i at: "id"]
     // Now refresh their states
     stateResult := self.client fetchIssueStatesByIds: ids
-    self assertOk: stateResult
-    refreshed := stateResult unwrap
+    refreshed := self assertOk: stateResult
     // nodes query may return fewer results if some IDs are filtered
     refreshed do: [:r | self deny: (r at: "id") isNil]
 

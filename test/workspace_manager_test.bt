@@ -25,8 +25,7 @@ TestCase subclass: WorkspaceManagerTest
   testCreateNewWorkspace =>
     wm := WorkspaceManager new: #{#root => self.tmpDir}
     result := wm createForIssue: "TEST-1"
-    self assertOk: result
-    ws := result unwrap
+    ws := self assertOk: result
     self assert: (ws at: "created_now") equals: true
     self assert: (File isDirectory: (ws at: "path"))
 
@@ -34,8 +33,7 @@ TestCase subclass: WorkspaceManagerTest
     wm := WorkspaceManager new: #{#root => self.tmpDir}
     wm createForIssue: "TEST-2"
     result := wm createForIssue: "TEST-2"
-    self assertOk: result
-    ws := result unwrap
+    ws := self assertOk: result
     self assert: (ws at: "created_now") equals: false
 
   testRemoveWorkspace =>
