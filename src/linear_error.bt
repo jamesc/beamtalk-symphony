@@ -27,4 +27,6 @@ Value subclass: LinearError
 
   displayString =>
     base := "LinearError(" ++ self.kind ++ ")"
-    self.detail isNil ifTrue: [base] ifFalse: [base ++ ": " ++ self.detail displayString]
+    self.detail isNil ifTrue: [
+      base
+    ] ifFalse: [base ++ ": " ++ self.detail displayString]

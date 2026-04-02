@@ -27,12 +27,13 @@ Value subclass: CodexError
   class turnCancelled: msg :: Dictionary -> CodexError =>
     self new: #{#kind => "turn_cancelled", #message => msg}
 
-  class turnTimeout -> CodexError =>
-    self new: #{#kind => "turn_timeout"}
+  class turnTimeout -> CodexError => self new: #{#kind => "turn_timeout"}
 
   class turnInputRequired: msg :: Dictionary -> CodexError =>
     self new: #{#kind => "turn_input_required", #message => msg}
 
   displayString =>
     base := "CodexError(" ++ self.kind ++ ")"
-    self.detail isNil ifTrue: [base] ifFalse: [base ++ ": " ++ self.detail displayString]
+    self.detail isNil ifTrue: [
+      base
+    ] ifFalse: [base ++ ": " ++ self.detail displayString]

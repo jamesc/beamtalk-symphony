@@ -9,5 +9,4 @@ Value subclass: TemplateError
   class renderError: detail :: String -> TemplateError =>
     self new: #{#detail => detail}
 
-  displayString =>
-    "TemplateError: " ++ self.detail displayString
+  displayString => "TemplateError: " ++ self.detail displayString

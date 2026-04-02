@@ -7,9 +7,9 @@ Object subclass: WorkflowLoader
 
   /// Reads and parses a WORKFLOW.md file, returning config and prompt_template.
   class load: path :: String -> Result =>
-    ((File readAll: path)
-      mapError: [:_e | WorkflowError missingFile: path])
-      andThen: [:content | self parse: content]
+    ((File readAll: path) mapError: [:_e |
+      WorkflowError missingFile: path
+    ]) andThen: [:content | self parse: content]
 
   class parse: content -> Result =>
     lines := content lines
@@ -58,12 +58,10 @@ Object subclass: WorkflowLoader
       ^Result ok: #{"config" => #{}, "prompt_template" => promptBody}
     ]
 
-    ((Yaml parse: yamlText)
-      mapError: [:e | WorkflowError parseError: e])
+    ((Yaml parse: yamlText) mapError: [:e | WorkflowError parseError: e])
       andThen: [:config |
-        (config isKindOf: Dictionary)
-          ifFalse: [
-            ^Result error: (WorkflowError invalidFrontMatter: config class name)
-          ]
+        (config isKindOf: Dictionary) ifFalse: [
+          ^Result error: (WorkflowError invalidFrontMatter: config class name)
+        ]
         Result ok: #{"config" => config, "prompt_template" => promptBody}
       ]

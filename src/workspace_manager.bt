@@ -46,9 +46,17 @@ Value subclass: WorkspaceManager
     (absWs startsWith: absRoot ++ "/") ifTrue: [^Result ok: true]
     absWs == absRoot
       ifTrue: [
-        ^Result error: (WorkspaceError invalidPath: "workspace path equals root" workspace: absWs root: absRoot)
+        ^Result
+          error: (WorkspaceError
+            invalidPath: "workspace path equals root"
+            workspace: absWs
+            root: absRoot)
       ]
-    Result error: (WorkspaceError invalidPath: "workspace path outside root" workspace: absWs root: absRoot)
+    Result
+      error: (WorkspaceError
+        invalidPath: "workspace path outside root"
+        workspace: absWs
+        root: absRoot)
 
   // --- Create or reuse ---
 
@@ -62,10 +70,9 @@ Value subclass: WorkspaceManager
     alreadyExists
       ifFalse: [
         mkResult := File mkdirAll: wsPath
-        mkResult isError
-          ifTrue: [
-            ^Result error: (WorkspaceError createError: mkResult error)
-          ]
+        mkResult isError ifTrue: [
+          ^Result error: (WorkspaceError createError: mkResult error)
+        ]
       ]
 
     createdNow := alreadyExists not
@@ -115,19 +122,22 @@ Value subclass: WorkspaceManager
     ] on: Error do: [:e |
       ^Result error: (WorkspaceError hookFailed: e message phase: "launch")
     ]
-    (procResult mapError: [:e |
-      WorkspaceError hookFailed: e phase: "launch"
-    ]) andThen: [:proc |
-      // Read all output and wait for exit
-      output := (proc lines asList) join: (String fromCodePoint: 10)
-      exitCode := proc exitCode
-      proc close
-      exitCode == 0
-        ifTrue: [Result ok: output]
-        ifFalse: [
-          Result error: (WorkspaceError hookError: script exitCode: exitCode output: output)
-        ]
-    ]
+    (procResult mapError: [:e | WorkspaceError hookFailed: e phase: "launch"])
+      andThen: [:proc |
+        // Read all output and wait for exit
+        output := (proc lines asList) join: (String fromCodePoint: 10)
+        exitCode := proc exitCode
+        proc close
+        exitCode == 0
+          ifTrue: [Result ok: output]
+          ifFalse: [
+            Result
+              error: (WorkspaceError
+                hookError: script
+                exitCode: exitCode
+                output: output)
+          ]
+      ]
 
   // --- Cleanup ---
 
@@ -150,8 +160,8 @@ Value subclass: WorkspaceManager
       ]
 
   checkCwd: absExpected :: String actual: absCwd :: String -> Result =>
-    absExpected == absCwd
-      ifTrue: [Result ok: true]
-      ifFalse: [
-        Result error: (WorkspaceError invalidCwd: absExpected actual: absCwd)
-      ]
+    absExpected == absCwd ifTrue: [
+      Result ok: true
+    ] ifFalse: [
+      Result error: (WorkspaceError invalidCwd: absExpected actual: absCwd)
+    ]

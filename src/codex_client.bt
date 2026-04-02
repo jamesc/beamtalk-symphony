@@ -85,7 +85,9 @@ Actor subclass: CodexClient
       ]
     procResult isError
       ifTrue: [
-        Logger error: "codex launch error" metadata: #{"error" => procResult error displayString}
+        Logger error: "codex launch error" metadata: #{
+          "error" => procResult error displayString
+        }
         ^Result error: (CodexError notFound: procResult error displayString)
       ]
     self.proc := procResult unwrap
@@ -210,15 +212,16 @@ Actor subclass: CodexClient
       ]
 
     // Extract thread ID from response
-    threadResp map: [:threadData |
-      threadResult := threadData at: "result" ifAbsent: [#{}]
-      thread := threadResult at: "thread" ifAbsent: [#{}]
-      tid := thread at: "id" ifAbsent: [nil]
-      Logger info: "codex session ready" metadata: #{
-        "threadId" => tid displayString
-      }
-      #{"threadId" => tid}
-    ]
+    threadResp
+      map: [:threadData |
+        threadResult := threadData at: "result" ifAbsent: [#{}]
+        thread := threadResult at: "thread" ifAbsent: [#{}]
+        tid := thread at: "id" ifAbsent: [nil]
+        Logger info: "codex session ready" metadata: #{
+          "threadId" => tid displayString
+        }
+        #{"threadId" => tid}
+      ]
 
   // --- Turn management ---
 
@@ -246,15 +249,16 @@ Actor subclass: CodexClient
         }
         ^turnResp
       ]
-    turnResp map: [:turnData |
-      turnResult := turnData at: "result" ifAbsent: [#{}]
-      turn := turnResult at: "turn" ifAbsent: [#{}]
-      tuid := turn at: "id" ifAbsent: [nil]
-      Logger info: "codex turn started" metadata: #{
-        "turnId" => tuid displayString
-      }
-      #{"turnId" => tuid}
-    ]
+    turnResp
+      map: [:turnData |
+        turnResult := turnData at: "result" ifAbsent: [#{}]
+        turn := turnResult at: "turn" ifAbsent: [#{}]
+        tuid := turn at: "id" ifAbsent: [nil]
+        Logger info: "codex turn started" metadata: #{
+          "turnId" => tuid displayString
+        }
+        #{"turnId" => tuid}
+      ]
 
   /// Reads and processes the next stream event. Returns:
   /// - nil if no event yet (caller should call again)
@@ -276,9 +280,11 @@ Actor subclass: CodexClient
       ]
     Logger debug: "codex << " ++ line
 
-    ([Json parse: line] on: Error do: [:e | Result error: e message])
-      ifOk: [:msg | self handleStreamMessage: msg]
-      ifError: [:_e | nil]
+    ([
+      Json parse: line
+    ] on: Error do: [:e |
+      Result error: e message
+    ]) ifOk: [:msg | self handleStreamMessage: msg] ifError: [:_e | nil]
 
   handleStreamMessage: msg :: Dictionary =>
     method := msg at: "method" ifAbsent: [nil]

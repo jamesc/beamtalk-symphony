@@ -34,11 +34,9 @@ Value subclass: PromptRenderer
       ^Result ok: "You are working on an issue from Linear."
     ]
     vars := #{"issue" => issue, "attempt" => attempt}
-    result := [self processAll: template vars: vars]
-      on: Error
-      do: [:e |
-        ^Result error: (TemplateError renderError: e message)
-      ]
+    result := [
+      self processAll: template vars: vars
+    ] on: Error do: [:e | ^Result error: (TemplateError renderError: e message)]
     Result ok: result
 
   processAll: text :: String vars: vars :: Dictionary -> String =>

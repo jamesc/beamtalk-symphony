@@ -18,8 +18,6 @@ Value subclass: WorkflowError
 
   displayString =>
     base := "WorkflowError(" ++ self.kind ++ ")"
-    self.detail isNil
-      ifTrue: [
-        self.path isNil ifTrue: [base] ifFalse: [base ++ ": " ++ self.path]
-      ]
-      ifFalse: [base ++ ": " ++ self.detail displayString]
+    self.detail isNil ifTrue: [
+      self.path isNil ifTrue: [base] ifFalse: [base ++ ": " ++ self.path]
+    ] ifFalse: [base ++ ": " ++ self.detail displayString]
