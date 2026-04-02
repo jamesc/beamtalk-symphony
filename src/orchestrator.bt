@@ -5,10 +5,7 @@
 /// Owns the poll loop, dispatch, reconciliation, retry queue,
 /// and global token accounting.
 Actor subclass: Orchestrator
-  state: config :: Config
-  state: linearClient :: LinearClient
-  state: workspaceManager :: WorkspaceManager
-  state: promptTemplate :: String = ""
+  state: deps :: OrchestratorDeps
   state: running :: Dictionary = #{}
   state: claimed :: List = #()
   state: retryAttempts :: Dictionary = #{}
@@ -19,13 +16,13 @@ Actor subclass: Orchestrator
 
   /// Spawns a new Orchestrator with the given config and dependencies.
   class start: config :: Config linearClient: lc :: LinearClient workspaceManager: wm :: WorkspaceManager promptTemplate: pt :: String -> Orchestrator =>
-    self
-      spawnWith: #{
-        #config => config,
-        #linearClient => lc,
-        #workspaceManager => wm,
-        #promptTemplate => pt
-      }
+    deps := OrchestratorDeps new: #{
+      #config => config,
+      #linearClient => lc,
+      #workspaceManager => wm,
+      #promptTemplate => pt
+    }
+    self spawnWith: #{#deps => deps}
 
   /// Lifecycle hook — starts the poll loop.
   initialize =>
@@ -47,8 +44,7 @@ Actor subclass: Orchestrator
 
   /// Hot-swaps config and prompt template without restarting running agents.
   reloadConfig: newConfig :: Config prompt: newPrompt :: String =>
-    self.config := newConfig
-    self.promptTemplate := newPrompt
+    self.deps := (self.deps withConfig: newConfig) withPromptTemplate: newPrompt
     Logger info: "config reloaded"
 
   // --- Poll loop ---
@@ -61,25 +57,25 @@ Actor subclass: Orchestrator
     self reconcile
 
     // Step 2: Validate dispatch config
-    validation := self.config validate
+    validation := self.deps config validate
     validation isError
       ifTrue: [
         Logger error: "dispatch validation failed" metadata: #{
           "reason" => validation error displayString
         }
-        self scheduleTick: self.config pollIntervalMs
+        self scheduleTick: self.deps config pollIntervalMs
         ^nil
       ]
 
     // Step 3: Fetch candidate issues
-    activeStates := self.config trackerActiveStates
-    fetchResult := self.linearClient fetchCandidateIssues: activeStates
+    activeStates := self.deps config trackerActiveStates
+    fetchResult := self.deps linearClient fetchCandidateIssues: activeStates
     fetchResult isError
       ifTrue: [
         Logger error: "candidate fetch failed" metadata: #{
           "error" => fetchResult error displayString
         }
-        self scheduleTick: self.config pollIntervalMs
+        self scheduleTick: self.deps config pollIntervalMs
         ^nil
       ]
 
@@ -90,10 +86,10 @@ Actor subclass: Orchestrator
       eligible: sorted
       running: self.running
       claimed: self.claimed
-      activeStates: self.config trackerActiveStates
-      terminalStates: self.config trackerTerminalStates
-      maxConcurrent: self.config maxConcurrentAgents
-      maxByState: self.config maxConcurrentAgentsByState
+      activeStates: self.deps config trackerActiveStates
+      terminalStates: self.deps config trackerTerminalStates
+      maxConcurrent: self.deps config maxConcurrentAgents
+      maxByState: self.deps config maxConcurrentAgentsByState
 
     // Step 4b: Dispatch eligible issues
     eligible do: [:issue | self dispatchIssue: issue attempt: 0]
@@ -102,7 +98,7 @@ Actor subclass: Orchestrator
     self publishSnapshot
 
     // Step 6: Schedule next tick
-    self scheduleTick: self.config pollIntervalMs
+    self scheduleTick: self.deps config pollIntervalMs
 
   // --- Dispatch ---
 
@@ -115,10 +111,10 @@ Actor subclass: Orchestrator
     runner := AgentRunner
       run: issue
       attempt: attempt
-      config: self.config
-      workspaceManager: self.workspaceManager
-      linearClient: self.linearClient
-      promptTemplate: self.promptTemplate
+      config: self.deps config
+      workspaceManager: self.deps workspaceManager
+      linearClient: self.deps linearClient
+      promptTemplate: self.deps promptTemplate
       onEvent: [:event | self onCodexEvent: issueId event: event!]
 
     runner onExit: [:reason | self onWorkerExit: issueId reason: reason!]
@@ -227,7 +223,7 @@ Actor subclass: Orchestrator
         nextAttempt := entry retryAttempt isNil ifTrue: [
           1
         ] ifFalse: [entry retryAttempt + 1]
-        delayMs := RetryAttempt backoffMs: nextAttempt maxMs: self.config maxRetryBackoffMs
+        delayMs := RetryAttempt backoffMs: nextAttempt maxMs: self.deps config maxRetryBackoffMs
         self
           scheduleRetry: issueId
           identifier: entry identifier
@@ -273,7 +269,7 @@ Actor subclass: Orchestrator
     self.retryAttempts := self.retryAttempts removeKey: issueId
 
     // Fetch active candidates
-    fetchResult := self.linearClient fetchCandidateIssues: self.config trackerActiveStates
+    fetchResult := self.deps linearClient fetchCandidateIssues: self.deps config trackerActiveStates
     fetchResult isError
       ifTrue: [
         // Re-schedule retry
@@ -281,7 +277,7 @@ Actor subclass: Orchestrator
           scheduleRetry: issueId
           identifier: retryEntry identifier
           attempt: retryEntry attempt + 1
-          delayMs: (RetryAttempt backoffMs: retryEntry attempt + 1 maxMs: self.config maxRetryBackoffMs)
+          delayMs: (RetryAttempt backoffMs: retryEntry attempt + 1 maxMs: self.deps config maxRetryBackoffMs)
           error: "retry poll failed"
         ^nil
       ]
@@ -297,14 +293,14 @@ Actor subclass: Orchestrator
       ]
 
     // Check slots
-    availableSlots := self.config maxConcurrentAgents - self.running size
+    availableSlots := self.deps config maxConcurrentAgents - self.running size
     availableSlots <= 0
       ifTrue: [
         self
           scheduleRetry: issueId
           identifier: (issue at: "identifier" ifAbsent: [""])
           attempt: retryEntry attempt + 1
-          delayMs: (RetryAttempt backoffMs: retryEntry attempt + 1 maxMs: self.config maxRetryBackoffMs)
+          delayMs: (RetryAttempt backoffMs: retryEntry attempt + 1 maxMs: self.deps config maxRetryBackoffMs)
           error: "no available orchestrator slots"
         ^nil
       ]
@@ -321,7 +317,7 @@ Actor subclass: Orchestrator
     self reconcileStates
 
   reconcileStalls =>
-    stallTimeoutMs := self.config codexStallTimeoutMs
+    stallTimeoutMs := self.deps config codexStallTimeoutMs
     stallTimeoutMs <= 0 ifTrue: [^nil]
 
     // Collect stalled issue IDs (can't mutate running during iteration)
@@ -350,7 +346,7 @@ Actor subclass: Orchestrator
     runningIds := self.running keys
     runningIds isEmpty ifTrue: [^nil]
 
-    refreshResult := self.linearClient fetchIssueStatesByIds: runningIds
+    refreshResult := self.deps linearClient fetchIssueStatesByIds: runningIds
     refreshResult isError
       ifTrue: [
         Logger debug: "state refresh failed, keeping workers"
@@ -358,8 +354,8 @@ Actor subclass: Orchestrator
       ]
 
     refreshed := refreshResult unwrap
-    terminalStates := self.config trackerTerminalStates
-    activeStates := self.config trackerActiveStates
+    terminalStates := self.deps config trackerTerminalStates
+    activeStates := self.deps config trackerActiveStates
 
     refreshed
       do: [:issueData |
@@ -378,7 +374,7 @@ Actor subclass: Orchestrator
             entry isNil
               ifFalse: [
                 self terminateWorker: issueId cleanup: true
-                self.workspaceManager removeWorkspace: entry identifier
+                self.deps workspaceManager removeWorkspace: entry identifier
               ]
             ^nil
           ]
@@ -425,8 +421,8 @@ Actor subclass: Orchestrator
 
   /// Removes workspaces for issues already in terminal states at boot.
   startupTerminalCleanup =>
-    terminalStates := self.config trackerTerminalStates
-    fetchResult := self.linearClient fetchIssuesByStates: terminalStates
+    terminalStates := self.deps config trackerTerminalStates
+    fetchResult := self.deps linearClient fetchIssuesByStates: terminalStates
     fetchResult isError
       ifTrue: [
         Logger warn: "startup terminal cleanup fetch failed"
@@ -437,7 +433,7 @@ Actor subclass: Orchestrator
       do: [:issue |
         identifier := issue at: "identifier" ifAbsent: [nil]
         identifier isNil ifFalse: [
-          self.workspaceManager removeWorkspace: identifier
+          self.deps workspaceManager removeWorkspace: identifier
         ]
       ]
     Logger info: "startup cleanup done" metadata: #{

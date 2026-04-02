@@ -4,7 +4,7 @@ TestCase subclass: RunningEntryTest
 
   testDefaults =>
     entry := RunningEntry new
-    self assert: entry identifier equals: ""
+    self assert: entry identifier equals: nil
     self assert: entry issue equals: nil
     self assert: entry session equals: nil
     self assert: entry tokens equals: nil

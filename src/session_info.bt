@@ -11,6 +11,6 @@ Value subclass: SessionInfo
   field: lastEvent :: String
   field: lastMessage :: String
   field: lastTimestamp :: Integer
-  field: turnCount :: Integer = 0
+  field: turnCount :: Integer
 
   incrementTurnCount -> SessionInfo => self withTurnCount: self turnCount + 1

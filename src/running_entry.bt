@@ -6,7 +6,7 @@
 Value subclass: RunningEntry
   field: workerPid :: Pid
   field: monitorRef :: Reference
-  field: identifier :: String = ""
+  field: identifier :: String
   field: issue :: Dictionary
   field: session :: SessionInfo
   field: tokens :: TokenUsage
@@ -15,11 +15,12 @@ Value subclass: RunningEntry
 
   /// Creates a fresh RunningEntry with empty session and token counters.
   class forIssue: issue :: Dictionary identifier: identifier :: String startedAt: startedAt :: Integer -> RunningEntry =>
+    session := SessionInfo new: #{#turnCount => 0}
     RunningEntry
       new: #{
         #identifier => identifier,
         #issue => issue,
-        #session => SessionInfo new,
+        #session => session,
         #tokens => TokenUsage new,
         #startedAt => startedAt
       }

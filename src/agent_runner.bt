@@ -16,7 +16,7 @@ Actor subclass: AgentRunner
   state: onEvent :: Block
   state: codexClient :: CodexClient
   state: threadId :: String
-  state: turnNumber :: Integer = 0
+  state: turnNumber :: Integer
 
   /// Spawns a new AgentRunner and starts the run lifecycle asynchronously.
   class run: issue :: Dictionary attempt: attempt :: Integer config: config :: Config workspaceManager: wm :: WorkspaceManager linearClient: lc :: LinearClient promptTemplate: pt :: String onEvent: callback :: Block -> AgentRunner =>
@@ -28,7 +28,8 @@ Actor subclass: AgentRunner
         #workspaceManager => wm,
         #linearClient => lc,
         #promptTemplate => pt,
-        #onEvent => callback
+        #onEvent => callback,
+        #turnNumber => 0
       }
     runner begin!
     runner

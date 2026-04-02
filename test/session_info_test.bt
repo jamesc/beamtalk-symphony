@@ -3,13 +3,13 @@
 TestCase subclass: SessionInfoTest
 
   testDefaults =>
-    s := SessionInfo new
+    s := SessionInfo new: #{#turnCount => 0}
     self assert: s sessionId equals: nil
     self assert: s threadId equals: nil
     self assert: s turnCount equals: 0
 
   testWithSetters =>
-    s := ((SessionInfo new) withSessionId: "s1") withThreadId: "t1"
+    s := ((SessionInfo new: #{#turnCount => 0}) withSessionId: "s1") withThreadId: "t1"
     s := (s withTurnId: "u1") withCodexPid: "pid1"
     self assert: s sessionId equals: "s1"
     self assert: s threadId equals: "t1"
@@ -17,14 +17,14 @@ TestCase subclass: SessionInfoTest
     self assert: s codexPid equals: "pid1"
 
   testWithEvent =>
-    s := ((SessionInfo new) withLastEvent: "turn_completed") withLastMessage: "done"
+    s := ((SessionInfo new: #{#turnCount => 0}) withLastEvent: "turn_completed") withLastMessage: "done"
     s := s withLastTimestamp: 12345
     self assert: s lastEvent equals: "turn_completed"
     self assert: s lastMessage equals: "done"
     self assert: s lastTimestamp equals: 12345
 
   testIncrementTurnCount =>
-    s := SessionInfo new
+    s := SessionInfo new: #{#turnCount => 0}
     self assert: s turnCount equals: 0
     s2 := s incrementTurnCount
     self assert: s2 turnCount equals: 1
@@ -32,7 +32,7 @@ TestCase subclass: SessionInfoTest
     self assert: s3 turnCount equals: 2
 
   testImmutability =>
-    s := SessionInfo new
+    s := SessionInfo new: #{#turnCount => 0}
     s withSessionId: "changed"
     // Original unchanged
     self assert: s sessionId equals: nil

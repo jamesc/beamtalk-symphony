@@ -1,0 +1,11 @@
+// Copyright 2026 James Casey
+// SPDX-License-Identifier: Apache-2.0
+
+/// OrchestratorDeps — injected dependencies for the Orchestrator.
+/// Bundles config, clients, and prompt template as an immutable value
+/// separate from runtime lifecycle state.
+Value subclass: OrchestratorDeps
+  field: config :: Config
+  field: linearClient :: LinearClient
+  field: workspaceManager :: WorkspaceManager
+  field: promptTemplate :: String

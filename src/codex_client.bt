@@ -8,7 +8,7 @@
 /// Uses helper methods (launch, sendRequest:params:, etc.) for protocol steps.
 Actor subclass: CodexClient
   state: proc = nil
-  state: nextId :: Integer = 1
+  state: nextId :: Integer
   state: workspacePath :: String
   state: config :: Config
   state: onEvent :: Block
@@ -18,7 +18,8 @@ Actor subclass: CodexClient
     self spawnWith: #{
       #workspacePath => workspacePath,
       #config => config,
-      #onEvent => callback
+      #onEvent => callback,
+      #nextId => 1
     }
 
   // --- Token and rate-limit extraction ---

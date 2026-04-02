@@ -9,7 +9,7 @@
 /// The orchestrator pushes its snapshot to ETS via `publishSnapshot:`.
 Actor subclass: HttpServer
   state: server :: HTTPServer
-  state: port :: Integer = 0
+  state: port :: Integer
   state: refs :: Ets
 
   class supervisionPolicy -> Symbol => #permanent
