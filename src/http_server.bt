@@ -10,7 +10,7 @@
 Actor subclass: HttpServer
   state: server :: HTTPServer
   state: port :: Integer
-  state: refs :: Ets
+  state: refs :: Ets(Symbol, Dictionary)
 
   class supervisionPolicy -> Symbol => #permanent
 
