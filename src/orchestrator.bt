@@ -16,12 +16,13 @@ Actor subclass: Orchestrator
 
   /// Spawns a new Orchestrator with the given config and dependencies.
   class start: config :: Config linearClient: lc :: LinearClient workspaceManager: wm :: WorkspaceManager promptTemplate: pt :: String -> Orchestrator =>
-    deps := OrchestratorDeps new: #{
-      #config => config,
-      #linearClient => lc,
-      #workspaceManager => wm,
-      #promptTemplate => pt
-    }
+    deps := OrchestratorDeps
+      new: #{
+        #config => config,
+        #linearClient => lc,
+        #workspaceManager => wm,
+        #promptTemplate => pt
+      }
     self spawnWith: #{#deps => deps}
 
   /// Lifecycle hook — starts the poll loop.

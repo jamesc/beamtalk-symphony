@@ -9,7 +9,7 @@ build:
     beamtalk build
 
 # Run the test suite
-test:
+test: fmt-fix lint
     beamtalk test
 
 # Check formatting

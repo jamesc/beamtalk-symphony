@@ -9,7 +9,9 @@ TestCase subclass: SessionInfoTest
     self assert: s turnCount equals: 0
 
   testWithSetters =>
-    s := ((SessionInfo new: #{#turnCount => 0}) withSessionId: "s1") withThreadId: "t1"
+    s := ((SessionInfo new: #{
+      #turnCount => 0
+    }) withSessionId: "s1") withThreadId: "t1"
     s := (s withTurnId: "u1") withCodexPid: "pid1"
     self assert: s sessionId equals: "s1"
     self assert: s threadId equals: "t1"
@@ -17,7 +19,9 @@ TestCase subclass: SessionInfoTest
     self assert: s codexPid equals: "pid1"
 
   testWithEvent =>
-    s := ((SessionInfo new: #{#turnCount => 0}) withLastEvent: "turn_completed") withLastMessage: "done"
+    s := ((SessionInfo new: #{
+      #turnCount => 0
+    }) withLastEvent: "turn_completed") withLastMessage: "done"
     s := s withLastTimestamp: 12345
     self assert: s lastEvent equals: "turn_completed"
     self assert: s lastMessage equals: "done"

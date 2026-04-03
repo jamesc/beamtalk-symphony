@@ -15,12 +15,13 @@ Actor subclass: CodexClient
 
   /// Spawns a new CodexClient actor bound to the given workspace directory.
   class start: workspacePath :: String config: config :: Config onEvent: callback :: Block | Nil -> CodexClient =>
-    self spawnWith: #{
-      #workspacePath => workspacePath,
-      #config => config,
-      #onEvent => callback,
-      #nextId => 1
-    }
+    self
+      spawnWith: #{
+        #workspacePath => workspacePath,
+        #config => config,
+        #onEvent => callback,
+        #nextId => 1
+      }
 
   // --- Token and rate-limit extraction ---
 

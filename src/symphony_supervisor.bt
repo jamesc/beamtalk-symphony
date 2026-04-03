@@ -34,16 +34,16 @@ Supervisor subclass: SymphonySupervisor
     linearClient := LinearClient fromConfig: config
     workspaceManager := WorkspaceManager fromConfig: config
 
-    orchestratorDeps := OrchestratorDeps new: #{
+    orchestratorDeps := OrchestratorDeps
+      new: #{
         #config => config,
         #linearClient => linearClient,
         #workspaceManager => workspaceManager,
         #promptTemplate => promptTemplate
-      } 
-    orchestratorSpec := (Orchestrator supervisionSpec withRestart: #permanent)
-      withArgs: #{
-        #deps => orchestratorDeps
       }
+    orchestratorSpec := (Orchestrator supervisionSpec withRestart: #permanent) withArgs: #{
+      #deps => orchestratorDeps
+    }
     watcherSpec := (WorkflowWatcher supervisionSpec withRestart: #permanent) withArgs: #{
       #path => "./WORKFLOW.md"
     }
