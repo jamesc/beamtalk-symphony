@@ -101,6 +101,14 @@ Important boundary:
 8. `Logging`
    - Emits structured runtime logs to one or more configured sinks.
 
+9. `Supervisor`
+   - Top-level process supervisor for the service.
+   - Loads `.env`, parses `WORKFLOW.md`, creates clients, and builds child specs.
+   - Starts Orchestrator, WorkflowWatcher, and optionally HttpServer as supervised children.
+   - Uses a one-for-one restart strategy.
+   - Must use class-method constructors in child specs (not raw state dictionaries) so that
+     dependency objects are properly constructed on every restart, not just on first start.
+
 ### 3.2 Abstraction Levels
 
 Symphony is easiest to port when kept in these layers:
@@ -1590,6 +1598,21 @@ API design notes:
 
 Current design is intentionally in-memory for scheduler state.
 
+#### 14.3.1 Supervisor Child Spec Requirements
+
+When the supervisor restarts a child process, the child spec must produce a fully initialized
+component — not merely replay raw state. This means:
+
+- Child specs must invoke a **class-method constructor** (e.g. `start:linearClient:workspaceManager:promptTemplate:`)
+  rather than passing a pre-built state dictionary to `init`.
+- The constructor receives ordered arguments matching its parameter positions, builds the required
+  dependency objects (e.g. `OrchestratorDeps`), and calls the spawn primitive with correctly shaped
+  state.
+- This ensures the construction path runs identically on first start and on supervisor-triggered
+  restarts, preventing nil-dependency crashes after process failure.
+
+#### 14.3.2 In-Memory State Recovery
+
 After restart:
 
 - No retry timers are restored from prior process memory.
@@ -1691,13 +1714,44 @@ treat harness hardening as part of the core safety model rather than an optional
 
 ```text
 function start_service():
-  configure_logging()
-  start_observability_outputs()
-  start_workflow_watch(on_change=reload_and_reapply_workflow)
+  load_env()
+  workflow = load_workflow("WORKFLOW.md")
+  config = parse_and_validate_config(workflow.config)
+  prompt_template = workflow.prompt_template
 
+  linear_client = create_linear_client(config)
+  workspace_manager = create_workspace_manager(config)
+
+  // Supervisor builds child specs using class-method constructors.
+  // Each child spec references the constructor + ordered args, NOT a pre-built state dict.
+  // This ensures proper dependency construction on both first start and restarts.
+  orchestrator_spec = {
+    constructor: Orchestrator.start(config, linear_client, workspace_manager, prompt_template),
+    restart: permanent
+  }
+  watcher_spec = {
+    constructor: WorkflowWatcher.start(path="WORKFLOW.md"),
+    restart: permanent
+  }
+  // Optional HttpServer child if config.server_port is set.
+
+  start_supervisor(strategy=one_for_one, children=[orchestrator_spec, watcher_spec, ...])
+  wire_children()  // connect watcher reload callback to orchestrator, http to orchestrator
+```
+
+The orchestrator constructor receives ordered arguments, builds its `OrchestratorDeps` internally,
+and spawns with correctly shaped state. The supervisor stores the spec and re-invokes the same
+constructor on restart. See §14.3.1 for rationale.
+
+#### 16.1.1 Orchestrator Initialization (called by constructor and on restart)
+
+```text
+function orchestrator_init(config, linear_client, workspace_manager, prompt_template):
+  deps = OrchestratorDeps(config, linear_client, workspace_manager, prompt_template)
   state = {
-    poll_interval_ms: get_config_poll_interval_ms(),
-    max_concurrent_agents: get_config_max_concurrent_agents(),
+    deps: deps,
+    poll_interval_ms: config.poll_interval_ms,
+    max_concurrent_agents: config.max_concurrent_agents,
     running: {},
     claimed: set(),
     retry_attempts: {},
