@@ -175,3 +175,30 @@ TestCase subclass: ConfigTest
   testNonPositiveHooksTimeoutFallsBackToDefault =>
     config := Config fromMap: #{"hooks" => #{"timeout_ms" => -100}}
     self assert: config hooksTimeoutMs equals: 60000
+
+  // --- Config resolve: ---
+  testResolveOk =>
+    Erlang os putenv: "TEST_RESOLVE_KEY" value: "resolved_key"
+    result := Config resolve: #{
+      "tracker" => #{
+        "kind" => "linear",
+        "api_key" => "$TEST_RESOLVE_KEY",
+        "project_slug" => "my-proj"
+      }
+    }
+    self assert: result isOk
+    rc := result unwrap
+    self assert: (rc isKindOf: ResolvedConfig)
+    self assert: rc trackerKind equals: "linear"
+    self assert: rc trackerApiKey equals: "resolved_key"
+    self assert: rc trackerProjectSlug equals: "my-proj"
+    self assert: rc trackerEndpoint equals: "https://api.linear.app/graphql"
+    self assert: rc trackerActiveStates equals: #("Todo", "In Progress")
+    self assert: rc maxTurns equals: 20
+    self assert: rc codexCommand equals: "codex app-server"
+    self assert: rc hooksAfterCreate equals: ""
+    self assert: rc serverPort equals: nil
+
+  testResolveFailsOnMissingKind =>
+    result := Config resolve: #{}
+    self assert: result isError

@@ -10,17 +10,13 @@ Value subclass: LinearClient
   field: projectSlug :: String = ""
   field: timeout :: Integer = 30000
 
-  /// Creates a LinearClient from a Config object, extracting endpoint and credentials.
-  class fromConfig: config :: Config -> LinearClient =>
-    apiKey := config trackerApiKey
-    apiKey := apiKey isNil ifTrue: [""] ifFalse: [apiKey]
-    slug := config trackerProjectSlug
-    slug := slug isNil ifTrue: [""] ifFalse: [slug]
+  /// Creates a LinearClient from a ResolvedConfig, extracting endpoint and credentials.
+  class fromConfig: config :: ResolvedConfig -> LinearClient =>
     self
       new: #{
         #endpoint => config trackerEndpoint,
-        #apiKey => apiKey,
-        #projectSlug => slug,
+        #apiKey => config trackerApiKey,
+        #projectSlug => config trackerProjectSlug,
         #timeout => 30000
       }
 

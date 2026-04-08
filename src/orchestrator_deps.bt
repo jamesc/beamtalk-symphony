@@ -5,7 +5,7 @@
 /// Bundles config, clients, and prompt template as an immutable value
 /// separate from runtime lifecycle state.
 Value subclass: OrchestratorDeps
-  field: config :: Config
+  field: config :: ResolvedConfig
   field: linearClient :: LinearClient
   field: workspaceManager :: WorkspaceManager
   field: promptTemplate :: String

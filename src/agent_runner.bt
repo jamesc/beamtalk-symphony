@@ -9,7 +9,7 @@
 typed Actor subclass: AgentRunner
   state: issue :: Dictionary
   state: attempt :: Integer
-  state: config :: Config
+  state: config :: ResolvedConfig
   state: workspaceManager :: WorkspaceManager
   state: linearClient :: LinearClient
   state: promptTemplate :: String
@@ -19,7 +19,7 @@ typed Actor subclass: AgentRunner
   state: turnNumber :: Integer
 
   /// Spawns a new AgentRunner and starts the run lifecycle asynchronously.
-  class run: issue :: Dictionary attempt: attempt :: Integer config: config :: Config workspaceManager: wm :: WorkspaceManager linearClient: lc :: LinearClient promptTemplate: pt :: String onEvent: callback :: Block -> AgentRunner =>
+  class run: issue :: Dictionary attempt: attempt :: Integer config: config :: ResolvedConfig workspaceManager: wm :: WorkspaceManager linearClient: lc :: LinearClient promptTemplate: pt :: String onEvent: callback :: Block -> AgentRunner =>
     runner := self
       spawnWith: #{
         #issue => issue,
@@ -135,6 +135,7 @@ typed Actor subclass: AgentRunner
     refreshed isEmpty ifTrue: [^Result ok: #{"status" => "issue_not_found"}]
     currentState := (refreshed at: 1) at: "state" ifAbsent: [nil]
     activeStates := self.config trackerActiveStates
+    @expect type
     isActive := activeStates anySatisfy: [:s |
       s lowercase == currentState lowercase
     ]

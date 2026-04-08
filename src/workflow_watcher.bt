@@ -49,10 +49,17 @@ Actor subclass: WorkflowWatcher
     (WorkflowLoader load: self.path)
       ifOk: [:wf |
         rawConfig := wf at: "config"
-        config := Config fromMap: rawConfig
+        configResult := Config resolve: rawConfig
+        configResult isError ifTrue: [
+          Logger error: "workflow reload validation failed" metadata: #{
+            "path" => self.path,
+            "error" => configResult error displayString
+          }
+          ^nil
+        ]
         prompt := wf at: "prompt_template"
         Logger info: "workflow reloaded" metadata: #{"path" => self.path}
-        self.onReload isNil ifFalse: [self.onReload value: config value: prompt]
+        self.onReload isNil ifFalse: [self.onReload value: configResult unwrap value: prompt]
       ]
       ifError: [:e |
         Logger error: "workflow reload failed" metadata: #{

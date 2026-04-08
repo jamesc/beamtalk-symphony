@@ -16,7 +16,7 @@ Actor subclass: Orchestrator
   state: pollTimerRef :: Timer | Nil = nil
 
   /// Spawns a new Orchestrator with the given config and dependencies.
-  class start: config :: Config linearClient: lc :: LinearClient workspaceManager: wm :: WorkspaceManager promptTemplate: pt :: String -> Orchestrator =>
+  class start: config :: ResolvedConfig linearClient: lc :: LinearClient workspaceManager: wm :: WorkspaceManager promptTemplate: pt :: String -> Orchestrator =>
     deps := OrchestratorDeps
       new: #{
         #config => config,
@@ -45,7 +45,7 @@ Actor subclass: Orchestrator
   // --- Config reload ---
 
   /// Hot-swaps config and prompt template without restarting running agents.
-  reloadConfig: newConfig :: Config prompt: newPrompt :: String =>
+  reloadConfig: newConfig :: ResolvedConfig prompt: newPrompt :: String =>
     self.deps := (self.deps withConfig: newConfig) withPromptTemplate: newPrompt
     Logger info: "config reloaded"
 
@@ -58,18 +58,7 @@ Actor subclass: Orchestrator
     // Step 1: Reconcile running issues
     self reconcile
 
-    // Step 2: Validate dispatch config
-    validation := self.deps config validate
-    validation isError
-      ifTrue: [
-        Logger error: "dispatch validation failed" metadata: #{
-          "reason" => validation error displayString
-        }
-        self scheduleTick: self.deps config pollIntervalMs
-        ^nil
-      ]
-
-    // Step 3: Fetch candidate issues
+    // Step 2: Fetch candidate issues
     activeStates := self.deps config trackerActiveStates
     fetchResult := self.deps linearClient fetchCandidateIssues: activeStates
     fetchResult isError

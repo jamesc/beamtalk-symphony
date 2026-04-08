@@ -4,8 +4,9 @@
 TestCase subclass: CodexClientTest
 
   testStartCreatesActor =>
-    config := Config fromMap: #{
-      "codex" => #{"command" => "echo hello", "read_timeout_ms" => 1000}
+    config := ResolvedConfig new: #{
+      #codexCommand => "echo hello",
+      #codexReadTimeoutMs => 1000
     }
     client := CodexClient
       start: "/tmp"

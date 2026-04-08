@@ -5,14 +5,14 @@
 /// sanitization, containment validation, lifecycle hooks, and cleanup.
 Value subclass: WorkspaceManager
   field: root :: String = ""
-  field: hooksAfterCreate = nil
-  field: hooksBeforeRun = nil
-  field: hooksAfterRun = nil
-  field: hooksBeforeRemove = nil
+  field: hooksAfterCreate :: String = ""
+  field: hooksBeforeRun :: String = ""
+  field: hooksAfterRun :: String = ""
+  field: hooksBeforeRemove :: String = ""
   field: hooksTimeoutMs :: Integer = 60000
 
-  /// Creates a WorkspaceManager from a Config, extracting root and hook settings.
-  class fromConfig: config :: Config -> WorkspaceManager =>
+  /// Creates a WorkspaceManager from a ResolvedConfig, extracting root and hook settings.
+  class fromConfig: config :: ResolvedConfig -> WorkspaceManager =>
     self
       new: #{
         #root => config workspaceRoot,
@@ -80,7 +80,7 @@ Value subclass: WorkspaceManager
     // Run after_create hook if newly created
     createdNow
       ifTrue: [
-        self.hooksAfterCreate isNil
+        self.hooksAfterCreate isEmpty
           ifFalse: [
             hookResult := self runHook: self.hooksAfterCreate inDir: wsPath
             hookResult isError
@@ -102,15 +102,15 @@ Value subclass: WorkspaceManager
 
   /// Runs the before_run hook script in the workspace directory.
   runBeforeRun: wsPath :: String -> Result =>
-    self.hooksBeforeRun isNil ifTrue: [^Result ok: true]
+    self.hooksBeforeRun isEmpty ifTrue: [^Result ok: true]
     self runHook: self.hooksBeforeRun inDir: wsPath
 
   runAfterRun: wsPath :: String -> Result =>
-    self.hooksAfterRun isNil ifTrue: [^Result ok: true]
+    self.hooksAfterRun isEmpty ifTrue: [^Result ok: true]
     self runHook: self.hooksAfterRun inDir: wsPath
 
   runBeforeRemove: wsPath :: String -> Result =>
-    self.hooksBeforeRemove isNil ifTrue: [^Result ok: true]
+    self.hooksBeforeRemove isEmpty ifTrue: [^Result ok: true]
     self runHook: self.hooksBeforeRemove inDir: wsPath
 
   runHook: script :: String inDir: dir :: String -> Result =>

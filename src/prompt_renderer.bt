@@ -35,7 +35,7 @@ Value subclass: PromptRenderer
     ]
     vars := #{"issue" => issue, "attempt" => attempt}
     result := [
-      self processAll: template vars: vars
+      self processAll: template asString vars: vars
     ] on: Error do: [:e | ^Result error: (TemplateError renderError: e message)]
     Result ok: result
 

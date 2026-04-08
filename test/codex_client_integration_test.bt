@@ -21,8 +21,9 @@ TestCase subclass: CodexClientIntegrationTest
 
   testLaunchAndHandshake =>
     self.hasCodex ifFalse: [^self skip: "codex not installed"]
-    config := Config fromMap: #{
-      "codex" => #{"command" => "codex app-server", "read_timeout_ms" => 30000}
+    config := ResolvedConfig new: #{
+      #codexCommand => "codex app-server",
+      #codexReadTimeoutMs => 30000
     }
     client := CodexClient
       start: self.tmpDir
@@ -48,14 +49,11 @@ TestCase subclass: CodexClientIntegrationTest
 
   testStartTurn =>
     self.hasCodex ifFalse: [^self skip: "codex not installed"]
-    config := Config
-      fromMap: #{
-        "codex" => #{
-          "command" => "codex app-server",
-          "read_timeout_ms" => 30000,
-          "turn_timeout_ms" => 60000
-        }
-      }
+    config := ResolvedConfig new: #{
+      #codexCommand => "codex app-server",
+      #codexReadTimeoutMs => 30000,
+      #codexTurnTimeoutMs => 60000
+    }
     client := CodexClient
       start: self.tmpDir
       config: config
@@ -108,13 +106,10 @@ TestCase subclass: CodexClientIntegrationTest
 
   testLaunchFailsWithBadCommand =>
     self.hasCodex ifFalse: [^self skip: "codex not installed"]
-    config := Config
-      fromMap: #{
-        "codex" => #{
-          "command" => "nonexistent_command_xyz",
-          "read_timeout_ms" => 2000
-        }
-      }
+    config := ResolvedConfig new: #{
+      #codexCommand => "nonexistent_command_xyz",
+      #codexReadTimeoutMs => 2000
+    }
     client := CodexClient
       start: self.tmpDir
       config: config

@@ -10,11 +10,11 @@ Actor subclass: CodexClient
   state: proc = nil
   state: nextId :: Integer
   state: workspacePath :: String
-  state: config :: Config
+  state: config :: ResolvedConfig
   state: onEvent :: Block
 
   /// Spawns a new CodexClient actor bound to the given workspace directory.
-  class start: workspacePath :: String config: config :: Config onEvent: callback :: Block | Nil -> CodexClient =>
+  class start: workspacePath :: String config: config :: ResolvedConfig onEvent: callback :: Block | Nil -> CodexClient =>
     self
       spawnWith: #{
         #workspacePath => workspacePath,

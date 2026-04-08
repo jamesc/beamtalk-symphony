@@ -22,13 +22,13 @@ Supervisor subclass: SymphonySupervisor
       ]
     wf := wfResult unwrap
     rawConfig := wf at: "config"
-    config := Config fromMap: rawConfig
-    validation := config validate
-    validation isError
+    configResult := Config resolve: rawConfig
+    configResult isError
       ifTrue: [
         Logger error: "config validation failed"
         ^#()
       ]
+    config := configResult unwrap
 
     promptTemplate := wf at: "prompt_template"
     linearClient := LinearClient fromConfig: config

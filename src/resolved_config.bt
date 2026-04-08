@@ -1,0 +1,45 @@
+// Copyright 2026 James Casey
+// SPDX-License-Identifier: Apache-2.0
+
+/// ResolvedConfig — fully validated, typed configuration with no nil fields.
+/// Produced by `Config resolve:` after validation succeeds.
+/// All required fields are guaranteed present; optional fields default to "".
+Value subclass: ResolvedConfig
+  // --- Tracker ---
+  field: trackerKind :: String
+  field: trackerEndpoint :: String
+  field: trackerApiKey :: String
+  field: trackerProjectSlug :: String
+  field: trackerActiveStates :: List(String)
+  field: trackerTerminalStates :: List(String)
+
+  // --- Polling ---
+  field: pollIntervalMs :: Integer
+
+  // --- Workspace ---
+  field: workspaceRoot :: String
+
+  // --- Agent ---
+  field: maxConcurrentAgents :: Integer
+  field: maxRetryBackoffMs :: Integer
+  field: maxTurns :: Integer
+  field: maxConcurrentAgentsByState :: Dictionary
+
+  // --- Codex ---
+  field: codexCommand :: String
+  field: codexApprovalPolicy :: String
+  field: codexThreadSandbox :: String
+  field: codexTurnSandboxPolicy :: String
+  field: codexTurnTimeoutMs :: Integer
+  field: codexReadTimeoutMs :: Integer
+  field: codexStallTimeoutMs :: Integer
+
+  // --- Hooks ---
+  field: hooksAfterCreate :: String
+  field: hooksBeforeRun :: String
+  field: hooksAfterRun :: String
+  field: hooksBeforeRemove :: String
+  field: hooksTimeoutMs :: Integer
+
+  // --- Server ---
+  field: serverPort :: Integer | Nil

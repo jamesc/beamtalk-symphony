@@ -1,16 +1,64 @@
 // Copyright 2026 James Casey
 // SPDX-License-Identifier: Apache-2.0
 
-/// Config — typed getters over workflow YAML config with defaults,
-/// $VAR environment variable resolution, and dispatch preflight validation.
+/// Config — internal parser for workflow YAML config.
+/// Public API: `Config resolve: map` -> Result(ResolvedConfig).
+/// All other methods are internal to the parsing/validation pipeline.
 Value subclass: Config
   field: raw :: Dictionary
 
-  /// Creates a Config from a parsed YAML dictionary.
+  // --- Internal ---
   class fromMap: map :: Dictionary -> Config => self new: #{#raw => map}
 
+  // --- Public API ---
+  /// Parses, validates, and resolves a raw config map into a ResolvedConfig.
+  /// Returns Result error on validation failure, Result ok: ResolvedConfig on success.
+  class resolve: map :: Dictionary -> Result =>
+    config := self fromMap: map
+    validation := config validate
+    validation isError ifTrue: [^validation]
+    resolved := self buildResolved: config
+    Result ok: resolved
+
+  class buildResolved: config :: Config -> ResolvedConfig =>
+    empty := " " trim
+    codexAP := config codexApprovalPolicy isNil ifTrue: [empty] ifFalse: [config codexApprovalPolicy]
+    codexTS := config codexThreadSandbox isNil ifTrue: [empty] ifFalse: [config codexThreadSandbox]
+    codexTSP := config codexTurnSandboxPolicy isNil ifTrue: [empty] ifFalse: [config codexTurnSandboxPolicy]
+    hookAC := config hooksAfterCreate isNil ifTrue: [empty] ifFalse: [config hooksAfterCreate]
+    hookBR := config hooksBeforeRun isNil ifTrue: [empty] ifFalse: [config hooksBeforeRun]
+    hookAR := config hooksAfterRun isNil ifTrue: [empty] ifFalse: [config hooksAfterRun]
+    hookBRm := config hooksBeforeRemove isNil ifTrue: [empty] ifFalse: [config hooksBeforeRemove]
+    fields := #{}
+    fields := fields at: #trackerKind put: config trackerKind asString
+    fields := fields at: #trackerEndpoint put: config trackerEndpoint
+    fields := fields at: #trackerApiKey put: config trackerApiKey asString
+    fields := fields at: #trackerProjectSlug put: config trackerProjectSlug asString
+    fields := fields at: #trackerActiveStates put: config trackerActiveStates
+    fields := fields at: #trackerTerminalStates put: config trackerTerminalStates
+    fields := fields at: #pollIntervalMs put: config pollIntervalMs
+    fields := fields at: #workspaceRoot put: config workspaceRoot
+    fields := fields at: #maxConcurrentAgents put: config maxConcurrentAgents
+    fields := fields at: #maxRetryBackoffMs put: config maxRetryBackoffMs
+    fields := fields at: #maxTurns put: config maxTurns
+    fields := fields at: #maxConcurrentAgentsByState put: config maxConcurrentAgentsByState
+    fields := fields at: #codexCommand put: config codexCommand
+    fields := fields at: #codexApprovalPolicy put: codexAP
+    fields := fields at: #codexThreadSandbox put: codexTS
+    fields := fields at: #codexTurnSandboxPolicy put: codexTSP
+    fields := fields at: #codexTurnTimeoutMs put: config codexTurnTimeoutMs
+    fields := fields at: #codexReadTimeoutMs put: config codexReadTimeoutMs
+    fields := fields at: #codexStallTimeoutMs put: config codexStallTimeoutMs
+    fields := fields at: #hooksAfterCreate put: hookAC
+    fields := fields at: #hooksBeforeRun put: hookBR
+    fields := fields at: #hooksAfterRun put: hookAR
+    fields := fields at: #hooksBeforeRemove put: hookBRm
+    fields := fields at: #hooksTimeoutMs put: config hooksTimeoutMs
+    fields := fields at: #serverPort put: config serverPort
+    ResolvedConfig new: fields
+
   // --- Tracker ---
-  trackerKind -> String =>
+  trackerKind -> String | Nil =>
     self
       nested: "tracker"
       key: "kind"
@@ -26,7 +74,7 @@ Value subclass: Config
       key: "endpoint"
       default: defaultEndpoint
 
-  trackerApiKey -> String =>
+  trackerApiKey -> String | Nil =>
     raw := self
       nested: "tracker"
       key: "api_key"
@@ -44,7 +92,7 @@ Value subclass: Config
     ]
     raw
 
-  trackerProjectSlug -> String =>
+  trackerProjectSlug -> String | Nil =>
     raw := self
       nested: "tracker"
       key: "project_slug"
@@ -61,7 +109,7 @@ Value subclass: Config
       key: "active_states"
       default: #("Todo", "In Progress")
 
-  trackerTerminalStates -> List =>
+  trackerTerminalStates -> List(String) =>
     self
       nested: "tracker"
       key: "terminal_states"
@@ -145,19 +193,19 @@ Value subclass: Config
       key: "command"
       default: "codex app-server"
 
-  codexApprovalPolicy -> String =>
+  codexApprovalPolicy -> String | Nil =>
     self
       nested: "codex"
       key: "approval_policy"
       default: nil
 
-  codexThreadSandbox -> String =>
+  codexThreadSandbox -> String | Nil =>
     self
       nested: "codex"
       key: "thread_sandbox"
       default: nil
 
-  codexTurnSandboxPolicy -> String =>
+  codexTurnSandboxPolicy -> String | Nil =>
     self
       nested: "codex"
       key: "turn_sandbox_policy"
@@ -185,25 +233,25 @@ Value subclass: Config
     self coerceInt: val default: 300000
 
   // --- Hooks ---
-  hooksAfterCreate -> String =>
+  hooksAfterCreate -> String | Nil =>
     self
       nested: "hooks"
       key: "after_create"
       default: nil
 
-  hooksBeforeRun -> String =>
+  hooksBeforeRun -> String | Nil =>
     self
       nested: "hooks"
       key: "before_run"
       default: nil
 
-  hooksAfterRun -> String =>
+  hooksAfterRun -> String | Nil =>
     self
       nested: "hooks"
       key: "after_run"
       default: nil
 
-  hooksBeforeRemove -> String =>
+  hooksBeforeRemove -> String | Nil =>
     self
       nested: "hooks"
       key: "before_remove"
@@ -238,7 +286,7 @@ Value subclass: Config
       ifFalse: [
         ^Result error: #{
           "check" => "tracker.kind",
-          "reason" => "unsupported: " ++ kind
+          "reason" => "unsupported: " ++ kind asString
         }
       ]
 
@@ -290,7 +338,7 @@ Value subclass: Config
     (sectionMap isKindOf: Dictionary) ifFalse: [^default]
     sectionMap at: key ifAbsent: [default]
 
-  resolveEnv: varExpr :: String -> String =>
+  resolveEnv: varExpr :: String | Nil -> String | Nil =>
     varExpr isNil ifTrue: [^nil]
     name := (varExpr startsWith: "$") ifTrue: [
       varExpr drop: 1
@@ -316,7 +364,7 @@ Value subclass: Config
       ]
     path
 
-  coerceInt: val default: default -> Integer =>
+  coerceInt: val default: default -> Integer | Nil =>
     val isNil ifTrue: [^default]
     (val isKindOf: Integer) ifTrue: [^val]
     (val isKindOf: String) ifTrue: [
