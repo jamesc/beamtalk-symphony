@@ -18,32 +18,16 @@ Value subclass: Config
     config := self fromMap: map
     validation := config validate
     validation isError ifTrue: [^validation]
-    resolved := self buildResolved: config
-    Result ok: resolved
+    Result ok: (self buildResolved: config)
 
   class buildResolved: config :: Config -> ResolvedConfig =>
-    empty := " " trim
-    codexAP := config codexApprovalPolicy isNil ifTrue: [
-      empty
-    ] ifFalse: [config codexApprovalPolicy]
-    codexTS := config codexThreadSandbox isNil ifTrue: [
-      empty
-    ] ifFalse: [config codexThreadSandbox]
-    codexTSP := config codexTurnSandboxPolicy isNil ifTrue: [
-      empty
-    ] ifFalse: [config codexTurnSandboxPolicy]
-    hookAC := config hooksAfterCreate isNil ifTrue: [
-      empty
-    ] ifFalse: [config hooksAfterCreate]
-    hookBR := config hooksBeforeRun isNil ifTrue: [
-      empty
-    ] ifFalse: [config hooksBeforeRun]
-    hookAR := config hooksAfterRun isNil ifTrue: [
-      empty
-    ] ifFalse: [config hooksAfterRun]
-    hookBRm := config hooksBeforeRemove isNil ifTrue: [
-      empty
-    ] ifFalse: [config hooksBeforeRemove]
+    codexAP := config codexApprovalPolicy isNil ifTrue: [""] ifFalse: [config codexApprovalPolicy]
+    codexTS := config codexThreadSandbox isNil ifTrue: [""] ifFalse: [config codexThreadSandbox]
+    codexTSP := config codexTurnSandboxPolicy isNil ifTrue: [""] ifFalse: [config codexTurnSandboxPolicy]
+    hookAC := config hooksAfterCreate isNil ifTrue: [""] ifFalse: [config hooksAfterCreate]
+    hookBR := config hooksBeforeRun isNil ifTrue: [""] ifFalse: [config hooksBeforeRun]
+    hookAR := config hooksAfterRun isNil ifTrue: [""] ifFalse: [config hooksAfterRun]
+    hookBRm := config hooksBeforeRemove isNil ifTrue: [""] ifFalse: [config hooksBeforeRemove]
     fields := #{}
     fields := fields at: #trackerKind put: config trackerKind asString
     fields := fields at: #trackerEndpoint put: config trackerEndpoint

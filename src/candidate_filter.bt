@@ -3,7 +3,7 @@
 
 /// CandidateFilter — pure computation helpers for dispatch eligibility,
 /// sorting by priority/age, and per-state concurrency control.
-Value subclass: CandidateFilter
+typed Value subclass: CandidateFilter
   field: activeStates :: List
   field: terminalStates :: List
   field: maxByState :: Dictionary
