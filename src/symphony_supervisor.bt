@@ -32,8 +32,7 @@ Supervisor subclass: SymphonySupervisor
 
     promptTemplate := wf at: "prompt_template"
 
-    orchestratorSpec := Orchestrator supervisionSpec
-      withClassMethod: #create:promptTemplate:
+    orchestratorSpec := Orchestrator supervisionSpec withClassMethod: #create:promptTemplate:
     orchestratorSpec := orchestratorSpec withArgs: #(config, promptTemplate)
     orchestratorSpec := orchestratorSpec withRestart: #permanent
     watcherSpec := (WorkflowWatcher supervisionSpec withRestart: #permanent) withArgs: #{

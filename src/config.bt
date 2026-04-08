@@ -21,13 +21,27 @@ Value subclass: Config
     Result ok: (self buildResolved: config)
 
   class buildResolved: config :: Config -> ResolvedConfig =>
-    codexAP := config codexApprovalPolicy isNil ifTrue: [""] ifFalse: [config codexApprovalPolicy]
-    codexTS := config codexThreadSandbox isNil ifTrue: [""] ifFalse: [config codexThreadSandbox]
-    codexTSP := config codexTurnSandboxPolicy isNil ifTrue: [""] ifFalse: [config codexTurnSandboxPolicy]
-    hookAC := config hooksAfterCreate isNil ifTrue: [""] ifFalse: [config hooksAfterCreate]
-    hookBR := config hooksBeforeRun isNil ifTrue: [""] ifFalse: [config hooksBeforeRun]
-    hookAR := config hooksAfterRun isNil ifTrue: [""] ifFalse: [config hooksAfterRun]
-    hookBRm := config hooksBeforeRemove isNil ifTrue: [""] ifFalse: [config hooksBeforeRemove]
+    codexAP := config codexApprovalPolicy isNil ifTrue: [
+      ""
+    ] ifFalse: [config codexApprovalPolicy]
+    codexTS := config codexThreadSandbox isNil ifTrue: [
+      ""
+    ] ifFalse: [config codexThreadSandbox]
+    codexTSP := config codexTurnSandboxPolicy isNil ifTrue: [
+      ""
+    ] ifFalse: [config codexTurnSandboxPolicy]
+    hookAC := config hooksAfterCreate isNil ifTrue: [
+      ""
+    ] ifFalse: [config hooksAfterCreate]
+    hookBR := config hooksBeforeRun isNil ifTrue: [
+      ""
+    ] ifFalse: [config hooksBeforeRun]
+    hookAR := config hooksAfterRun isNil ifTrue: [
+      ""
+    ] ifFalse: [config hooksAfterRun]
+    hookBRm := config hooksBeforeRemove isNil ifTrue: [
+      ""
+    ] ifFalse: [config hooksBeforeRemove]
     fields := #{}
     fields := fields at: #trackerKind put: config trackerKind asString
     fields := fields at: #trackerEndpoint put: config trackerEndpoint
