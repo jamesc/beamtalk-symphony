@@ -49,11 +49,12 @@ TestCase subclass: CodexClientIntegrationTest
 
   testStartTurn =>
     self.hasCodex ifFalse: [^self skip: "codex not installed"]
-    config := ResolvedConfig new: #{
-      #codexCommand => "codex app-server",
-      #codexReadTimeoutMs => 30000,
-      #codexTurnTimeoutMs => 60000
-    }
+    config := ResolvedConfig
+      new: #{
+        #codexCommand => "codex app-server",
+        #codexReadTimeoutMs => 30000,
+        #codexTurnTimeoutMs => 60000
+      }
     client := CodexClient
       start: self.tmpDir
       config: config

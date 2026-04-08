@@ -5,13 +5,14 @@ TestCase subclass: OrchestratorTest
 
   testStartCreatesActor =>
     Erlang os putenv: "ORCH_TEST_KEY" value: "test_key"
-    config := (Config resolve: #{
-      "tracker" => #{
-        "kind" => "linear",
-        "api_key" => "$ORCH_TEST_KEY",
-        "project_slug" => "test"
-      }
-    }) unwrap
+    config := (Config
+      resolve: #{
+        "tracker" => #{
+          "kind" => "linear",
+          "api_key" => "$ORCH_TEST_KEY",
+          "project_slug" => "test"
+        }
+      }) unwrap
     lc := LinearClient new: #{#apiKey => "test"}
     wm := WorkspaceManager new: #{#root => "/tmp/test"}
     orch := Orchestrator
@@ -24,13 +25,14 @@ TestCase subclass: OrchestratorTest
 
   testGetSnapshotEmpty =>
     Erlang os putenv: "ORCH_TEST_KEY2" value: "test_key"
-    config := (Config resolve: #{
-      "tracker" => #{
-        "kind" => "linear",
-        "api_key" => "$ORCH_TEST_KEY2",
-        "project_slug" => "test"
-      }
-    }) unwrap
+    config := (Config
+      resolve: #{
+        "tracker" => #{
+          "kind" => "linear",
+          "api_key" => "$ORCH_TEST_KEY2",
+          "project_slug" => "test"
+        }
+      }) unwrap
     lc := LinearClient new: #{#apiKey => "test"}
     wm := WorkspaceManager new: #{#root => "/tmp/test"}
     orch := Orchestrator
@@ -51,14 +53,15 @@ TestCase subclass: OrchestratorTest
 
   testReloadConfig =>
     Erlang os putenv: "ORCH_TEST_KEY3" value: "test_key"
-    config := (Config resolve: #{
-      "tracker" => #{
-        "kind" => "linear",
-        "api_key" => "$ORCH_TEST_KEY3",
-        "project_slug" => "test"
-      },
-      "polling" => #{"interval_ms" => 30000}
-    }) unwrap
+    config := (Config
+      resolve: #{
+        "tracker" => #{
+          "kind" => "linear",
+          "api_key" => "$ORCH_TEST_KEY3",
+          "project_slug" => "test"
+        },
+        "polling" => #{"interval_ms" => 30000}
+      }) unwrap
     lc := LinearClient new: #{#apiKey => "test"}
     wm := WorkspaceManager new: #{#root => "/tmp/test"}
     orch := Orchestrator
@@ -67,14 +70,15 @@ TestCase subclass: OrchestratorTest
       workspaceManager: wm
       promptTemplate: "old prompt"
 
-    newConfig := (Config resolve: #{
-      "tracker" => #{
-        "kind" => "linear",
-        "api_key" => "$ORCH_TEST_KEY3",
-        "project_slug" => "test"
-      },
-      "polling" => #{"interval_ms" => 5000}
-    }) unwrap
+    newConfig := (Config
+      resolve: #{
+        "tracker" => #{
+          "kind" => "linear",
+          "api_key" => "$ORCH_TEST_KEY3",
+          "project_slug" => "test"
+        },
+        "polling" => #{"interval_ms" => 5000}
+      }) unwrap
     orch reloadConfig: newConfig prompt: "new prompt"
     // No crash — config reload accepted
     self assert: orch isAlive
@@ -93,13 +97,14 @@ TestCase subclass: OrchestratorTest
   // --- Snapshot structure ---
   testSnapshotStructure =>
     Erlang os putenv: "ORCH_TEST_KEY4" value: "test_key"
-    config := (Config resolve: #{
-      "tracker" => #{
-        "kind" => "linear",
-        "api_key" => "$ORCH_TEST_KEY4",
-        "project_slug" => "test"
-      }
-    }) unwrap
+    config := (Config
+      resolve: #{
+        "tracker" => #{
+          "kind" => "linear",
+          "api_key" => "$ORCH_TEST_KEY4",
+          "project_slug" => "test"
+        }
+      }) unwrap
     lc := LinearClient new: #{#apiKey => "test"}
     wm := WorkspaceManager new: #{#root => "/tmp/test"}
     orch := Orchestrator

@@ -179,13 +179,14 @@ TestCase subclass: ConfigTest
   // --- Config resolve: ---
   testResolveOk =>
     Erlang os putenv: "TEST_RESOLVE_KEY" value: "resolved_key"
-    result := Config resolve: #{
-      "tracker" => #{
-        "kind" => "linear",
-        "api_key" => "$TEST_RESOLVE_KEY",
-        "project_slug" => "my-proj"
+    result := Config
+      resolve: #{
+        "tracker" => #{
+          "kind" => "linear",
+          "api_key" => "$TEST_RESOLVE_KEY",
+          "project_slug" => "my-proj"
+        }
       }
-    }
     self assert: result isOk
     rc := result unwrap
     self assert: (rc isKindOf: ResolvedConfig)
