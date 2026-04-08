@@ -31,19 +31,11 @@ Supervisor subclass: SymphonySupervisor
     config := configResult unwrap
 
     promptTemplate := wf at: "prompt_template"
-    linearClient := LinearClient fromConfig: config
-    workspaceManager := WorkspaceManager fromConfig: config
 
-    orchestratorDeps := OrchestratorDeps
-      new: #{
-        #config => config,
-        #linearClient => linearClient,
-        #workspaceManager => workspaceManager,
-        #promptTemplate => promptTemplate
-      }
-    orchestratorSpec := (Orchestrator supervisionSpec withRestart: #permanent) withArgs: #{
-      #deps => orchestratorDeps
-    }
+    orchestratorSpec := Orchestrator supervisionSpec
+      withClassMethod: #create:promptTemplate:
+    orchestratorSpec := orchestratorSpec withArgs: #(config, promptTemplate)
+    orchestratorSpec := orchestratorSpec withRestart: #permanent
     watcherSpec := (WorkflowWatcher supervisionSpec withRestart: #permanent) withArgs: #{
       #path => "./WORKFLOW.md"
     }

@@ -13,13 +13,7 @@ TestCase subclass: OrchestratorTest
           "project_slug" => "test"
         }
       }) unwrap
-    lc := LinearClient new: #{#apiKey => "test"}
-    wm := WorkspaceManager new: #{#root => "/tmp/test"}
-    orch := Orchestrator
-      start: config
-      linearClient: lc
-      workspaceManager: wm
-      promptTemplate: "test"
+    orch := Orchestrator create: config promptTemplate: "test"
     self assert: orch isAlive
     self assert: orch stop equals: #ok
 
@@ -33,13 +27,7 @@ TestCase subclass: OrchestratorTest
           "project_slug" => "test"
         }
       }) unwrap
-    lc := LinearClient new: #{#apiKey => "test"}
-    wm := WorkspaceManager new: #{#root => "/tmp/test"}
-    orch := Orchestrator
-      start: config
-      linearClient: lc
-      workspaceManager: wm
-      promptTemplate: "test"
+    orch := Orchestrator create: config promptTemplate: "test"
     snapshot := orch getSnapshot
     counts := snapshot at: "counts"
     self assert: (counts at: "running") equals: 0
@@ -62,13 +50,7 @@ TestCase subclass: OrchestratorTest
         },
         "polling" => #{"interval_ms" => 30000}
       }) unwrap
-    lc := LinearClient new: #{#apiKey => "test"}
-    wm := WorkspaceManager new: #{#root => "/tmp/test"}
-    orch := Orchestrator
-      start: config
-      linearClient: lc
-      workspaceManager: wm
-      promptTemplate: "old prompt"
+    orch := Orchestrator create: config promptTemplate: "old prompt"
 
     newConfig := (Config
       resolve: #{
@@ -105,13 +87,7 @@ TestCase subclass: OrchestratorTest
           "project_slug" => "test"
         }
       }) unwrap
-    lc := LinearClient new: #{#apiKey => "test"}
-    wm := WorkspaceManager new: #{#root => "/tmp/test"}
-    orch := Orchestrator
-      start: config
-      linearClient: lc
-      workspaceManager: wm
-      promptTemplate: "test"
+    orch := Orchestrator create: config promptTemplate: "test"
     snapshot := orch getSnapshot
     // Verify all expected keys exist
     self assert: (snapshot includesKey: "counts")

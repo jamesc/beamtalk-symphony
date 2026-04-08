@@ -15,8 +15,12 @@ Actor subclass: Orchestrator
   state: codexRateLimits :: Dictionary | Nil = nil
   state: pollTimerRef :: Timer | Nil = nil
 
-  /// Spawns a new Orchestrator with the given config and dependencies.
-  class start: config :: ResolvedConfig linearClient: lc :: LinearClient workspaceManager: wm :: WorkspaceManager promptTemplate: pt :: String -> Orchestrator =>
+  /// Class method for supervisor bootstrap — creates clients from config.
+  /// Used via `withClassMethod: #create:promptTemplate:` so fresh deps
+  /// are built on every start/restart.
+  class create: config :: ResolvedConfig promptTemplate: pt :: String -> Orchestrator =>
+    lc := LinearClient fromConfig: config
+    wm := WorkspaceManager fromConfig: config
     deps := OrchestratorDeps
       new: #{
         #config => config,
