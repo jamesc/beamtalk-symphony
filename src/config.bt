@@ -55,7 +55,7 @@ Value subclass: Config
     ]
     raw
 
-  trackerActiveStates -> List =>
+  trackerActiveStates -> List(String) =>
     self
       nested: "tracker"
       key: "active_states"

@@ -3,7 +3,7 @@
 
 /// SessionInfo — immutable value holding codex session IDs, event history,
 /// and turn count for a running agent.
-Value subclass: SessionInfo
+typed Value subclass: SessionInfo
   field: sessionId :: String
   field: threadId :: String
   field: turnId :: String

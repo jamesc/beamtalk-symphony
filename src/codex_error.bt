@@ -2,23 +2,23 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /// CodexError — typed error for codex subprocess failures.
-Value subclass: CodexError
+typed Value subclass: CodexError
   field: kind :: String = ""
-  field: detail = nil
-  field: step = nil
-  field: exitCode = nil
-  field: message = nil
+  field: detail :: String | Nil
+  field: step :: String | Nil
+  field: exitCode :: Integer | Nil
+  field: message :: String | Nil
 
   class notFound: detail :: String -> CodexError =>
     self new: #{#kind => "not_found", #detail => detail}
 
   class responseTimeout: requestId :: Integer -> CodexError =>
-    self new: #{#kind => "response_timeout", #detail => requestId}
+    self new: #{#kind => "response_timeout", #detail => requestId asString}
 
   class portExit: exitCode :: Integer -> CodexError =>
     self new: #{#kind => "port_exit", #exitCode => exitCode}
 
-  class startupFailed: step :: String detail: detail -> CodexError =>
+  class startupFailed: step :: String detail: detail :: CodexError -> CodexError =>
     self new: #{#kind => "startup_failed", #step => step, #detail => detail}
 
   class turnFailed: msg :: Dictionary -> CodexError =>

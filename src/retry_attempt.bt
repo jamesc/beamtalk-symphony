@@ -3,7 +3,7 @@
 
 /// RetryAttempt — immutable value tracking a scheduled retry for an issue.
 /// Holds issueId, attempt counter, due time, timer ref, and last error.
-Value subclass: RetryAttempt
+typed Value subclass: RetryAttempt
   field: issueId :: String = ""
   field: identifier :: String = ""
   field: attempt :: Integer = 1

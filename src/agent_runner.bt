@@ -6,7 +6,7 @@
 /// multi-turn loop, hook execution, and event forwarding.
 ///
 /// Uses helper methods for prompt building, turn management, and cleanup.
-Actor subclass: AgentRunner
+typed Actor subclass: AgentRunner
   state: issue :: Dictionary
   state: attempt :: Integer
   state: config :: Config
@@ -35,10 +35,10 @@ Actor subclass: AgentRunner
     runner
 
   // --- Main lifecycle ---
-  terminate: _reason =>
+  terminate: _reason :: Object -> Nil =>
     self.codexClient isNil ifFalse: [self.codexClient stopProcess]
 
-  begin =>
+  begin -> AgentRunner =>
     identifier := self.issue at: "identifier" ifAbsent: [""]
     Logger info: "agent run starting" metadata: #{"issue" => identifier}
     result := self doRun
@@ -55,6 +55,7 @@ Actor subclass: AgentRunner
           "result" => result displayString
         }
       ]
+    self
 
   doRun -> Result =>
     identifier := self.issue at: "identifier" ifAbsent: [""]
@@ -120,7 +121,7 @@ Actor subclass: AgentRunner
   // --- Turn continuation check ---
 
   /// Returns a Result if the loop should stop, or nil to continue.
-  shouldContinue: maxTurns :: Integer =>
+  shouldContinue: maxTurns :: Integer -> Result | Nil =>
     // Check if max turns reached
     self.turnNumber >= maxTurns ifTrue: [
       ^Result ok: #{"status" => "max_turns_reached"}

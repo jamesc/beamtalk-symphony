@@ -3,7 +3,7 @@
 
 /// Main — entry point for Symphony.
 /// Starts the SymphonySupervisor. Orchestrator and HttpServer self-initialize.
-Object subclass: Main
+typed Object subclass: Main
 
   /// Starts the supervisor tree. Children use initialize hooks to self-start.
-  class run => SymphonySupervisor supervise
+  class run -> Supervisor => SymphonySupervisor supervise

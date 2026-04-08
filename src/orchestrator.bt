@@ -5,6 +5,7 @@
 /// Owns the poll loop, dispatch, reconciliation, retry queue,
 /// and global token accounting.
 Actor subclass: Orchestrator
+  @expect type
   state: deps :: OrchestratorDeps
   state: running :: Dictionary = #{}
   state: claimed :: List = #()

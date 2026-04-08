@@ -3,7 +3,7 @@
 
 /// RunningEntry — immutable value tracking a running agent session.
 /// Composes SessionInfo and TokenUsage alongside worker metadata.
-Value subclass: RunningEntry
+typed Value subclass: RunningEntry
   field: workerPid :: Pid
   field: monitorRef :: Reference
   field: identifier :: String

@@ -64,9 +64,7 @@ Value subclass: LinearClient
     errors := jsonBody at: "errors" ifAbsent: [nil]
     errors isNil
       ifFalse: [
-        ^Result error: (LinearError graphqlErrors: errors data: (jsonBody at: "data" ifAbsent: [
-          nil
-        ]))
+        ^Result error: (LinearError graphqlErrors: errors data: (jsonBody at: "data" ifAbsent: nil))
       ]
 
     data := jsonBody at: "data" ifAbsent: [nil]
@@ -79,14 +77,14 @@ Value subclass: LinearClient
   // --- Candidate issue fetch (BT-1376) ---
 
   /// Fetches all issues in active states for the configured project, with pagination.
-  fetchCandidateIssues: activeStates :: List -> Result =>
+  fetchCandidateIssues: activeStates :: List(String) -> Result(List(String)) =>
     activeStates isEmpty ifTrue: [^Result ok: #()]
     self
       fetchAllPages: activeStates
       cursor: nil
       accumulated: #()
 
-  fetchAllPages: activeStates :: List cursor: cursor accumulated: acc :: List -> Result =>
+  fetchAllPages: activeStates :: List(String) cursor: cursor :: Integer | Nil accumulated: acc :: List(String) -> Result(List(String)) =>
     vars := #{
       "projectSlug" => self.projectSlug,
       "states" => activeStates,

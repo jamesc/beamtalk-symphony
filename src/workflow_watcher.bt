@@ -20,14 +20,15 @@ Actor subclass: WorkflowWatcher
     watcher
 
   /// Lifecycle hook — starts the poll loop after supervised spawn.
-  initialize => self schedulePoll!
+  initialize -> Nil => self schedulePoll!
 
   /// Sets the reload callback (used by supervisor initialize: to wire children).
-  onReload: callback :: Block => self.onReload := callback
+  onReload: callback :: Block -> Block => self.onReload := callback
 
-  schedulePoll => Timer after: self.pollIntervalMs do: [self checkForChanges!]
+  schedulePoll -> Timer =>
+    Timer after: self.pollIntervalMs do: [self checkForChanges!]
 
-  checkForChanges =>
+  checkForChanges -> Nil =>
     modTime := self getModTime: self.path
     changed := self.lastModified isNil
       ifTrue: [
@@ -44,7 +45,7 @@ Actor subclass: WorkflowWatcher
 
     self schedulePoll!
 
-  doReload =>
+  doReload -> Nil =>
     (WorkflowLoader load: self.path)
       ifOk: [:wf |
         rawConfig := wf at: "config"
@@ -59,7 +60,8 @@ Actor subclass: WorkflowWatcher
           "error" => e displayString
         }
       ]
+    nil
 
-  getModTime: filePath :: String =>
+  getModTime: filePath :: String -> DateTime | Nil =>
     // Returns modification time or nil
     (File lastModified: filePath) valueOr: nil
