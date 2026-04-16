@@ -9,7 +9,7 @@ TestCase subclass: HttpServerTest
     self withSrv: server
 
   tryStartServer =>
-    server := HttpServer start: 0 orchestrator: nil
+    server := HttpServer start: 0
     Timer sleep: 100
     server
 

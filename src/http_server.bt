@@ -6,7 +6,7 @@
 ///
 /// Uses an ETS table (#symphony_http) to share state with the cowboy handler,
 /// since handler blocks run in cowboy's process and can't make actor calls.
-/// The orchestrator pushes its snapshot to ETS via `publishSnapshot:`.
+/// The orchestrator pushes its snapshot to ETS via `publishSnapshot`.
 Actor subclass: HttpServer
   state: server :: HTTPServer
   state: port :: Integer
@@ -15,14 +15,9 @@ Actor subclass: HttpServer
   class supervisionPolicy -> Symbol => #permanent
 
   /// Starts the HTTP server on the given port.
-  class start: port :: Integer orchestrator: _orch -> HttpServer =>
-    self spawnWith: #{#port => port}
+  class start: port :: Integer -> HttpServer => self spawnWith: #{#port => port}
 
-  /// Sets the orchestrator reference via ETS (visible to cowboy handler).
-  orchestrator: orch =>
-    self.refs isNil ifFalse: [self.refs at: #orchestrator put: orch]
-
-  /// Called by the orchestrator (or supervisor wiring) to push current snapshot.
+  /// Called by the orchestrator to push current snapshot into ETS.
   publishSnapshot: snapshot :: Dictionary =>
     self.refs isNil ifFalse: [self.refs at: #snapshot put: snapshot]
 

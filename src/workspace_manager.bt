@@ -4,7 +4,7 @@
 /// WorkspaceManager — manages per-issue workspace directories with path
 /// sanitization, containment validation, lifecycle hooks, and cleanup.
 Value subclass: WorkspaceManager
-  field: root :: String = ""
+  field: root :: String
   field: hooksAfterCreate :: String = ""
   field: hooksBeforeRun :: String = ""
   field: hooksAfterRun :: String = ""
