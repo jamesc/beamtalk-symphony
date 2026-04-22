@@ -31,7 +31,7 @@ Value subclass: LinearClient
   // --- Core GraphQL transport ---
 
   /// Executes a GraphQL query against the Linear API and returns parsed data.
-  query: queryStr :: String variables: vars :: Dictionary -> Result =>
+  query: queryStr :: String variables: vars :: Dictionary -> Result(Dictionary, LinearError) =>
     body := Json generate: #{"query" => queryStr, "variables" => vars}
     httpResult := HTTPClient
       request: #post
@@ -46,7 +46,7 @@ Value subclass: LinearClient
       LinearError apiRequest: e displayString
     ]) andThen: [:resp | self parseResponse: resp]
 
-  parseResponse: resp :: HTTPResponse -> Result =>
+  parseResponse: resp :: HTTPResponse -> Result(Dictionary, LinearError) =>
     resp ok ifFalse: [
       ^Result error: (LinearError apiStatus: resp status body: resp body)
     ]
@@ -138,7 +138,7 @@ Value subclass: LinearClient
   // --- Issue state refresh (BT-1377) ---
 
   /// Fetches current state names for a list of issue IDs (used for reconciliation).
-  fetchIssueStatesByIds: ids :: List -> Result =>
+  fetchIssueStatesByIds: ids :: List(String) -> Result(List(Dictionary), LinearError) =>
     ids isEmpty ifTrue: [^Result ok: #()]
     (self query: self stateRefreshQuery variables: #{"ids" => ids})
       map: [:data |
@@ -169,7 +169,7 @@ Value subclass: LinearClient
   // --- Terminal issues fetch (BT-1377) ---
 
   /// Fetches issues in the given states (used for startup terminal cleanup).
-  fetchIssuesByStates: stateNames :: List -> Result =>
+  fetchIssuesByStates: stateNames :: List(String) -> Result(List(Dictionary), LinearError) =>
     stateNames isEmpty ifTrue: [^Result ok: #()]
     (self query: self terminalQuery variables: #{
       "projectSlug" => self.projectSlug,

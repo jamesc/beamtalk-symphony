@@ -57,7 +57,7 @@ typed Actor subclass: AgentRunner
       ]
     self
 
-  doRun -> Result =>
+  doRun -> Result(Dictionary, Error) =>
     identifier := self.issue at: "identifier" ifAbsent: [""]
     // Step 1: Create/reuse workspace
     wsResult := self.workspaceManager createForIssue: identifier
@@ -99,13 +99,13 @@ typed Actor subclass: AgentRunner
   // --- Prompt helpers ---
 
   /// Builds the prompt text for the current turn.
-  buildPrompt -> Result =>
+  buildPrompt -> Result(String, TemplateError) =>
     self.turnNumber == 1 ifTrue: [
       self buildFirstTurnPrompt
     ] ifFalse: [Result ok: self buildContinuationPrompt]
 
   /// Renders the prompt template for the first turn.
-  buildFirstTurnPrompt -> Result =>
+  buildFirstTurnPrompt -> Result(String, TemplateError) =>
     pr := PromptRenderer
       render: self.promptTemplate
       issue: self.issue
@@ -121,7 +121,7 @@ typed Actor subclass: AgentRunner
   // --- Turn continuation check ---
 
   /// Returns a Result if the loop should stop, or nil to continue.
-  shouldContinue: maxTurns :: Integer -> Result | Nil =>
+  shouldContinue: maxTurns :: Integer -> Result(Dictionary, Error) | Nil =>
     // Check if max turns reached
     self.turnNumber >= maxTurns ifTrue: [
       ^Result ok: #{"status" => "max_turns_reached"}
@@ -151,11 +151,11 @@ typed Actor subclass: AgentRunner
 
   /// Loops calling codexClient streamStep until turn completes or times out.
   /// Each streamStep call is short (~1s), avoiding gen_server timeout.
-  streamUntilDone: turnTimeoutMs :: Integer -> Result =>
+  streamUntilDone: turnTimeoutMs :: Integer -> Result(Dictionary, CodexError) =>
     deadline := (DateTime now asTimestamp * 1000) + turnTimeoutMs
     self streamLoop: deadline
 
-  streamLoop: deadline :: Integer -> Result =>
+  streamLoop: deadline :: Integer -> Result(Dictionary, CodexError) =>
     remaining := deadline - (DateTime now asTimestamp * 1000)
     remaining <= 0
       ifTrue: [
@@ -171,7 +171,7 @@ typed Actor subclass: AgentRunner
   // --- Turn loop ---
 
   /// Executes the prompt-send-stream cycle for the current turn, then recurses.
-  runTurnLoop: wsPath :: String maxTurns: maxTurns :: Integer -> Result =>
+  runTurnLoop: wsPath :: String maxTurns: maxTurns :: Integer -> Result(Dictionary, Error) =>
     // Build prompt for this turn
     promptResult := self buildPrompt
     promptResult isError ifTrue: [^promptResult]

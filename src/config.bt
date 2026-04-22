@@ -14,7 +14,7 @@ Value subclass: Config
 
   /// Parses, validates, and resolves a raw config map into a ResolvedConfig.
   /// Returns Result error on validation failure, Result ok: ResolvedConfig on success.
-  class resolve: map :: Dictionary -> Result =>
+  class resolve: map :: Dictionary -> Result(ResolvedConfig, Dictionary) =>
     config := self fromMap: map
     validation := config validate
     validation isError ifTrue: [^validation]
@@ -290,7 +290,7 @@ Value subclass: Config
   // --- Validation ---
 
   /// Checks that all required config fields are present and valid for dispatch.
-  validate -> Result =>
+  validate -> Result(Boolean, Dictionary) =>
     kind := self trackerKind
     kind isNil ifTrue: [
       ^Result error: #{"check" => "tracker.kind", "reason" => "missing"}

@@ -4,10 +4,10 @@
 /// CodexError — typed error for codex subprocess failures.
 typed Value subclass: CodexError
   field: kind :: String = ""
-  field: detail :: String | Nil
+  field: detail :: Printable | Nil
   field: step :: String | Nil
   field: exitCode :: Integer | Nil
-  field: message :: String | Nil
+  field: message :: Dictionary | Nil
 
   class notFound: detail :: String -> CodexError =>
     self new: #{#kind => "not_found", #detail => detail}

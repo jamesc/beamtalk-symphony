@@ -4,22 +4,22 @@
 /// LinearError — typed error for Linear API failures.
 Value subclass: LinearError
   field: kind :: String = ""
-  field: detail = nil
-  field: status = nil
-  field: body = nil
-  field: errors = nil
-  field: data = nil
+  field: detail :: String | Nil = nil
+  field: status :: Integer | Nil = nil
+  field: body :: String | Nil = nil
+  field: errors :: List | Nil = nil
+  field: data :: Dictionary | Nil = nil
 
   class apiRequest: detail :: String -> LinearError =>
     self new: #{#kind => "api_request", #detail => detail}
 
-  class apiStatus: status body: body -> LinearError =>
+  class apiStatus: status :: Integer body: body :: String -> LinearError =>
     self new: #{#kind => "api_status", #status => status, #body => body}
 
   class unknownPayload: detail :: String -> LinearError =>
     self new: #{#kind => "unknown_payload", #detail => detail}
 
-  class graphqlErrors: errors data: data -> LinearError =>
+  class graphqlErrors: errors :: List data: data :: Dictionary | Nil -> LinearError =>
     self new: #{#kind => "graphql_errors", #errors => errors, #data => data}
 
   class missingEndCursor -> LinearError =>

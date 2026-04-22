@@ -7,9 +7,9 @@
 Actor subclass: Orchestrator
   state: deps :: OrchestratorDeps
   state: running :: Dictionary = #{}
-  state: claimed :: List = #()
+  state: claimed :: List(String) = #()
   state: retryAttempts :: Dictionary = #{}
-  state: completed :: List = #()
+  state: completed :: List(String) = #()
   state: codexTotals :: TokenUsage = TokenUsage new
   state: codexRateLimits :: Dictionary | Nil = nil
   state: pollTimerRef :: Timer | Nil = nil

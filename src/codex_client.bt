@@ -7,7 +7,7 @@
 ///
 /// Uses helper methods (launch, sendRequest:params:, etc.) for protocol steps.
 Actor subclass: CodexClient
-  state: proc = nil
+  state: proc :: Subprocess | Nil = nil
   state: nextId :: Integer
   state: workspacePath :: String
   state: config :: ResolvedConfig
@@ -26,7 +26,7 @@ Actor subclass: CodexClient
   // --- Token and rate-limit extraction ---
 
   /// Extracts token usage counters from a codex event message, or nil.
-  class extractUsage: msg :: Dictionary -> Dictionary =>
+  class extractUsage: msg :: Dictionary -> Dictionary | Nil =>
     // Look for token usage in common payload shapes
     params := msg at: "params" ifAbsent: [#{}]
     // Try tokenUsage.total (codex format), then total_token_usage, then usage
@@ -54,7 +54,7 @@ Actor subclass: CodexClient
     }
 
   /// Extracts rate limit info from a codex event message, or nil.
-  class extractRateLimits: msg :: Dictionary =>
+  class extractRateLimits: msg :: Dictionary -> Dictionary | Nil =>
     params := msg at: "params" ifAbsent: [#{}]
     params at: "rate_limits" ifAbsent: [params at: "rateLimits" ifAbsent: [nil]]
 
@@ -73,7 +73,7 @@ Actor subclass: CodexClient
   // --- Subprocess launch ---
 
   /// Opens the codex subprocess and sets self.proc.
-  launch -> Result =>
+  launch -> Result(Nil, CodexError) =>
     procResult := [
       Subprocess
         open: "/bin/bash"
@@ -119,11 +119,11 @@ Actor subclass: CodexClient
     self sendJson: msg
 
   // --- Response reading (no state mutation, self-recursion is safe) ---
-  readResponse: expectedId :: Integer timeout: timeoutMs :: Integer -> Result =>
+  readResponse: expectedId :: Integer timeout: timeoutMs :: Integer -> Result(Dictionary, CodexError) =>
     deadline := (DateTime now asTimestamp * 1000) + timeoutMs
     self readUntilResponse: expectedId deadline: deadline
 
-  readUntilResponse: expectedId :: Integer deadline: deadline :: Integer -> Result =>
+  readUntilResponse: expectedId :: Integer deadline: deadline :: Integer -> Result(Dictionary, CodexError) =>
     remaining := deadline - (DateTime now asTimestamp * 1000)
     remaining <= 0
       ifTrue: [
@@ -167,7 +167,7 @@ Actor subclass: CodexClient
   // --- Session startup handshake ---
 
   /// Launches the subprocess and performs the initialize/thread-start handshake.
-  startSession -> Result =>
+  startSession -> Result(Dictionary, CodexError) =>
     Logger info: "codex session starting" metadata: #{
       "workspace" => self.workspacePath,
       "command" => self.config codexCommand
@@ -228,7 +228,7 @@ Actor subclass: CodexClient
   // --- Turn management ---
 
   /// Sends a turn/start request with the given prompt and waits for acknowledgement.
-  startTurn: threadId :: String prompt: prompt :: String title: title :: String -> Result =>
+  startTurn: threadId :: String prompt: prompt :: String title: title :: String -> Result(Dictionary, CodexError) =>
     Logger info: "codex turn starting" metadata: #{
       "title" => title,
       "prompt_length" => prompt length displayString

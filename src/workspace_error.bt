@@ -4,15 +4,15 @@
 /// WorkspaceError — typed error for workspace management failures.
 Value subclass: WorkspaceError
   field: kind :: String = ""
-  field: detail = nil
-  field: workspace = nil
-  field: root = nil
-  field: expected = nil
-  field: actual = nil
-  field: exitCode = nil
-  field: output = nil
+  field: detail :: Printable | Nil = nil
+  field: workspace :: String | Nil = nil
+  field: root :: String | Nil = nil
+  field: expected :: String | Nil = nil
+  field: actual :: String | Nil = nil
+  field: exitCode :: Integer | Nil = nil
+  field: output :: String | Nil = nil
 
-  class invalidPath: detail :: String workspace: ws root: root -> WorkspaceError =>
+  class invalidPath: detail :: String workspace: ws :: String root: root :: String -> WorkspaceError =>
     self new: #{
       #kind => "invalid_path",
       #detail => detail,
@@ -20,13 +20,13 @@ Value subclass: WorkspaceError
       #root => root
     }
 
-  class createError: detail -> WorkspaceError =>
+  class createError: detail :: Printable -> WorkspaceError =>
     self new: #{#kind => "create_error", #detail => detail}
 
-  class hookFailed: detail phase: phase :: String -> WorkspaceError =>
+  class hookFailed: detail :: Printable phase: phase :: String -> WorkspaceError =>
     self new: #{#kind => "hook_" ++ phase, #detail => detail}
 
-  class hookError: detail exitCode: exitCode output: output -> WorkspaceError =>
+  class hookError: detail :: String exitCode: exitCode :: Integer output: output :: String -> WorkspaceError =>
     self
       new: #{
         #kind => "hook_error",

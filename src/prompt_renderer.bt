@@ -19,14 +19,14 @@ Value subclass: PromptRenderer
     }
 
   /// Renders a prompt template with issue and attempt variables, returning Result.
-  class render: template :: String | Nil issue: issue :: Dictionary attempt: attempt :: Integer | Nil -> Result =>
+  class render: template :: String | Nil issue: issue :: Dictionary attempt: attempt :: Integer | Nil -> Result(String, TemplateError) =>
     renderer := self shared
     renderer
       render: template
       issue: issue
       attempt: attempt
 
-  render: template :: String | Nil issue: issue :: Dictionary attempt: attempt :: Integer | Nil -> Result =>
+  render: template :: String | Nil issue: issue :: Dictionary attempt: attempt :: Integer | Nil -> Result(String, TemplateError) =>
     template isNil ifTrue: [
       ^Result ok: "You are working on an issue from Linear."
     ]

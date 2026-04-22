@@ -4,12 +4,12 @@
 /// CandidateFilter — pure computation helpers for dispatch eligibility,
 /// sorting by priority/age, and per-state concurrency control.
 Value subclass: CandidateFilter
-  field: activeStates :: List
-  field: terminalStates :: List
-  field: maxByState :: Dictionary
+  field: activeStates :: List(String) = #()
+  field: terminalStates :: List(String) = #()
+  field: maxByState :: Dictionary = #{}
 
   /// Returns issues eligible for dispatch, respecting concurrency and state limits.
-  class eligible: issues :: List running: running :: Dictionary claimed: claimed :: List activeStates: activeStates :: List terminalStates: terminalStates :: List maxConcurrent: maxConcurrent :: Integer maxByState: maxByState :: Dictionary -> List =>
+  class eligible: issues :: List(Dictionary) running: running :: Dictionary claimed: claimed :: List(String) activeStates: activeStates :: List(String) terminalStates: terminalStates :: List(String) maxConcurrent: maxConcurrent :: Integer maxByState: maxByState :: Dictionary -> List(Dictionary) =>
     filter := self
       new: #{
         #activeStates => activeStates,
@@ -23,9 +23,10 @@ Value subclass: CandidateFilter
       maxConcurrent: maxConcurrent
 
   /// Sorts issues by priority (ascending), then created_at, then identifier.
-  class sortForDispatch: issues :: List -> List => (self new) doSort: issues
+  class sortForDispatch: issues :: List(Dictionary) -> List(Dictionary) =>
+    (self new) doSort: issues
 
-  doFilter: issues :: List running: running :: Dictionary claimed: claimed :: List maxConcurrent: maxConcurrent :: Integer -> List =>
+  doFilter: issues :: List(Dictionary) running: running :: Dictionary claimed: claimed :: List(String) maxConcurrent: maxConcurrent :: Integer -> List(Dictionary) =>
     runningCount := running size
     availableGlobal := maxConcurrent - runningCount
     availableGlobal <= 0 ifTrue: [^#()]
@@ -46,7 +47,7 @@ Value subclass: CandidateFilter
       ]
     finalAcc at: "result"
 
-  accumulate: acc :: Dictionary issue: issue :: Dictionary running: running :: Dictionary claimed: claimed :: List available: availableGlobal :: Integer -> Dictionary =>
+  accumulate: acc :: Dictionary issue: issue :: Dictionary running: running :: Dictionary claimed: claimed :: List(String) available: availableGlobal :: Integer -> Dictionary =>
     slotsUsed := acc at: "slots"
     slotsUsed >= availableGlobal ifTrue: [^acc]
     runningByState := acc at: "byState"
@@ -77,7 +78,7 @@ Value subclass: CandidateFilter
           ]
       ]
 
-  isEligible: issue :: Dictionary running: running :: Dictionary claimed: claimed :: List runningByState: runningByState :: Dictionary -> Boolean =>
+  isEligible: issue :: Dictionary running: running :: Dictionary claimed: claimed :: List(String) runningByState: runningByState :: Dictionary -> Boolean =>
     id := issue at: "id" ifAbsent: [nil]
     id isNil ifTrue: [^false]
     identifier := issue at: "identifier" ifAbsent: [nil]
@@ -133,7 +134,7 @@ Value subclass: CandidateFilter
     stateLower := state lowercase
     self.terminalStates anySatisfy: [:s | s lowercase == stateLower]
 
-  doSort: issues :: List -> List =>
+  doSort: issues :: List(Dictionary) -> List(Dictionary) =>
     // sort: expects boolean comparator (a < b), not three-way
     issues sort: [:a :b | self shouldComeBefore: a than: b]
 

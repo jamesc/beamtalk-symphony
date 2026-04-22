@@ -34,7 +34,7 @@ Value subclass: WorkspaceManager
     self.root ++ "/" ++ key
 
   // --- Containment validation ---
-  validateContainment: wsPath :: String -> Result =>
+  validateContainment: wsPath :: String -> Result(Boolean, Error) =>
     (File absolutePath: self.root)
       andThen: [:absRoot |
         (File absolutePath: wsPath) andThen: [:absWs |
@@ -42,7 +42,7 @@ Value subclass: WorkspaceManager
         ]
       ]
 
-  checkContainment: absRoot :: String workspace: absWs :: String -> Result =>
+  checkContainment: absRoot :: String workspace: absWs :: String -> Result(Boolean, WorkspaceError) =>
     (absWs startsWith: absRoot ++ "/") ifTrue: [^Result ok: true]
     absWs == absRoot
       ifTrue: [
@@ -61,7 +61,7 @@ Value subclass: WorkspaceManager
   // --- Create or reuse ---
 
   /// Creates or reuses a workspace directory for the issue, running after_create hook.
-  createForIssue: identifier :: String -> Result =>
+  createForIssue: identifier :: String -> Result(Dictionary, WorkspaceError) =>
     wsPath := self workspacePath: identifier
     containment := self validateContainment: wsPath
     containment isError ifTrue: [^containment]
@@ -101,19 +101,19 @@ Value subclass: WorkspaceManager
   // --- Hook execution ---
 
   /// Runs the before_run hook script in the workspace directory.
-  runBeforeRun: wsPath :: String -> Result =>
-    self.hooksBeforeRun isEmpty ifTrue: [^Result ok: true]
+  runBeforeRun: wsPath :: String -> Result(String, WorkspaceError) =>
+    self.hooksBeforeRun isEmpty ifTrue: [^Result ok: ""]
     self runHook: self.hooksBeforeRun inDir: wsPath
 
-  runAfterRun: wsPath :: String -> Result =>
-    self.hooksAfterRun isEmpty ifTrue: [^Result ok: true]
+  runAfterRun: wsPath :: String -> Result(String, WorkspaceError) =>
+    self.hooksAfterRun isEmpty ifTrue: [^Result ok: ""]
     self runHook: self.hooksAfterRun inDir: wsPath
 
-  runBeforeRemove: wsPath :: String -> Result =>
-    self.hooksBeforeRemove isEmpty ifTrue: [^Result ok: true]
+  runBeforeRemove: wsPath :: String -> Result(String, WorkspaceError) =>
+    self.hooksBeforeRemove isEmpty ifTrue: [^Result ok: ""]
     self runHook: self.hooksBeforeRemove inDir: wsPath
 
-  runHook: script :: String inDir: dir :: String -> Result =>
+  runHook: script :: String inDir: dir :: String -> Result(String, WorkspaceError) =>
     procResult := [
       Subprocess
         open: "/bin/sh"
@@ -142,7 +142,7 @@ Value subclass: WorkspaceManager
   // --- Cleanup ---
 
   /// Runs the before_remove hook and deletes the workspace directory.
-  removeWorkspace: identifier :: String -> Result =>
+  removeWorkspace: identifier :: String -> Result(Boolean, WorkspaceError) =>
     wsPath := self workspacePath: identifier
     (File isDirectory: wsPath) ifFalse: [^Result ok: true]
     self runBeforeRemove: wsPath
@@ -150,7 +150,7 @@ Value subclass: WorkspaceManager
     Result ok: true
 
   // --- Validation for agent launch ---
-  validateCwd: cwd :: String forIssue: identifier :: String -> Result =>
+  validateCwd: cwd :: String forIssue: identifier :: String -> Result(Boolean, Error) =>
     expected := self workspacePath: identifier
     (File absolutePath: expected)
       andThen: [:absExpected |
@@ -159,7 +159,7 @@ Value subclass: WorkspaceManager
         ]
       ]
 
-  checkCwd: absExpected :: String actual: absCwd :: String -> Result =>
+  checkCwd: absExpected :: String actual: absCwd :: String -> Result(Boolean, WorkspaceError) =>
     absExpected == absCwd ifTrue: [
       Result ok: true
     ] ifFalse: [
