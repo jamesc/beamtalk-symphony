@@ -6,8 +6,8 @@
 Actor subclass: WorkflowWatcher
   state: path :: String
   state: lastModified
-  state: pollIntervalMs :: Integer
-  state: onReload :: Block
+  state: pollIntervalMs :: Integer = 5000
+  state: onReload :: Block | Nil = nil
 
   /// Starts polling the given path for changes, calling callback on reload.
   class start: path :: String onReload: callback :: Block -> WorkflowWatcher =>

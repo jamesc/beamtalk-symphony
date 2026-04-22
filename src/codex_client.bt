@@ -11,7 +11,7 @@ Actor subclass: CodexClient
   state: nextId :: Integer
   state: workspacePath :: String
   state: config :: ResolvedConfig
-  state: onEvent :: Block
+  state: onEvent :: Block | Nil = nil
 
   /// Spawns a new CodexClient actor bound to the given workspace directory.
   class start: workspacePath :: String config: config :: ResolvedConfig onEvent: callback :: Block | Nil -> CodexClient =>

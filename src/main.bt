@@ -6,4 +6,4 @@
 typed Object subclass: Main
 
   /// Starts the supervisor tree. Children use initialize hooks to self-start.
-  class run -> Supervisor => SymphonySupervisor supervise
+  class run -> Result(SymphonySupervisor, Error) => SymphonySupervisor supervise

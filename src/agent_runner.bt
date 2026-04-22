@@ -135,7 +135,6 @@ typed Actor subclass: AgentRunner
     refreshed isEmpty ifTrue: [^Result ok: #{"status" => "issue_not_found"}]
     currentState := (refreshed at: 1) at: "state" ifAbsent: [nil]
     activeStates := self.config trackerActiveStates
-    @expect type
     isActive := activeStates anySatisfy: [:s |
       s lowercase == currentState lowercase
     ]

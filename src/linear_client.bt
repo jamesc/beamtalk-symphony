@@ -73,14 +73,14 @@ Value subclass: LinearClient
   // --- Candidate issue fetch (BT-1376) ---
 
   /// Fetches all issues in active states for the configured project, with pagination.
-  fetchCandidateIssues: activeStates :: List(String) -> Result(List(String)) =>
+  fetchCandidateIssues: activeStates :: List(String) -> Result(List(Dictionary)) =>
     activeStates isEmpty ifTrue: [^Result ok: #()]
     self
       fetchAllPages: activeStates
       cursor: nil
       accumulated: #()
 
-  fetchAllPages: activeStates :: List(String) cursor: cursor :: Integer | Nil accumulated: acc :: List(String) -> Result(List(String)) =>
+  fetchAllPages: activeStates :: List(String) cursor: cursor :: Integer | Nil accumulated: acc :: List(Dictionary) -> Result(List(Dictionary)) =>
     vars := #{
       "projectSlug" => self.projectSlug,
       "states" => activeStates,
