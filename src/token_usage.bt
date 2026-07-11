@@ -24,3 +24,11 @@ typed Value subclass: TokenUsage
   outputDelta -> Integer => self output - self lastReportedOutput
 
   totalDelta -> Integer => self total - self lastReportedTotal
+
+  /// Wire-format JSON representation (JsonRepresentable, ADR 0068).
+  asJson -> Dictionary =>
+    #{
+      "input_tokens" => self.input,
+      "output_tokens" => self.output,
+      "total_tokens" => self.total
+    }

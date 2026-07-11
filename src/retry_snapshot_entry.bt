@@ -20,7 +20,8 @@ typed Value subclass: RetrySnapshotEntry
         #error => r error
       }
 
-  asDictionary -> Dictionary =>
+  /// Wire-format JSON representation (JsonRepresentable, ADR 0068).
+  asJson -> Dictionary =>
     #{
       "issue_id" => self.issueId,
       "issue_identifier" => self.issueIdentifier,

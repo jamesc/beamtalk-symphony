@@ -34,7 +34,8 @@ typed Value subclass: RunningSnapshotEntry
         #tokens => entry tokens
       }
 
-  asDictionary -> Dictionary =>
+  /// Wire-format JSON representation (JsonRepresentable, ADR 0068).
+  asJson -> Dictionary =>
     #{
       "issue_id" => self.issueId,
       "issue_identifier" => self.issueIdentifier,
@@ -45,9 +46,5 @@ typed Value subclass: RunningSnapshotEntry
       "last_message" => self.lastMessage,
       "started_at" => self.startedAt,
       "last_event_at" => self.lastEventAt,
-      "tokens" => #{
-        "input_tokens" => self.tokens input,
-        "output_tokens" => self.tokens output,
-        "total_tokens" => self.tokens total
-      }
+      "tokens" => self.tokens
     }

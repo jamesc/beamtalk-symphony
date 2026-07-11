@@ -3,7 +3,7 @@
 
 /// CandidateFilter — pure computation helpers for dispatch eligibility,
 /// sorting by priority/age, and per-state concurrency control.
-Value subclass: CandidateFilter
+typed Value subclass: CandidateFilter
   field: activeStates :: List(String) = #()
   field: terminalStates :: List(String) = #()
   field: maxByState :: Dictionary = #{}
@@ -59,7 +59,8 @@ Value subclass: CandidateFilter
     // Add to result
     newResult := (acc at: "result") add: issue
     newSlots := slotsUsed + 1
-    st := (issue state ifNil: [""]) lowercase
+    @expect type
+    st :: String := (issue state ifNil: [""]) lowercase
     cur := runningByState at: st ifAbsent: [0]
     newByState := runningByState at: st put: cur + 1
     #{"result" => newResult, "slots" => newSlots, "byState" => newByState}
@@ -164,8 +165,10 @@ Value subclass: CandidateFilter
       ]
 
     // identifier lexicographic
-    iA := a identifier ifNil: [""]
-    iB := b identifier ifNil: [""]
+    @expect type
+    iA :: String := a identifier ifNil: [""]
+    @expect type
+    iB :: String := b identifier ifNil: [""]
     iA < iB ifTrue: [^true]
     iA > iB ifTrue: [^false]
     false

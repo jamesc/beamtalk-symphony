@@ -86,7 +86,7 @@ TestCase subclass: OrchestratorTest
         }
       }) unwrap
     orch := Orchestrator create: config promptTemplate: "test"
-    snapshot := orch getSnapshot asDictionary
+    snapshot := orch getSnapshot asJson
     // Verify all expected keys exist
     self assert: (snapshot includesKey: "counts")
     self assert: (snapshot includesKey: "running")

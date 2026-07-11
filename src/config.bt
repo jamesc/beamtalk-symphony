@@ -4,7 +4,7 @@
 /// Config — internal parser for workflow YAML config.
 /// Public API: `Config resolve: map` -> Result(ResolvedConfig).
 /// All other methods are internal to the parsing/validation pipeline.
-Value subclass: Config
+typed Value subclass: Config
   field: raw :: Dictionary
 
   // --- Internal ---
@@ -103,7 +103,8 @@ Value subclass: Config
     (raw isKindOf: String) ifTrue: [
       (raw startsWith: "$") ifTrue: [^self resolveEnv: raw]
     ]
-    raw
+    result :: String := raw
+    result
 
   trackerProjectSlug -> String | Nil =>
     raw := self
@@ -114,7 +115,8 @@ Value subclass: Config
     (raw isKindOf: String) ifTrue: [
       (raw startsWith: "$") ifTrue: [^self resolveEnv: raw]
     ]
-    raw
+    result :: String := raw
+    result
 
   trackerActiveStates -> List(String) =>
     self
@@ -153,7 +155,8 @@ Value subclass: Config
           ]
         ^self expandHome: raw
       ]
-    raw
+    result :: String := raw
+    result
 
   // --- Agent ---
   maxConcurrentAgents -> Integer =>
@@ -183,11 +186,12 @@ Value subclass: Config
       key: "max_concurrent_agents_by_state"
       default: #{}
     (raw isKindOf: Dictionary) ifFalse: [^#{}]
+    rawMap :: Dictionary := raw
     // Build normalized map using inject on keys
-    raw keys
+    rawMap keys
       inject: #{}
       into: [:acc :k |
-        intVal := self coerceInt: (raw at: k) default: nil
+        intVal := self coerceInt: (rawMap at: k) default: nil
         self
           addToMap: acc
           key: k lowercase
@@ -344,7 +348,7 @@ Value subclass: Config
     Result ok: true
 
   // --- Helpers ---
-  nested: section :: String key: key :: String default: default =>
+  nested: section :: String key: key :: String default: default :: Object | Nil -> Object | Nil =>
     self.raw isNil ifTrue: [^default]
     sectionMap := self.raw at: section ifAbsent: [nil]
     sectionMap isNil ifTrue: [^default]
@@ -377,7 +381,7 @@ Value subclass: Config
       ]
     path
 
-  coerceInt: val default: default -> Integer | Nil =>
+  coerceInt: val :: Object | Nil default: default :: Integer | Nil -> Integer | Nil =>
     val isNil ifTrue: [^default]
     (val isKindOf: Integer) ifTrue: [^val]
     (val isKindOf: String) ifTrue: [

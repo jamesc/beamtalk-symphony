@@ -3,14 +3,14 @@
 
 /// WorkflowWatcher — polls WORKFLOW.md for modification time changes
 /// and triggers a config/prompt reload callback on change.
-Actor subclass: WorkflowWatcher
+typed Actor subclass: WorkflowWatcher
   state: path :: String
-  state: lastModified
+  state: lastModified :: DateTime | Nil = nil
   state: pollIntervalMs :: Integer = 5000
-  state: onReload :: Block | Nil = nil
+  state: onReload :: Block(ResolvedConfig, String, Object) | Nil = nil
 
   /// Starts polling the given path for changes, calling callback on reload.
-  class start: path :: String onReload: callback :: Block -> WorkflowWatcher =>
+  class start: path :: String onReload: callback :: Block(ResolvedConfig, String, Object) -> WorkflowWatcher =>
     watcher := self spawnWith: #{
       #path => path,
       #onReload => callback,
@@ -23,7 +23,7 @@ Actor subclass: WorkflowWatcher
   initialize -> Nil => self schedulePoll!
 
   /// Sets the reload callback (used by supervisor initialize: to wire children).
-  onReload: callback :: Block -> Block => self.onReload := callback
+  onReload: callback :: Block(ResolvedConfig, String, Object) -> Block(ResolvedConfig, String, Object) => self.onReload := callback
 
   schedulePoll -> Timer =>
     Timer after: self.pollIntervalMs do: [self checkForChanges!]

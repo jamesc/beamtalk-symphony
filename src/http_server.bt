@@ -7,7 +7,7 @@
 /// Uses an ETS table (#symphony_http) to share state with the cowboy handler,
 /// since handler blocks run in cowboy's process and can't make actor calls.
 /// The orchestrator pushes its snapshot to ETS via `publishSnapshot`.
-Actor subclass: HttpServer
+typed Actor subclass: HttpServer
   state: server :: HTTPServer
   state: port :: Integer
   state: refs :: Ets(Symbol, Snapshot)
@@ -18,17 +18,21 @@ Actor subclass: HttpServer
   class start: port :: Integer -> HttpServer => self spawnWith: #{#port => port}
 
   /// Lifecycle hook — stops the HTTP listener on shutdown.
-  terminate: _reason =>
+  terminate: _reason :: Object -> Nil =>
     self.server isNil ifFalse: [self.server stop]
     self.refs isNil ifFalse: [[self.refs delete] on: Error do: [:e | nil]]
 
   /// Lifecycle hook — starts the HTTP listener after spawn.
-  initialize =>
+  initialize -> Nil =>
     // Delete any stale table from a previous instance, then create fresh
     [Ets named: #symphony_http] on: Error do: [:e | nil]
     [(Ets named: #symphony_http) delete] on: Error do: [:e | nil]
     self.refs := Ets new: #symphony_http type: #set
-    handler := [:req | self handleRequest: req]
+    handler := [:req |
+      @expect type
+      request :: HTTPRequest := req
+      self handleRequest: request
+    ]
     result := [HTTPServer start: self.port handler: handler]
       on: Error
       do: [:e |
@@ -49,7 +53,7 @@ Actor subclass: HttpServer
   actualPort -> Integer => self.server port
 
   // --- Request routing ---
-  handleRequest: req -> HTTPResponse =>
+  handleRequest: req :: HTTPRequest -> HTTPResponse =>
     method := req method
     path := req path
     method == "GET" ifTrue: [^self handleGet: path]
@@ -246,7 +250,7 @@ Actor subclass: HttpServer
   /// Returns the full orchestrator snapshot as JSON.
   handleState -> HTTPResponse =>
     snapshot := self getSnapshot
-    self respond: 200 body: (Json generate: snapshot asDictionary)
+    self respond: 200 body: (Json generate: snapshot)
 
   handleIssueDetail: identifier :: String -> HTTPResponse =>
     identifier isEmpty ifTrue: [
@@ -266,9 +270,9 @@ Actor subclass: HttpServer
       ifTrue: [
         ^self respond: 404 body: (self errorJson: "issue_not_found" msg: "Issue not found")
       ]
-    self respond: 200 body: (Json generate: found asDictionary)
+    self respond: 200 body: (Json generate: found)
 
   /// Returns current snapshot and signals data is fresh from last tick.
   handleRefresh -> HTTPResponse =>
     snapshot := self getSnapshot
-    self respond: 200 body: (Json generate: snapshot asDictionary)
+    self respond: 200 body: (Json generate: snapshot)

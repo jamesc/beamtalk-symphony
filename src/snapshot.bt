@@ -32,18 +32,15 @@ typed Value subclass: Snapshot
         #rateLimits => rateLimits
       }
 
-  asDictionary -> Dictionary =>
+  /// Wire-format JSON representation (JsonRepresentable, ADR 0068).
+  asJson -> Dictionary =>
     #{
       "counts" => #{
         "running" => self.runningCount,
         "retrying" => self.retryingCount
       },
-      "running" => (self.running collect: [:e | e asDictionary]),
-      "retrying" => (self.retrying collect: [:e | e asDictionary]),
-      "codex_totals" => #{
-        "input_tokens" => self.codexTotals input,
-        "output_tokens" => self.codexTotals output,
-        "total_tokens" => self.codexTotals total
-      },
+      "running" => self.running,
+      "retrying" => self.retrying,
+      "codex_totals" => self.codexTotals,
       "rate_limits" => self.rateLimits
     }

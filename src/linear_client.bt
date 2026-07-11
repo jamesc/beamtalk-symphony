@@ -4,7 +4,7 @@
 /// LinearClient — GraphQL client for the Linear issue tracker API.
 /// Handles transport, auth, error mapping, paginated candidate fetch,
 /// state refresh, and issue normalization.
-Value subclass: LinearClient
+typed Value subclass: LinearClient
   field: endpoint :: String = "https://api.linear.app/graphql"
   field: apiKey :: String = ""
   field: projectSlug :: String = ""
@@ -43,7 +43,9 @@ Value subclass: LinearClient
       }
 
     (httpResult mapError: [:e |
-      LinearError apiRequest: e displayString
+      @expect type
+      err :: Error := e
+      LinearError apiRequest: err displayString
     ]) andThen: [:resp | self parseResponse: resp]
 
   parseResponse: resp :: HTTPResponse -> Result(Dictionary, LinearError) =>
@@ -52,9 +54,13 @@ Value subclass: LinearClient
     ]
 
     jsonBody := resp bodyAsJson ifOk: [:v |
-      v
+      @expect type
+      body :: Dictionary := v
+      body
     ] ifError: [:e |
-      ^Result error: (LinearError unknownPayload: e displayString)
+      @expect type
+      err :: Error := e
+      ^Result error: (LinearError unknownPayload: err displayString)
     ]
 
     errors := jsonBody at: "errors" ifAbsent: [nil]

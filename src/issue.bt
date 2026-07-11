@@ -55,9 +55,10 @@ typed Value subclass: Issue
       IssueRef fromNode: (r at: "relatedIssue" ifAbsent: [#{}])
     ]
 
-  /// Converts back to the wire-shaped Dictionary, for boundaries that still
-  /// expect dict-like data (e.g. PromptRenderer's template variable lookup).
-  asDictionary -> Dictionary =>
+  /// Wire-format JSON representation (JsonRepresentable, ADR 0068). Also
+  /// used by boundaries that expect dict-like data, e.g. PromptRenderer's
+  /// template variable lookup.
+  asJson -> Dictionary =>
     #{
       "id" => self.id,
       "identifier" => self.identifier,
@@ -68,7 +69,7 @@ typed Value subclass: Issue
       "branch_name" => self.branchName,
       "url" => self.url,
       "labels" => self.labels,
-      "blocked_by" => (self.blockedBy collect: [:r | r asDictionary]),
+      "blocked_by" => self.blockedBy,
       "created_at" => self.createdAt,
       "updated_at" => self.updatedAt
     }

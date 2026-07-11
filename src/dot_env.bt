@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /// DotEnv — loads KEY=VALUE pairs from a .env file into the process environment.
-Object subclass: DotEnv
+typed Object subclass: DotEnv
 
   /// Reads the .env file at path and sets each KEY=VALUE in the OS environment.
   class load: path :: String -> Result(Integer, Error) =>

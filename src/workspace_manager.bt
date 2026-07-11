@@ -3,7 +3,7 @@
 
 /// WorkspaceManager — manages per-issue workspace directories with path
 /// sanitization, containment validation, lifecycle hooks, and cleanup.
-Value subclass: WorkspaceManager
+typed Value subclass: WorkspaceManager
   field: root :: String
   field: hooksAfterCreate :: String = ""
   field: hooksBeforeRun :: String = ""
@@ -26,7 +26,9 @@ Value subclass: WorkspaceManager
   // --- Path derivation ---
   sanitizeIdentifier: identifier :: String -> String =>
     identifier collect: [:ch |
-      (ch matchesRegex: "[A-Za-z0-9._-]") ifTrue: [ch] ifFalse: ["_"]
+      @expect type
+      char :: String := ch
+      (char matchesRegex: "[A-Za-z0-9._-]") ifTrue: [char] ifFalse: ["_"]
     ]
 
   workspacePath: identifier :: String -> String =>

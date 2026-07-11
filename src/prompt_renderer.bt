@@ -4,7 +4,7 @@
 /// PromptRenderer — Liquid-compatible template rendering for agent prompts.
 /// Supports {{ var }} interpolation, {% if %}/{% endif %},
 /// and {% for %}/{% endfor %} control flow.
-Value subclass: PromptRenderer
+typed Value subclass: PromptRenderer
   field: openVar :: String = ""
   field: closeVar :: String = ""
   field: openTag :: String = ""
@@ -33,7 +33,7 @@ Value subclass: PromptRenderer
     template trim isEmpty ifTrue: [
       ^Result ok: "You are working on an issue from Linear."
     ]
-    vars := #{"issue" => issue asDictionary, "attempt" => attempt}
+    vars := #{"issue" => issue asJson, "attempt" => attempt}
     result := [
       self processAll: template asString vars: vars
     ] on: Error do: [:e | ^Result error: (TemplateError renderError: e message)]
@@ -77,7 +77,7 @@ Value subclass: PromptRenderer
       self processOneIf: result vars: vars
     ] ifFalse: [result]
 
-  checkTruthy: val -> Boolean =>
+  checkTruthy: val :: Printable | Nil -> Boolean =>
     val isNil ifTrue: [^false]
     val == false ifTrue: [^false]
     val == "" ifTrue: [^false]
@@ -124,13 +124,17 @@ Value subclass: PromptRenderer
       self processOneFor: result vars: vars
     ] ifFalse: [result]
 
-  renderForBody: body :: String items: coll itemName: itemName :: String vars: vars :: Dictionary -> String =>
+  renderForBody: body :: String items: coll :: Printable | Nil itemName: itemName :: String vars: vars :: Dictionary -> String =>
     coll isNil ifTrue: [^""]
     (coll isKindOf: List) ifFalse: [^""]
-    coll
+    @expect type
+    items :: List := coll
+    items
       inject: ""
       into: [:acc :item |
-        innerVars := vars at: itemName put: item
+        @expect type
+        value :: Printable := item
+        innerVars := vars at: itemName put: value
         acc ++ (self interpolate: body vars: innerVars)
       ]
 
@@ -156,7 +160,7 @@ Value subclass: PromptRenderer
     prefix ++ valStr ++ suffix
 
   // --- Variable resolution ---
-  resolveVar: expr :: String vars: vars :: Dictionary =>
+  resolveVar: expr :: String vars: vars :: Dictionary -> Printable | Nil =>
     parts := expr split: "."
     parts
       inject: vars

@@ -20,5 +20,5 @@ typed Value subclass: IssueRef
         ]) at: "name" ifAbsent: [nil])
       }
 
-  asDictionary -> Dictionary =>
+  asJson -> Dictionary =>
     #{"id" => self.id, "identifier" => self.identifier, "state" => self.state}

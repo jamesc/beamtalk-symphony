@@ -4,7 +4,7 @@
 /// ResolvedConfig — fully validated, typed configuration with no nil fields.
 /// Produced by `Config resolve:` after validation succeeds.
 /// All required fields are guaranteed present; optional fields default to "".
-Value subclass: ResolvedConfig
+typed Value subclass: ResolvedConfig
   // --- Tracker ---
   field: trackerKind :: String
   field: trackerEndpoint :: String

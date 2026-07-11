@@ -4,7 +4,7 @@
 /// OrchestratorDeps — injected dependencies for the Orchestrator.
 /// Bundles config, clients, and prompt template as an immutable value
 /// separate from runtime lifecycle state.
-Value subclass: OrchestratorDeps
+typed Value subclass: OrchestratorDeps
   field: config :: ResolvedConfig
   field: linearClient :: LinearClient
   field: workspaceManager :: WorkspaceManager

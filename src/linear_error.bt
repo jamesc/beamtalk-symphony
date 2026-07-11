@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /// LinearError — typed error for Linear API failures.
-Value subclass: LinearError
+typed Value subclass: LinearError
   field: kind :: String = ""
   field: detail :: String | Nil = nil
   field: status :: Integer | Nil = nil

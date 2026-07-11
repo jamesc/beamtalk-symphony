@@ -4,9 +4,9 @@
 /// SymphonySupervisor — OTP supervision tree for the Symphony service.
 /// Loads WORKFLOW.md config at startup, creates clients, and starts
 /// Orchestrator, WorkflowWatcher, and optionally HttpServer.
-Supervisor subclass: SymphonySupervisor
+typed Supervisor subclass: SymphonySupervisor
 
-  class start => self supervise
+  class start -> Result(Self, Error) => self supervise
 
   class strategy -> Symbol => #oneForOne
 
@@ -50,9 +50,10 @@ Supervisor subclass: SymphonySupervisor
     specs add: httpSpec
 
   /// Wires the watcher's reload callback to the orchestrator after both start.
-  class initialize: sup =>
-    orch := sup which: Orchestrator
-    watcher := sup which: WorkflowWatcher
+  class initialize: sup :: SymphonySupervisor -> Nil =>
+    orch :: Orchestrator := (sup which: Orchestrator) unwrap
+    watcher :: WorkflowWatcher := (sup which: WorkflowWatcher) unwrap
     watcher onReload: [:config :prompt |
       orch reloadConfig: config prompt: prompt
     ]
+    nil
