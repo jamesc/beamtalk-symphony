@@ -29,14 +29,12 @@ TestCase subclass: OrchestratorTest
       }) unwrap
     orch := Orchestrator create: config promptTemplate: "test"
     snapshot := orch getSnapshot
-    counts := snapshot at: "counts"
-    self assert: (counts at: "running") equals: 0
-    self assert: (counts at: "retrying") equals: 0
-    self assert: (snapshot at: "running") size equals: 0
-    self assert: (snapshot at: "retrying") size equals: 0
-    totals := snapshot at: "codex_totals"
-    self assert: (totals at: "input_tokens") equals: 0
-    self assert: (snapshot at: "rate_limits") equals: nil
+    self assert: snapshot runningCount equals: 0
+    self assert: snapshot retryingCount equals: 0
+    self assert: snapshot running size equals: 0
+    self assert: snapshot retrying size equals: 0
+    self assert: snapshot codexTotals input equals: 0
+    self assert: snapshot rateLimits equals: nil
     self assert: orch stop equals: #ok
 
   testReloadConfig =>
@@ -88,7 +86,7 @@ TestCase subclass: OrchestratorTest
         }
       }) unwrap
     orch := Orchestrator create: config promptTemplate: "test"
-    snapshot := orch getSnapshot
+    snapshot := orch getSnapshot asDictionary
     // Verify all expected keys exist
     self assert: (snapshot includesKey: "counts")
     self assert: (snapshot includesKey: "running")

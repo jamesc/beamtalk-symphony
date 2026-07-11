@@ -4,7 +4,11 @@
 TestCase subclass: AgentRunnerTest
 
   testFirstTurnPromptRendering =>
-    issue := #{"identifier" => "BT-1", "title" => "Fix bug", "id" => "abc"}
+    issue := Issue new: #{
+      #identifier => "BT-1",
+      #title => "Fix bug",
+      #id => "abc"
+    }
     lb := "\{"
     rb := "}"
     template := lb
@@ -33,7 +37,7 @@ TestCase subclass: AgentRunnerTest
     self assert: (prompt includesSubstring: "Continue")
 
   testFirstTurnPromptWithAttempt =>
-    issue := #{"identifier" => "X-1", "title" => "Task", "id" => "x"}
+    issue := Issue new: #{#identifier => "X-1", #title => "Task", #id => "x"}
     result := PromptRenderer
       render: "Work on it"
       issue: issue

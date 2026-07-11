@@ -1,0 +1,24 @@
+// Copyright 2026 James Casey
+// SPDX-License-Identifier: Apache-2.0
+
+/// IssueRef — narrow {id, identifier, state} reference to a Linear issue.
+/// Used for blocker relations (Issue>>blockedBy) and state-refresh results
+/// (LinearClient>>fetchIssueStatesByIds:), which share the same GraphQL
+/// node shape: id, identifier, state { name }.
+typed Value subclass: IssueRef
+  field: id :: String | Nil = nil
+  field: identifier :: String | Nil = nil
+  field: state :: String | Nil = nil
+
+  class fromNode: node :: Dictionary -> IssueRef =>
+    self
+      new: #{
+        #id => (node at: "id" ifAbsent: [nil]),
+        #identifier => (node at: "identifier" ifAbsent: [nil]),
+        #state => ((node at: "state" ifAbsent: [
+          #{}
+        ]) at: "name" ifAbsent: [nil])
+      }
+
+  asDictionary -> Dictionary =>
+    #{"id" => self.id, "identifier" => self.identifier, "state" => self.state}

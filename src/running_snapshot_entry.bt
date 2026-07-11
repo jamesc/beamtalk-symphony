@@ -1,0 +1,53 @@
+// Copyright 2026 James Casey
+// SPDX-License-Identifier: Apache-2.0
+
+/// RunningSnapshotEntry — the projection of a RunningEntry exposed in the
+/// orchestrator's runtime snapshot (dashboard + HTTP API).
+typed Value subclass: RunningSnapshotEntry
+  field: issueId :: String = ""
+  field: issueIdentifier :: String = ""
+  field: state :: String = ""
+  field: sessionId :: String | Nil = nil
+  field: lastEvent :: String | Nil = nil
+  field: lastMessage :: String | Nil = nil
+  field: turnCount :: Integer = 0
+  field: startedAt :: Integer = 0
+  field: lastEventAt :: Integer | Nil = nil
+  field: tokens :: TokenUsage = TokenUsage new
+
+  class fromRunningEntry: entry :: RunningEntry -> RunningSnapshotEntry =>
+    @expect type
+    issueId :: String := entry issue id ifNil: [""]
+    @expect type
+    state :: String := entry issue state ifNil: [""]
+    self
+      new: #{
+        #issueId => issueId,
+        #issueIdentifier => entry identifier,
+        #state => state,
+        #sessionId => entry session sessionId,
+        #turnCount => entry session turnCount,
+        #lastEvent => entry session lastEvent,
+        #lastMessage => entry session lastMessage,
+        #startedAt => entry startedAt,
+        #lastEventAt => entry session lastTimestamp,
+        #tokens => entry tokens
+      }
+
+  asDictionary -> Dictionary =>
+    #{
+      "issue_id" => self.issueId,
+      "issue_identifier" => self.issueIdentifier,
+      "state" => self.state,
+      "session_id" => self.sessionId,
+      "turn_count" => self.turnCount,
+      "last_event" => self.lastEvent,
+      "last_message" => self.lastMessage,
+      "started_at" => self.startedAt,
+      "last_event_at" => self.lastEventAt,
+      "tokens" => #{
+        "input_tokens" => self.tokens input,
+        "output_tokens" => self.tokens output,
+        "total_tokens" => self.tokens total
+      }
+    }

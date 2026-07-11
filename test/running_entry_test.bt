@@ -11,13 +11,13 @@ TestCase subclass: RunningEntryTest
     self assert: entry retryAttempt equals: nil
 
   testForIssueFactory =>
-    issue := #{"id" => "abc", "title" => "Test"}
+    issue := Issue new: #{#id => "abc", #title => "Test"}
     entry := RunningEntry
       forIssue: issue
       identifier: "BT-123"
       startedAt: 1000
     self assert: entry identifier equals: "BT-123"
-    self assert: (entry issue at: "id") equals: "abc"
+    self assert: entry issue id equals: "abc"
     self assert: entry startedAt equals: 1000
     // Session and tokens are initialized
     self assert: entry session turnCount equals: 0
@@ -25,7 +25,7 @@ TestCase subclass: RunningEntryTest
 
   testUpdateSession =>
     entry := RunningEntry
-      forIssue: #{"id" => "x"}
+      forIssue: (Issue new: #{#id => "x"})
       identifier: "BT-1"
       startedAt: 0
     newSession := (entry session withSessionId: "s1") withThreadId: "t1"
@@ -35,7 +35,7 @@ TestCase subclass: RunningEntryTest
 
   testUpdateTokens =>
     entry := RunningEntry
-      forIssue: #{"id" => "x"}
+      forIssue: (Issue new: #{#id => "x"})
       identifier: "BT-1"
       startedAt: 0
     newTokens := entry tokens
@@ -48,7 +48,7 @@ TestCase subclass: RunningEntryTest
 
   testIncrementTurnCount =>
     entry := RunningEntry
-      forIssue: #{"id" => "x"}
+      forIssue: (Issue new: #{#id => "x"})
       identifier: "BT-1"
       startedAt: 0
     updated := entry withSession: entry session incrementTurnCount
@@ -56,7 +56,7 @@ TestCase subclass: RunningEntryTest
 
   testImmutability =>
     entry := RunningEntry
-      forIssue: #{"id" => "x"}
+      forIssue: (Issue new: #{#id => "x"})
       identifier: "BT-1"
       startedAt: 0
     entry withIdentifier: "changed"

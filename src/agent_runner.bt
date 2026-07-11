@@ -7,7 +7,7 @@
 ///
 /// Uses helper methods for prompt building, turn management, and cleanup.
 typed Actor subclass: AgentRunner
-  state: issue :: Dictionary
+  state: issue :: Issue
   state: attempt :: Integer
   state: config :: ResolvedConfig
   state: workspaceManager :: WorkspaceManager
@@ -19,7 +19,7 @@ typed Actor subclass: AgentRunner
   state: turnNumber :: Integer
 
   /// Spawns a new AgentRunner and starts the run lifecycle asynchronously.
-  class run: issue :: Dictionary attempt: attempt :: Integer config: config :: ResolvedConfig workspaceManager: wm :: WorkspaceManager linearClient: lc :: LinearClient promptTemplate: pt :: String onEvent: callback :: Block -> AgentRunner =>
+  class run: issue :: Issue attempt: attempt :: Integer config: config :: ResolvedConfig workspaceManager: wm :: WorkspaceManager linearClient: lc :: LinearClient promptTemplate: pt :: String onEvent: callback :: Block -> AgentRunner =>
     runner := self
       spawnWith: #{
         #issue => issue,
@@ -39,7 +39,10 @@ typed Actor subclass: AgentRunner
     self.codexClient isNil ifFalse: [self.codexClient stopProcess]
 
   begin -> AgentRunner =>
-    identifier := self.issue at: "identifier" ifAbsent: [""]
+    // ifNil: is declared to return bare Object, so the checker can't narrow
+    // it to String even with the annotation on identifier below.
+    @expect type
+    identifier :: String := self.issue identifier ifNil: [""]
     Logger info: "agent run starting" metadata: #{"issue" => identifier}
     result := self doRun
     result isError
@@ -58,7 +61,8 @@ typed Actor subclass: AgentRunner
     self
 
   doRun -> Result(Dictionary, Error) =>
-    identifier := self.issue at: "identifier" ifAbsent: [""]
+    @expect type
+    identifier :: String := self.issue identifier ifNil: [""]
     // Step 1: Create/reuse workspace
     wsResult := self.workspaceManager createForIssue: identifier
     wsResult isError ifTrue: [^wsResult]
@@ -128,12 +132,12 @@ typed Actor subclass: AgentRunner
     ]
 
     // Re-check issue state via tracker
-    refreshResult := self.linearClient fetchIssueStatesByIds: #(self.issue at: "id")
+    refreshResult := self.linearClient fetchIssueStatesByIds: #(self.issue id)
     refreshResult isError ifTrue: [^refreshResult]
 
     refreshed := refreshResult unwrap
     refreshed isEmpty ifTrue: [^Result ok: #{"status" => "issue_not_found"}]
-    currentState := (refreshed at: 1) at: "state" ifAbsent: [nil]
+    currentState := (refreshed at: 1) state
     activeStates := self.config trackerActiveStates
     isActive := activeStates anySatisfy: [:s |
       s lowercase == currentState lowercase
@@ -178,9 +182,11 @@ typed Actor subclass: AgentRunner
     promptText := promptResult unwrap
 
     // Start the turn
-    title := (self.issue at: "identifier" ifAbsent: [""])
-      ++ ": "
-      ++ (self.issue at: "title" ifAbsent: [""])
+    @expect type
+    issueIdentifier :: String := self.issue identifier ifNil: [""]
+    @expect type
+    issueTitle :: String := self.issue title ifNil: [""]
+    title := issueIdentifier ++ ": " ++ issueTitle
 
     turnResult := self.codexClient
       startTurn: self.threadId

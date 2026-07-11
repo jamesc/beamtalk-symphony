@@ -9,7 +9,7 @@ Value subclass: CandidateFilter
   field: maxByState :: Dictionary = #{}
 
   /// Returns issues eligible for dispatch, respecting concurrency and state limits.
-  class eligible: issues :: List(Dictionary) running: running :: Dictionary claimed: claimed :: List(String) activeStates: activeStates :: List(String) terminalStates: terminalStates :: List(String) maxConcurrent: maxConcurrent :: Integer maxByState: maxByState :: Dictionary -> List(Dictionary) =>
+  class eligible: issues :: List(Issue) running: running :: Dictionary claimed: claimed :: List(String) activeStates: activeStates :: List(String) terminalStates: terminalStates :: List(String) maxConcurrent: maxConcurrent :: Integer maxByState: maxByState :: Dictionary -> List(Issue) =>
     filter := self
       new: #{
         #activeStates => activeStates,
@@ -23,10 +23,10 @@ Value subclass: CandidateFilter
       maxConcurrent: maxConcurrent
 
   /// Sorts issues by priority (ascending), then created_at, then identifier.
-  class sortForDispatch: issues :: List(Dictionary) -> List(Dictionary) =>
+  class sortForDispatch: issues :: List(Issue) -> List(Issue) =>
     (self new) doSort: issues
 
-  doFilter: issues :: List(Dictionary) running: running :: Dictionary claimed: claimed :: List(String) maxConcurrent: maxConcurrent :: Integer -> List(Dictionary) =>
+  doFilter: issues :: List(Issue) running: running :: Dictionary claimed: claimed :: List(String) maxConcurrent: maxConcurrent :: Integer -> List(Issue) =>
     runningCount := running size
     availableGlobal := maxConcurrent - runningCount
     availableGlobal <= 0 ifTrue: [^#()]
@@ -47,7 +47,7 @@ Value subclass: CandidateFilter
       ]
     finalAcc at: "result"
 
-  accumulate: acc :: Dictionary issue: issue :: Dictionary running: running :: Dictionary claimed: claimed :: List(String) available: availableGlobal :: Integer -> Dictionary =>
+  accumulate: acc :: Dictionary issue: issue :: Issue running: running :: Dictionary claimed: claimed :: List(String) available: availableGlobal :: Integer -> Dictionary =>
     slotsUsed := acc at: "slots"
     slotsUsed >= availableGlobal ifTrue: [^acc]
     runningByState := acc at: "byState"
@@ -59,7 +59,7 @@ Value subclass: CandidateFilter
     // Add to result
     newResult := (acc at: "result") add: issue
     newSlots := slotsUsed + 1
-    st := (issue at: "state" ifAbsent: [""]) lowercase
+    st := (issue state ifNil: [""]) lowercase
     cur := runningByState at: st ifAbsent: [0]
     newByState := runningByState at: st put: cur + 1
     #{"result" => newResult, "slots" => newSlots, "byState" => newByState}
@@ -72,20 +72,20 @@ Value subclass: CandidateFilter
         entryIssue isNil
           ifTrue: [acc]
           ifFalse: [
-            st := (entryIssue at: "state" ifAbsent: [""]) lowercase
+            st := (entryIssue state ifNil: [""]) lowercase
             cur := acc at: st ifAbsent: [0]
             acc at: st put: cur + 1
           ]
       ]
 
-  isEligible: issue :: Dictionary running: running :: Dictionary claimed: claimed :: List(String) runningByState: runningByState :: Dictionary -> Boolean =>
-    id := issue at: "id" ifAbsent: [nil]
+  isEligible: issue :: Issue running: running :: Dictionary claimed: claimed :: List(String) runningByState: runningByState :: Dictionary -> Boolean =>
+    id := issue id
     id isNil ifTrue: [^false]
-    identifier := issue at: "identifier" ifAbsent: [nil]
+    identifier := issue identifier
     identifier isNil ifTrue: [^false]
-    title := issue at: "title" ifAbsent: [nil]
+    title := issue title
     title isNil ifTrue: [^false]
-    state := issue at: "state" ifAbsent: [nil]
+    state := issue state
     state isNil ifTrue: [^false]
 
     stateLower := state lowercase
@@ -114,12 +114,12 @@ Value subclass: CandidateFilter
     // Blocker rule for Todo state
     stateLower == "todo"
       ifTrue: [
-        blockers := issue at: "blocked_by" ifAbsent: [#()]
+        blockers := issue blockedBy
         blockers isEmpty
           ifFalse: [
             hasNonTerminal := blockers
               anySatisfy: [:b |
-                bState := b at: "state" ifAbsent: [nil]
+                bState := b state
                 bState isNil ifTrue: [
                   true
                 ] ifFalse: [(self isTerminalState: bState) not]
@@ -134,13 +134,13 @@ Value subclass: CandidateFilter
     stateLower := state lowercase
     self.terminalStates anySatisfy: [:s | s lowercase == stateLower]
 
-  doSort: issues :: List(Dictionary) -> List(Dictionary) =>
+  doSort: issues :: List(Issue) -> List(Issue) =>
     // sort: expects boolean comparator (a < b), not three-way
     issues sort: [:a :b | self shouldComeBefore: a than: b]
 
-  shouldComeBefore: a :: Dictionary than: b :: Dictionary -> Boolean =>
-    pA := a at: "priority" ifAbsent: [nil]
-    pB := b at: "priority" ifAbsent: [nil]
+  shouldComeBefore: a :: Issue than: b :: Issue -> Boolean =>
+    pA := a priority
+    pB := b priority
 
     // nil priority sorts last
     pA isNil
@@ -152,8 +152,8 @@ Value subclass: CandidateFilter
       ]
 
     // created_at oldest first
-    cA := a at: "created_at" ifAbsent: [nil]
-    cB := b at: "created_at" ifAbsent: [nil]
+    cA := a createdAt
+    cB := b createdAt
     cA isNil
       ifFalse: [
         cB isNil
@@ -164,8 +164,8 @@ Value subclass: CandidateFilter
       ]
 
     // identifier lexicographic
-    iA := a at: "identifier" ifAbsent: [""]
-    iB := b at: "identifier" ifAbsent: [""]
+    iA := a identifier ifNil: [""]
+    iB := b identifier ifNil: [""]
     iA < iB ifTrue: [^true]
     iA > iB ifTrue: [^false]
     false

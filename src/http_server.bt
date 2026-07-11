@@ -10,16 +10,12 @@
 Actor subclass: HttpServer
   state: server :: HTTPServer
   state: port :: Integer
-  state: refs :: Ets(Symbol, Dictionary)
+  state: refs :: Ets(Symbol, Snapshot)
 
   class supervisionPolicy -> Symbol => #permanent
 
   /// Starts the HTTP server on the given port.
   class start: port :: Integer -> HttpServer => self spawnWith: #{#port => port}
-
-  /// Called by the orchestrator to push current snapshot into ETS.
-  publishSnapshot: snapshot :: Dictionary =>
-    self.refs isNil ifFalse: [self.refs at: #snapshot put: snapshot]
 
   /// Lifecycle hook — stops the HTTP listener on shutdown.
   terminate: _reason =>
@@ -81,22 +77,9 @@ Actor subclass: HttpServer
     Json generate: #{"error" => #{"code" => code, "message" => message}}
 
   // --- ETS-backed snapshot (safe from cowboy handler) ---
-  emptySnapshot -> Dictionary =>
-    #{
-      "counts" => #{"running" => 0, "retrying" => 0},
-      "running" => #(),
-      "retrying" => #(),
-      "codex_totals" => #{
-        "input_tokens" => 0,
-        "output_tokens" => 0,
-        "total_tokens" => 0
-      },
-      "rate_limits" => nil
-    }
-
-  getSnapshot -> Dictionary =>
-    self.refs isNil ifTrue: [^self emptySnapshot]
-    self.refs at: #snapshot ifAbsent: [self emptySnapshot]
+  getSnapshot -> Snapshot =>
+    self.refs isNil ifTrue: [^Snapshot empty]
+    self.refs at: #snapshot ifAbsent: [Snapshot empty]
 
   // --- Dashboard ---
 
@@ -106,14 +89,13 @@ Actor subclass: HttpServer
     html := self renderDashboard: snapshot
     self respond: 200 body: html
 
-  renderDashboard: snapshot :: Dictionary -> String =>
-    counts := snapshot at: "counts"
-    totals := snapshot at: "codex_totals"
-    runningCount := counts at: "running"
-    retryingCount := counts at: "retrying"
-    runningList := snapshot at: "running"
-    retryList := snapshot at: "retrying"
-    // rateLimits := snapshot at: "rate_limits" // TODO: display
+  renderDashboard: snapshot :: Snapshot -> String =>
+    totals := snapshot codexTotals
+    runningCount := snapshot runningCount
+    retryingCount := snapshot retryingCount
+    runningList := snapshot running
+    retryList := snapshot retrying
+    // rateLimits := snapshot rateLimits // TODO: display
     runningRows := self renderRunningRows: runningList
     retryRows := self renderRetryRows: retryList
 
@@ -162,10 +144,10 @@ Actor subclass: HttpServer
       ++ "</div><div class=stat-label>Retrying</div></div>"
       ++ "</div>"
 
-  dashboardTokens: totals :: Dictionary -> String =>
-    input := totals at: "input_tokens"
-    output := totals at: "output_tokens"
-    total := totals at: "total_tokens"
+  dashboardTokens: totals :: TokenUsage -> String =>
+    input := totals input
+    output := totals output
+    total := totals total
     "<div class=stats>"
       ++ "<div class='stat stat-tokens'><div class=stat-value>"
       ++ (self formatNumber: input)
@@ -205,60 +187,50 @@ Actor subclass: HttpServer
   dashboardFooter -> String =>
     "<div class=footer>Auto-refreshes every 5s · <a href=/api/v1/state>JSON API</a></div></body></html>"
 
-  renderRunningRows: list :: List -> String =>
+  renderRunningRows: list :: List(RunningSnapshotEntry) -> String =>
     list isEmpty ifTrue: [^""]
     // Build rows one at a time to avoid self-capture in block
     self renderRunningRowsFrom: list accumulated: ""
 
-  renderRunningRowsFrom: list :: List accumulated: acc :: String -> String =>
+  renderRunningRowsFrom: list :: List(RunningSnapshotEntry) accumulated: acc :: String -> String =>
     list isEmpty ifTrue: [^acc]
     row := self renderRunningRow: list first
     self renderRunningRowsFrom: list rest accumulated: acc ++ row
 
-  renderRetryRows: list :: List -> String =>
+  renderRetryRows: list :: List(RetrySnapshotEntry) -> String =>
     list isEmpty ifTrue: [^""]
     self renderRetryRowsFrom: list accumulated: ""
 
-  renderRetryRowsFrom: list :: List accumulated: acc :: String -> String =>
+  renderRetryRowsFrom: list :: List(RetrySnapshotEntry) accumulated: acc :: String -> String =>
     list isEmpty ifTrue: [^acc]
     row := self renderRetryRow: list first
     self renderRetryRowsFrom: list rest accumulated: acc ++ row
 
-  renderRunningRow: r :: Dictionary -> String =>
-    identifier := r at: "issue_identifier" ifAbsent: ["?"]
-    issueState := r at: "state" ifAbsent: ["?"]
-    turns := r at: "turn_count" ifAbsent: [0]
-    lastEvent := (r at: "last_event" ifAbsent: [
-      nil
-    ]) isNil ifTrue: ["—"] ifFalse: [r at: "last_event"]
-    total := (r at: "tokens" ifAbsent: [#{}]) at: "total_tokens" ifAbsent: [0]
+  renderRunningRow: r :: RunningSnapshotEntry -> String =>
+    lastEvent := r lastEvent isNil ifTrue: ["—"] ifFalse: [r lastEvent]
     "<tr><td><strong>"
-      ++ identifier displayString
+      ++ r issueIdentifier displayString
       ++ "</strong></td>"
       ++ "<td><span class='badge badge-running'>"
-      ++ issueState displayString
+      ++ r state displayString
       ++ "</span></td>"
       ++ "<td>"
-      ++ turns displayString
+      ++ r turnCount displayString
       ++ "</td>"
       ++ "<td>"
       ++ lastEvent displayString
       ++ "</td>"
       ++ "<td>"
-      ++ (self formatNumber: total)
+      ++ (self formatNumber: r tokens total)
       ++ "</td></tr>"
 
-  renderRetryRow: r :: Dictionary -> String =>
-    identifier := r at: "issue_identifier" ifAbsent: ["?"]
-    attempt := r at: "attempt" ifAbsent: [0]
-    errorMsg := (r at: "error" ifAbsent: [
-      nil
-    ]) isNil ifTrue: ["—"] ifFalse: [r at: "error"]
+  renderRetryRow: r :: RetrySnapshotEntry -> String =>
+    errorMsg := r error isNil ifTrue: ["—"] ifFalse: [r error]
     "<tr><td><strong>"
-      ++ identifier displayString
+      ++ r issueIdentifier displayString
       ++ "</strong></td>"
       ++ "<td><span class='badge badge-retry'>"
-      ++ attempt displayString
+      ++ r attempt displayString
       ++ "</span></td>"
       ++ "<td>"
       ++ errorMsg
@@ -274,31 +246,29 @@ Actor subclass: HttpServer
   /// Returns the full orchestrator snapshot as JSON.
   handleState -> HTTPResponse =>
     snapshot := self getSnapshot
-    self respond: 200 body: (Json generate: snapshot)
+    self respond: 200 body: (Json generate: snapshot asDictionary)
 
   handleIssueDetail: identifier :: String -> HTTPResponse =>
     identifier isEmpty ifTrue: [
       ^self respond: 404 body: (self errorJson: "not_found" msg: "Not found")
     ]
     snapshot := self getSnapshot
-    runningList := snapshot at: "running"
-    found := runningList detect: [:r |
-      (r at: "issue_identifier") == identifier
+    found := snapshot running detect: [:r |
+      r issueIdentifier == identifier
     ] ifNone: [nil]
     found isNil
       ifTrue: [
-        retryList := snapshot at: "retrying"
-        found := retryList detect: [:r |
-          (r at: "issue_identifier") == identifier
+        found := snapshot retrying detect: [:r |
+          r issueIdentifier == identifier
         ] ifNone: [nil]
       ]
     found isNil
       ifTrue: [
         ^self respond: 404 body: (self errorJson: "issue_not_found" msg: "Issue not found")
       ]
-    self respond: 200 body: (Json generate: found)
+    self respond: 200 body: (Json generate: found asDictionary)
 
   /// Returns current snapshot and signals data is fresh from last tick.
   handleRefresh -> HTTPResponse =>
     snapshot := self getSnapshot
-    self respond: 200 body: (Json generate: snapshot)
+    self respond: 200 body: (Json generate: snapshot asDictionary)
