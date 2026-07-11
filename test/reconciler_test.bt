@@ -1,0 +1,88 @@
+// Tests for Reconciler — pure reconciliation classification logic extracted
+// from Orchestrator's stall detection and issue-state reconciliation.
+
+TestCase subclass: ReconcilerTest
+
+  // --- stalledIssueIds:stallTimeoutMs:nowMs: ---
+
+  testStalledIssueIdsUsesLastTimestampWhenPresent =>
+    freshEntry := (RunningEntry new: #{#issue => (Issue new: #{#id => "1"})})
+      withSession: (SessionInfo new: #{#turnCount => 0, #lastTimestamp => 3500})
+    stalledEntry := (RunningEntry new: #{#issue => (Issue new: #{#id => "2"})})
+      withSession: (SessionInfo new: #{#turnCount => 0, #lastTimestamp => 500})
+    running := #{"fresh" => freshEntry, "stalled" => stalledEntry}
+    result := Reconciler stalledIssueIds: running stallTimeoutMs: 3000 nowMs: 4000
+    self assert: result equals: #("stalled")
+
+  testStalledIssueIdsEmptyWhenNoneExceedTimeout =>
+    entry := (RunningEntry new: #{#issue => (Issue new: #{#id => "1"})})
+      withSession: (SessionInfo new: #{#turnCount => 0, #lastTimestamp => 3900})
+    running := #{"ok" => entry}
+    result := Reconciler stalledIssueIds: running stallTimeoutMs: 3000 nowMs: 4000
+    self assert: result isEmpty
+
+  testStalledIssueIdsFallsBackToElapsedMsWhenNoLastTimestamp =>
+    nowSeconds := DateTime now asTimestamp
+    longRunning := RunningEntry
+      forIssue: (Issue new: #{#id => "1"})
+      identifier: "X-1"
+      startedAt: nowSeconds - 100000
+    justStarted := RunningEntry
+      forIssue: (Issue new: #{#id => "2"})
+      identifier: "X-2"
+      startedAt: nowSeconds
+    running := #{"long" => longRunning, "new" => justStarted}
+    result := Reconciler
+      stalledIssueIds: running
+      stallTimeoutMs: 1000
+      nowMs: nowSeconds * 1000
+    self assert: result equals: #("long")
+
+  // --- classify:terminalStates:activeStates: ---
+
+  testClassifyTerminalState =>
+    ref := IssueRef new: #{#id => "1", #identifier => "X-1", #state => "Done"}
+    result := Reconciler
+      classify: #(ref)
+      terminalStates: #("Done", "Cancelled")
+      activeStates: #("Todo", "In Progress")
+    self assert: (result at: #terminal) equals: #("1")
+    self assert: (result at: #active) isEmpty
+    self assert: (result at: #dropped) isEmpty
+
+  testClassifyActiveState =>
+    ref := IssueRef new: #{#id => "1", #identifier => "X-1", #state => "In Progress"}
+    result := Reconciler
+      classify: #(ref)
+      terminalStates: #("Done")
+      activeStates: #("Todo", "In Progress")
+    self assert: (result at: #terminal) isEmpty
+    self assert: (result at: #active) size equals: 1
+    self assert: (result at: #active) first id equals: "1"
+    self assert: (result at: #dropped) isEmpty
+
+  testClassifyDroppedState =>
+    ref := IssueRef new: #{#id => "1", #identifier => "X-1", #state => "Backlog"}
+    result := Reconciler
+      classify: #(ref)
+      terminalStates: #("Done")
+      activeStates: #("Todo", "In Progress")
+    self assert: (result at: #terminal) isEmpty
+    self assert: (result at: #active) isEmpty
+    self assert: (result at: #dropped) equals: #("1")
+
+  testClassifyStateMatchIsCaseInsensitive =>
+    ref := IssueRef new: #{#id => "1", #identifier => "X-1", #state => "done"}
+    result := Reconciler classify: #(ref) terminalStates: #("Done") activeStates: #("Todo")
+    self assert: (result at: #terminal) equals: #("1")
+
+  testClassifySkipsEntriesWithNilIdOrState =>
+    noId := IssueRef new: #{#identifier => "X-1", #state => "Todo"}
+    noState := IssueRef new: #{#id => "2", #identifier => "X-2"}
+    result := Reconciler
+      classify: #(noId, noState)
+      terminalStates: #("Done")
+      activeStates: #("Todo")
+    self assert: (result at: #terminal) isEmpty
+    self assert: (result at: #active) isEmpty
+    self assert: (result at: #dropped) isEmpty

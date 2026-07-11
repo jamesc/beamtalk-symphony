@@ -1,0 +1,39 @@
+// Copyright 2026 James Casey
+// SPDX-License-Identifier: Apache-2.0
+
+/// RetryPolicy — pure decision logic for scheduling issue retries after a
+/// worker exit or a failed reschedule attempt. Takes full context as
+/// arguments and returns a RetryPlan; never touches Orchestrator state.
+typed Value subclass: RetryPolicy
+  /// Decides the next retry attempt after a worker process exits.
+  /// A #normal exit means the turn loop finished cleanly — schedule a
+  /// short continuation retry. Anything else is treated as an abnormal
+  /// exit and backs off exponentially based on the entry's prior attempt.
+  class planForExitReason: reason :: Object entry: entry :: RunningEntry maxBackoffMs: maxMs :: Integer -> RetryPlan =>
+    reason == #normal
+      ifTrue: [
+        ^RetryPlan
+          new: #{
+            #attempt => 1,
+            #delayMs => RetryAttempt continuationDelayMs,
+            #error => nil
+          }
+      ]
+    nextAttempt := entry retryAttempt isNil ifTrue: [1] ifFalse: [entry retryAttempt + 1]
+    RetryPlan
+      new: #{
+        #attempt => nextAttempt,
+        #delayMs => (RetryAttempt backoffMs: nextAttempt maxMs: maxMs),
+        #error => reason displayString
+      }
+
+  /// Decides the next retry attempt after a reschedule itself fails
+  /// (e.g. the candidate poll errored, or no dispatch slots are free).
+  class planForRescheduleAfter: retryEntry :: RetryAttempt maxBackoffMs: maxMs :: Integer error: errorMsg :: String -> RetryPlan =>
+    nextAttempt := retryEntry attempt + 1
+    RetryPlan
+      new: #{
+        #attempt => nextAttempt,
+        #delayMs => (RetryAttempt backoffMs: nextAttempt maxMs: maxMs),
+        #error => errorMsg
+      }

@@ -1,0 +1,65 @@
+// Copyright 2026 James Casey
+// SPDX-License-Identifier: Apache-2.0
+
+/// Reconciler — pure classification logic for the orchestrator's periodic
+/// reconciliation pass: which running issues have stalled, and which
+/// refreshed issue states mean "terminal" / "still active" / "dropped".
+/// Takes full context as arguments and returns plain data; never touches
+/// Orchestrator state or performs side effects (killing workers, etc).
+typed Value subclass: Reconciler
+  /// Returns the issue IDs in `running` whose last event (or, absent that,
+  /// elapsed time since start) exceeds `stallTimeoutMs`. `nowMs` is passed
+  /// in explicitly so this is a pure function of its arguments.
+  class stalledIssueIds: running :: Dictionary(String, RunningEntry) stallTimeoutMs: stallTimeoutMs :: Integer nowMs: nowMs :: Integer -> List(String) =>
+    running keys
+      select: [:issueId |
+        entry := running at: issueId
+        lastTs := entry session lastTimestamp
+        elapsed := lastTs isNil
+          ifTrue: [entry elapsedMs]
+          ifFalse: [nowMs - lastTs]
+        elapsed > stallTimeoutMs
+      ]
+
+  /// Classifies refreshed issue states into three buckets:
+  /// - #terminal — issue IDs whose state is now terminal (worker should
+  ///   stop and its workspace should be cleaned up)
+  /// - #active — IssueRefs still in an active state (issue's tracked
+  ///   state should be updated to the refreshed value)
+  /// - #dropped — issue IDs neither terminal nor active (worker should
+  ///   stop without cleanup)
+  /// Entries with a nil id or state are skipped, matching the source data's
+  /// own guarantees rather than raising.
+  class classify: refreshed :: List(IssueRef) terminalStates: terminalStates :: List(String) activeStates: activeStates :: List(String) -> Dictionary =>
+    empty := #{#terminal => #(), #active => #(), #dropped => #()}
+    refreshed
+      inject: empty
+      into: [:acc :ref |
+        issueId := ref id
+        state := ref state
+        (issueId isNil or: [state isNil])
+          ifTrue: [acc]
+          ifFalse: [
+            nonNilState :: String := state
+            self
+              classifyOne: ref
+              state: nonNilState
+              terminalStates: terminalStates
+              activeStates: activeStates
+              into: acc
+          ]
+      ]
+
+  class classifyOne: ref :: IssueRef state: state :: String terminalStates: terminalStates :: List(String) activeStates: activeStates :: List(String) into: acc :: Dictionary -> Dictionary =>
+    isTerminal := terminalStates anySatisfy: [:s | s lowercase == state lowercase]
+    isTerminal ifTrue: [
+      newTerminal := (acc at: #terminal) add: ref id
+      ^acc at: #terminal put: newTerminal
+    ]
+    isActive := activeStates anySatisfy: [:s | s lowercase == state lowercase]
+    isActive ifTrue: [
+      newActive := (acc at: #active) add: ref
+      ^acc at: #active put: newActive
+    ]
+    newDropped := (acc at: #dropped) add: ref id
+    acc at: #dropped put: newDropped

@@ -1,0 +1,54 @@
+// Tests for RetryPolicy — pure retry-decision logic extracted from
+// Orchestrator's worker-exit and retry-reschedule handling.
+
+TestCase subclass: RetryPolicyTest
+
+  // --- planForExitReason:entry:maxBackoffMs: ---
+
+  testNormalExitSchedulesShortContinuation =>
+    entry := RunningEntry new: #{#retryAttempt => 3}
+    plan := RetryPolicy planForExitReason: #normal entry: entry maxBackoffMs: 300000
+    self assert: plan attempt equals: 1
+    self assert: plan delayMs equals: RetryAttempt continuationDelayMs
+    self assert: plan error equals: nil
+
+  testAbnormalExitFirstAttemptWhenNoPriorRetry =>
+    entry := RunningEntry new: #{}
+    plan := RetryPolicy planForExitReason: #killed entry: entry maxBackoffMs: 300000
+    self assert: plan attempt equals: 1
+    self assert: plan delayMs equals: 10000
+    self assert: plan error equals: #killed displayString
+
+  testAbnormalExitIncrementsPriorAttempt =>
+    entry := RunningEntry new: #{#retryAttempt => 2}
+    plan := RetryPolicy planForExitReason: #killed entry: entry maxBackoffMs: 300000
+    self assert: plan attempt equals: 3
+    self assert: plan delayMs equals: 40000
+
+  testAbnormalExitBackoffCapsAtMax =>
+    entry := RunningEntry new: #{#retryAttempt => 5}
+    plan := RetryPolicy planForExitReason: #killed entry: entry maxBackoffMs: 300000
+    self assert: plan attempt equals: 6
+    self assert: plan delayMs equals: 300000
+
+  // --- planForRescheduleAfter:maxBackoffMs:error: ---
+
+  testRescheduleAfterFailureIncrementsAttempt =>
+    retryEntry := RetryAttempt new: #{#attempt => 1}
+    plan := RetryPolicy
+      planForRescheduleAfter: retryEntry
+      maxBackoffMs: 300000
+      error: "retry poll failed"
+    self assert: plan attempt equals: 2
+    self assert: plan delayMs equals: 20000
+    self assert: plan error equals: "retry poll failed"
+
+  testRescheduleAfterFailureBackoffCapsAtMax =>
+    retryEntry := RetryAttempt new: #{#attempt => 6}
+    plan := RetryPolicy
+      planForRescheduleAfter: retryEntry
+      maxBackoffMs: 300000
+      error: "no available orchestrator slots"
+    self assert: plan attempt equals: 7
+    self assert: plan delayMs equals: 300000
+    self assert: plan error equals: "no available orchestrator slots"

@@ -207,30 +207,18 @@ typed Actor subclass: Orchestrator
         "reason" => reason displayString
       }
 
-    reason == #normal
-      ifTrue: [
-        // Normal exit — schedule continuation retry
-        self.completed := self.completed add: issueId
-        self
-          scheduleRetry: issueId
-          identifier: entry identifier
-          attempt: 1
-          delayMs: RetryAttempt continuationDelayMs
-          error: nil
-      ]
-      ifFalse: [
-        // Abnormal exit — exponential backoff retry
-        nextAttempt := entry retryAttempt isNil ifTrue: [
-          1
-        ] ifFalse: [entry retryAttempt + 1]
-        delayMs := RetryAttempt backoffMs: nextAttempt maxMs: self.deps config maxRetryBackoffMs
-        self
-          scheduleRetry: issueId
-          identifier: entry identifier
-          attempt: nextAttempt
-          delayMs: delayMs
-          error: reason displayString
-      ]
+    reason == #normal ifTrue: [self.completed := self.completed add: issueId]
+
+    plan := RetryPolicy
+      planForExitReason: reason
+      entry: entry
+      maxBackoffMs: self.deps config maxRetryBackoffMs
+    self
+      scheduleRetry: issueId
+      identifier: entry identifier
+      attempt: plan attempt
+      delayMs: plan delayMs
+      error: plan error
 
   // --- Retry queue ---
   scheduleRetry: issueId :: String identifier: identifier :: String attempt: attempt :: Integer delayMs: delayMs :: Integer error: error :: String | Nil -> Nil =>
@@ -273,12 +261,16 @@ typed Actor subclass: Orchestrator
     fetchResult isError
       ifTrue: [
         // Re-schedule retry
+        plan := RetryPolicy
+          planForRescheduleAfter: retryEntry
+          maxBackoffMs: self.deps config maxRetryBackoffMs
+          error: "retry poll failed"
         self
           scheduleRetry: issueId
           identifier: retryEntry identifier
-          attempt: retryEntry attempt + 1
-          delayMs: (RetryAttempt backoffMs: retryEntry attempt + 1 maxMs: self.deps config maxRetryBackoffMs)
-          error: "retry poll failed"
+          attempt: plan attempt
+          delayMs: plan delayMs
+          error: plan error
         ^nil
       ]
 
@@ -298,12 +290,16 @@ typed Actor subclass: Orchestrator
       ifTrue: [
         @expect type
         identifier :: String := issue identifier ifNil: [""]
+        plan := RetryPolicy
+          planForRescheduleAfter: retryEntry
+          maxBackoffMs: self.deps config maxRetryBackoffMs
+          error: "no available orchestrator slots"
         self
           scheduleRetry: issueId
           identifier: identifier
-          attempt: retryEntry attempt + 1
-          delayMs: (RetryAttempt backoffMs: retryEntry attempt + 1 maxMs: self.deps config maxRetryBackoffMs)
-          error: "no available orchestrator slots"
+          attempt: plan attempt
+          delayMs: plan delayMs
+          error: plan error
         ^nil
       ]
 
@@ -322,17 +318,11 @@ typed Actor subclass: Orchestrator
     stallTimeoutMs := self.deps config codexStallTimeoutMs
     stallTimeoutMs <= 0 ifTrue: [^nil]
 
-    // Collect stalled issue IDs (can't mutate running during iteration)
-    stallTimeout := stallTimeoutMs
-    stalledIds := self.running keys
-      select: [:issueId |
-        entry := self.running at: issueId
-        lastTs := entry session lastTimestamp
-        elapsed := lastTs isNil ifTrue: [
-          entry elapsedMs
-        ] ifFalse: [(DateTime now asTimestamp * 1000) - lastTs]
-        elapsed > stallTimeout
-      ]
+    nowMs := DateTime now asTimestamp * 1000
+    stalledIds := Reconciler
+      stalledIssueIds: self.running
+      stallTimeoutMs: stallTimeoutMs
+      nowMs: nowMs
 
     stalledIds
       do: [:issueId |
@@ -356,49 +346,33 @@ typed Actor subclass: Orchestrator
       ]
 
     refreshed := refreshResult unwrap
-    terminalStates := self.deps config trackerTerminalStates
-    activeStates := self.deps config trackerActiveStates
+    classification := Reconciler
+      classify: refreshed
+      terminalStates: self.deps config trackerTerminalStates
+      activeStates: self.deps config trackerActiveStates
 
-    refreshed
-      do: [:issueData |
-        issueId := issueData id
-        issueId isNil ifTrue: [^nil]
-        state := issueData state
-        state isNil ifTrue: [^nil]
-
-        isTerminal := terminalStates anySatisfy: [:s |
-          s lowercase == state lowercase
-        ]
-        isTerminal
-          ifTrue: [
-            // Terminal — stop worker and clean workspace
-            entry := self.running at: issueId ifAbsent: [nil]
-            entry isNil
-              ifFalse: [
-                self terminateWorker: issueId cleanup: true
-                self.deps workspaceManager removeWorkspace: entry identifier
-              ]
-            ^nil
-          ]
-
-        isActive := activeStates anySatisfy: [:s |
-          s lowercase == state lowercase
-        ]
-        isActive
-          ifTrue: [
-            // Still active — update snapshot
-            entry := self.running at: issueId ifAbsent: [nil]
-            entry isNil
-              ifFalse: [
-                updatedIssue := entry issue withState: state
-                self.running := self.running at: issueId put: (entry withIssue: updatedIssue)
-              ]
-          ]
+    (classification at: #terminal)
+      do: [:issueId |
+        entry := self.running at: issueId ifAbsent: [nil]
+        entry isNil
           ifFalse: [
-            // Neither active nor terminal — stop without cleanup
-            self terminateWorker: issueId cleanup: false
+            self terminateWorker: issueId cleanup: true
+            self.deps workspaceManager removeWorkspace: entry identifier
           ]
       ]
+
+    (classification at: #active)
+      do: [:ref |
+        entry := self.running at: ref id ifAbsent: [nil]
+        entry isNil
+          ifFalse: [
+            updatedIssue := entry issue withState: ref state
+            self.running := self.running at: ref id put: (entry withIssue: updatedIssue)
+          ]
+      ]
+
+    (classification at: #dropped)
+      do: [:issueId | self terminateWorker: issueId cleanup: false]
 
   terminateWorker: issueId :: String cleanup: cleanup :: Boolean -> Nil =>
     entry := self.running at: issueId ifAbsent: [nil]
