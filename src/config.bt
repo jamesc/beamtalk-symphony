@@ -177,7 +177,7 @@ Value subclass: Config
       default: 20
     self coerceInt: val default: 20
 
-  maxConcurrentAgentsByState -> Dictionary =>
+  maxConcurrentAgentsByState -> Dictionary(String, Integer) =>
     raw := self
       nested: "agent"
       key: "max_concurrent_agents_by_state"
@@ -194,7 +194,7 @@ Value subclass: Config
           value: intVal
       ]
 
-  addToMap: acc :: Dictionary key: k :: String value: v -> Dictionary =>
+  addToMap: acc :: Dictionary key: k :: String value: v :: Integer | Nil -> Dictionary(String, Integer) =>
     v isNil ifTrue: [^acc]
     v > 0 ifTrue: [^acc at: k put: v]
     acc

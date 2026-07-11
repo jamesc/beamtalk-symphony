@@ -222,12 +222,12 @@ Value subclass: LinearClient
       "updated_at" => (node at: "updatedAt" ifAbsent: [nil])
     }
 
-  normalizeLabels: labelsObj :: Dictionary -> List =>
+  normalizeLabels: labelsObj :: Dictionary -> List(String) =>
     labelsObj isNil ifTrue: [^#()]
     nodes := labelsObj at: "nodes" ifAbsent: [#()]
     nodes collect: [:l | (l at: "name" ifAbsent: [""]) lowercase]
 
-  normalizeBlockers: relationsObj :: Dictionary -> List =>
+  normalizeBlockers: relationsObj :: Dictionary -> List(Dictionary) =>
     relationsObj isNil ifTrue: [^#()]
     nodes := relationsObj at: "nodes" ifAbsent: [#()]
     // Only include inverse relations of type "blocks"

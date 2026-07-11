@@ -64,7 +64,7 @@ Value subclass: CandidateFilter
     newByState := runningByState at: st put: cur + 1
     #{"result" => newResult, "slots" => newSlots, "byState" => newByState}
 
-  countRunningByState: running :: Dictionary -> Dictionary =>
+  countRunningByState: running :: Dictionary -> Dictionary(String, Integer) =>
     running values
       inject: #{}
       into: [:acc :entry |
