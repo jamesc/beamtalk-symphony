@@ -32,7 +32,7 @@ TestCase subclass: HttpServerTest
   /// Helper: get response body as JSON from a Result<HTTPResponse>.
   jsonFrom: result :: Result -> Dictionary =>
     resp := self assertOk: result
-    resp perform: #bodyAsJson
+    self assertOk: (resp perform: #bodyAsJson)
 
   testStartAndPort =>
     self.srv isNil ifTrue: [^self skip: "HTTPServer not available"]
