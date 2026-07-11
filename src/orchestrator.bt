@@ -171,16 +171,9 @@ typed Actor subclass: Orchestrator
     output := usage at: "output" ifAbsent: [0]
     total := usage at: "total" ifAbsent: [0]
     oldTokens := entry tokens
-    newTokens := oldTokens
-      applyAbsolute: input
-      output: output
-      total: total
+    newTokens := oldTokens applyAbsolute: input output: output total: total
 
-    // Accumulate into global totals
-    self.codexTotals := self.codexTotals
-      applyAbsolute: self.codexTotals input + (newTokens input - oldTokens input)
-      output: self.codexTotals output + (newTokens output - oldTokens output)
-      total: self.codexTotals total + (newTokens total - oldTokens total)
+    self.codexTotals := self.codexTotals accumulateDelta: newTokens from: oldTokens
 
     entry withTokens: newTokens
 

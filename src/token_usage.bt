@@ -25,6 +25,15 @@ typed Value subclass: TokenUsage
 
   totalDelta -> Integer => self total - self lastReportedTotal
 
+  /// Accumulates a per-entry token increase (newTokens minus oldTokens) into
+  /// this running global total. Used to roll many per-issue counters up into
+  /// one process-wide total without re-summing everything on every event.
+  accumulateDelta: newTokens :: TokenUsage from: oldTokens :: TokenUsage -> TokenUsage =>
+    self
+      applyAbsolute: self input + (newTokens input - oldTokens input)
+      output: self output + (newTokens output - oldTokens output)
+      total: self total + (newTokens total - oldTokens total)
+
   /// Wire-format JSON representation (JsonRepresentable, ADR 0068).
   asJson -> Dictionary =>
     #{
