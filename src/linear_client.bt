@@ -43,9 +43,7 @@ typed Value subclass: LinearClient
       }
 
     (httpResult mapError: [:e |
-      @expect type
-      err :: Error := e
-      LinearError apiRequest: err displayString
+      LinearError apiRequest: e displayString
     ]) andThen: [:resp | self parseResponse: resp]
 
   parseResponse: resp :: HTTPResponse -> Result(Dictionary, LinearError) =>
