@@ -13,7 +13,7 @@ typed Actor subclass: AgentRunner
   state: workspaceManager :: WorkspaceManager
   state: linearClient :: LinearClient
   state: promptTemplate :: String
-  state: onEvent :: Block
+  state: onEvent :: Block(Dictionary, Object)
   state: codexClient :: CodexClient
   state: threadId :: String
   state: turnNumber :: Integer

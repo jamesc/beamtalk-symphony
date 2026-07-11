@@ -6,15 +6,15 @@
 /// request/response matching, and turn streaming.
 ///
 /// Uses helper methods (launch, sendRequest:params:, etc.) for protocol steps.
-Actor subclass: CodexClient
+typed Actor subclass: CodexClient
   state: proc :: Subprocess | Nil = nil
   state: nextId :: Integer
   state: workspacePath :: String
   state: config :: ResolvedConfig
-  state: onEvent :: Block | Nil = nil
+  state: onEvent :: Block(Dictionary, Object) | Nil = nil
 
   /// Spawns a new CodexClient actor bound to the given workspace directory.
-  class start: workspacePath :: String config: config :: ResolvedConfig onEvent: callback :: Block | Nil -> CodexClient =>
+  class start: workspacePath :: String config: config :: ResolvedConfig onEvent: callback :: Block(Dictionary, Object) | Nil -> CodexClient =>
     self
       spawnWith: #{
         #workspacePath => workspacePath,
@@ -59,9 +59,9 @@ Actor subclass: CodexClient
     params at: "rate_limits" ifAbsent: [params at: "rateLimits" ifAbsent: [nil]]
 
   // --- Subprocess lifecycle ---
-  terminate: _reason => self stopProcess
+  terminate: _reason :: Object -> Nil => self stopProcess
 
-  stopProcess =>
+  stopProcess -> Nil =>
     Logger debug: "codex process stopping"
     self.proc isNil
       ifFalse: [
@@ -99,7 +99,7 @@ Actor subclass: CodexClient
   // --- JSON-RPC helpers ---
 
   /// Writes a JSON-RPC message to the subprocess.
-  sendJson: msg :: Dictionary =>
+  sendJson: msg :: Dictionary -> Nil =>
     line := Json generate: msg
     self.proc writeLine: line
 
@@ -113,7 +113,7 @@ Actor subclass: CodexClient
     id
 
   /// Sends a notification (no id, no response expected).
-  sendNotification: method :: String params: params :: Dictionary =>
+  sendNotification: method :: String params: params :: Dictionary -> Nil =>
     msg := #{"method" => method, "params" => params}
     Logger debug: "codex >> " ++ method ++ " (notification)"
     self sendJson: msg
@@ -266,7 +266,7 @@ Actor subclass: CodexClient
   /// - nil if no event yet (caller should call again)
   /// - Result ok: ... if turn completed
   /// - Result error: ... if turn failed/timed out
-  streamStep =>
+  streamStep -> Result(Dictionary, CodexError) | Nil =>
     line := self.proc readLine: 1000
     line isNil
       ifTrue: [
@@ -288,7 +288,7 @@ Actor subclass: CodexClient
       Result error: e message
     ]) ifOk: [:msg | self handleStreamMessage: msg] ifError: [:_e | nil]
 
-  handleStreamMessage: msg :: Dictionary =>
+  handleStreamMessage: msg :: Dictionary -> Result(Dictionary, CodexError) | Nil =>
     method := msg at: "method" ifAbsent: [nil]
 
     // Check for turn completion
@@ -362,7 +362,7 @@ Actor subclass: CodexClient
     nil  // Continue streaming
 
   // --- Event emission ---
-  emitEvent: msg :: Dictionary =>
+  emitEvent: msg :: Dictionary -> Nil =>
     self.onEvent isNil
       ifFalse: [
         // Enrich with extracted usage and rate limits
@@ -375,3 +375,4 @@ Actor subclass: CodexClient
         }
         self.onEvent value: event
       ]
+    nil

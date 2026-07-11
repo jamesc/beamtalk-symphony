@@ -4,11 +4,11 @@
 /// Orchestrator — central polling authority for the Symphony pipeline.
 /// Owns the poll loop, dispatch, reconciliation, retry queue,
 /// and global token accounting.
-Actor subclass: Orchestrator
+typed Actor subclass: Orchestrator
   state: deps :: OrchestratorDeps
-  state: running :: Dictionary = #{}
+  state: running :: Dictionary(String, RunningEntry) = #{}
   state: claimed :: List(String) = #()
-  state: retryAttempts :: Dictionary = #{}
+  state: retryAttempts :: Dictionary(String, RetryAttempt) = #{}
   state: completed :: List(String) = #()
   state: codexTotals :: TokenUsage = TokenUsage new
   state: codexRateLimits :: Dictionary | Nil = nil
@@ -30,13 +30,13 @@ Actor subclass: Orchestrator
     self spawnWith: #{#deps => deps}
 
   /// Lifecycle hook — starts the poll loop.
-  initialize =>
+  initialize -> Nil =>
     Logger info: "orchestrator initialized"
     self startupTerminalCleanup
     self scheduleTick: 0
 
   /// Lifecycle hook — cancels timers and kills running workers on shutdown.
-  terminate: _reason =>
+  terminate: _reason :: Object -> Nil =>
     self.pollTimerRef isNil ifFalse: [self.pollTimerRef cancel]
     self.running do: [:entry |
       entry workerPid isNil ifFalse: [entry workerPid kill]
@@ -48,16 +48,17 @@ Actor subclass: Orchestrator
   // --- Config reload ---
 
   /// Hot-swaps config and prompt template without restarting running agents.
-  reloadConfig: newConfig :: ResolvedConfig prompt: newPrompt :: String =>
+  reloadConfig: newConfig :: ResolvedConfig prompt: newPrompt :: String -> Nil =>
     self.deps := (self.deps withConfig: newConfig) withPromptTemplate: newPrompt
     Logger info: "config reloaded"
 
   // --- Poll loop ---
-  scheduleTick: delayMs :: Integer =>
+  scheduleTick: delayMs :: Integer -> Nil =>
     self.pollTimerRef := Timer after: delayMs do: [self onTick!]
+    nil
 
   /// Main poll tick: reconcile, fetch candidates, filter, dispatch, reschedule.
-  onTick =>
+  onTick -> Nil =>
     // Step 1: Reconcile running issues
     self reconcile
 
@@ -97,9 +98,10 @@ Actor subclass: Orchestrator
   // --- Dispatch ---
 
   /// Spawns an AgentRunner for the issue and tracks it in the running map.
-  dispatchIssue: issue :: Issue attempt: attempt :: Integer =>
+  dispatchIssue: issue :: Issue attempt: attempt :: Integer -> Nil =>
     issueId := issue id
-    identifier := issue identifier ifNil: [""]
+    @expect type
+    identifier :: String := issue identifier ifNil: [""]
     Logger info: "dispatching" metadata: #{"issue" => identifier}
 
     runner := AgentRunner
@@ -111,7 +113,11 @@ Actor subclass: Orchestrator
       promptTemplate: self.deps promptTemplate
       onEvent: [:event | self onCodexEvent: issueId event: event!]
 
-    runner onExit: [:reason | self onWorkerExit: issueId reason: reason!]
+    runner onExit: [:reason |
+      @expect type
+      exitReason :: Object := reason
+      self onWorkerExit: issueId reason: exitReason!
+    ]
 
     entry := RunningEntry
       forIssue: issue
@@ -131,7 +137,7 @@ Actor subclass: Orchestrator
   // --- Codex event handling ---
 
   /// Processes a codex stream event, updating session info and token counters.
-  onCodexEvent: issueId :: String event: event :: Dictionary =>
+  onCodexEvent: issueId :: String event: event :: Dictionary -> Nil =>
     entry := self.running at: issueId ifAbsent: [nil]
     entry isNil ifTrue: [^nil]
 
@@ -159,7 +165,7 @@ Actor subclass: Orchestrator
 
   /// Applies token usage to a running entry and accumulates global totals.
   /// Returns entry unchanged if usage is nil.
-  applyUsage: usage toEntry: entry :: RunningEntry -> RunningEntry =>
+  applyUsage: usage :: Dictionary | Nil toEntry: entry :: RunningEntry -> RunningEntry =>
     usage isNil ifTrue: [^entry]
     input := usage at: "input" ifAbsent: [0]
     output := usage at: "output" ifAbsent: [0]
@@ -179,13 +185,13 @@ Actor subclass: Orchestrator
     entry withTokens: newTokens
 
   /// Updates rate limits if non-nil.
-  applyRateLimits: rateLimits =>
+  applyRateLimits: rateLimits :: Dictionary | Nil -> Dictionary | Nil =>
     rateLimits isNil ifFalse: [self.codexRateLimits := rateLimits]
 
   // --- Worker exit handling ---
 
   /// Handles worker process exit — schedules continuation or backoff retry.
-  onWorkerExit: issueId :: String reason: reason =>
+  onWorkerExit: issueId :: String reason: reason :: Object -> Nil =>
     entry := self.running at: issueId ifAbsent: [nil]
     entry isNil ifTrue: [^nil]
 
@@ -227,7 +233,7 @@ Actor subclass: Orchestrator
       ]
 
   // --- Retry queue ---
-  scheduleRetry: issueId :: String identifier: identifier :: String attempt: attempt :: Integer delayMs: delayMs :: Integer error: error =>
+  scheduleRetry: issueId :: String identifier: identifier :: String attempt: attempt :: Integer delayMs: delayMs :: Integer error: error :: String | Nil -> Nil =>
     // Cancel existing retry timer
     existing := self.retryAttempts at: issueId ifAbsent: [nil]
     existing isNil ifFalse: [
@@ -257,7 +263,7 @@ Actor subclass: Orchestrator
         "delay_ms" => delayMs displayString
       }
 
-  onRetryTimer: issueId :: String =>
+  onRetryTimer: issueId :: String -> Nil =>
     retryEntry := self.retryAttempts at: issueId ifAbsent: [nil]
     retryEntry isNil ifTrue: [^nil]
     self.retryAttempts := self.retryAttempts removeKey: issueId
@@ -290,9 +296,11 @@ Actor subclass: Orchestrator
     availableSlots := self.deps config maxConcurrentAgents - self.running size
     availableSlots <= 0
       ifTrue: [
+        @expect type
+        identifier :: String := issue identifier ifNil: [""]
         self
           scheduleRetry: issueId
-          identifier: (issue identifier ifNil: [""])
+          identifier: identifier
           attempt: retryEntry attempt + 1
           delayMs: (RetryAttempt backoffMs: retryEntry attempt + 1 maxMs: self.deps config maxRetryBackoffMs)
           error: "no available orchestrator slots"
@@ -305,12 +313,12 @@ Actor subclass: Orchestrator
   // --- Reconciliation ---
 
   /// Checks for stalled workers and terminal/inactive issue states.
-  reconcile =>
+  reconcile -> Nil =>
     self.running isEmpty ifTrue: [^nil]
     self reconcileStalls
     self reconcileStates
 
-  reconcileStalls =>
+  reconcileStalls -> Nil =>
     stallTimeoutMs := self.deps config codexStallTimeoutMs
     stallTimeoutMs <= 0 ifTrue: [^nil]
 
@@ -336,7 +344,7 @@ Actor subclass: Orchestrator
         self terminateWorker: issueId cleanup: false
       ]
 
-  reconcileStates =>
+  reconcileStates -> Nil =>
     runningIds := self.running keys
     runningIds isEmpty ifTrue: [^nil]
 
@@ -392,7 +400,7 @@ Actor subclass: Orchestrator
           ]
       ]
 
-  terminateWorker: issueId :: String cleanup: cleanup :: Boolean =>
+  terminateWorker: issueId :: String cleanup: cleanup :: Boolean -> Nil =>
     entry := self.running at: issueId ifAbsent: [nil]
     entry isNil ifTrue: [^nil]
 
@@ -414,7 +422,7 @@ Actor subclass: Orchestrator
   // --- Startup terminal cleanup ---
 
   /// Removes workspaces for issues already in terminal states at boot.
-  startupTerminalCleanup =>
+  startupTerminalCleanup -> Nil =>
     terminalStates := self.deps config trackerTerminalStates
     fetchResult := self.deps linearClient fetchIssuesByStates: terminalStates
     fetchResult isError
@@ -445,6 +453,6 @@ Actor subclass: Orchestrator
       rateLimits: self.codexRateLimits
 
   /// Publishes the current snapshot to the shared ETS table for HttpServer.
-  publishSnapshot =>
+  publishSnapshot -> Nil =>
     table := [Ets named: #symphony_http] on: Error do: [:e | nil]
     table isNil ifFalse: [table at: #snapshot put: self getSnapshot]
