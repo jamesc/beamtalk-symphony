@@ -1,0 +1,30 @@
+// Copyright 2026 James Casey
+// SPDX-License-Identifier: Apache-2.0
+
+/// RetrySnapshotEntry — the projection of a RetryAttempt exposed in the
+/// orchestrator's runtime snapshot.
+typed Value subclass: RetrySnapshotEntry
+  field: issueId :: String = ""
+  field: issueIdentifier :: String = ""
+  field: attempt :: Integer = 1
+  field: dueAtMs :: Integer = 0
+  field: error :: String | Nil = nil
+
+  class fromRetryAttempt: r :: RetryAttempt -> RetrySnapshotEntry =>
+    self
+      new: #{
+        #issueId => r issueId,
+        #issueIdentifier => r identifier,
+        #attempt => r attempt,
+        #dueAtMs => r dueAtMs,
+        #error => r error
+      }
+
+  asDictionary -> Dictionary =>
+    #{
+      "issue_id" => self.issueId,
+      "issue_identifier" => self.issueIdentifier,
+      "attempt" => self.attempt,
+      "due_at_ms" => self.dueAtMs,
+      "error" => self.error
+    }

@@ -51,10 +51,10 @@ Value subclass: LinearClient
       ^Result error: (LinearError apiStatus: resp status body: resp body)
     ]
 
-    jsonBody := [
-      resp bodyAsJson
-    ] on: Error do: [:e |
-      ^Result error: (LinearError unknownPayload: e message)
+    jsonBody := resp bodyAsJson ifOk: [:v |
+      v
+    ] ifError: [:e |
+      ^Result error: (LinearError unknownPayload: e displayString)
     ]
 
     errors := jsonBody at: "errors" ifAbsent: [nil]
@@ -73,14 +73,14 @@ Value subclass: LinearClient
   // --- Candidate issue fetch (BT-1376) ---
 
   /// Fetches all issues in active states for the configured project, with pagination.
-  fetchCandidateIssues: activeStates :: List(String) -> Result(List(Dictionary)) =>
+  fetchCandidateIssues: activeStates :: List(String) -> Result(List(Issue)) =>
     activeStates isEmpty ifTrue: [^Result ok: #()]
     self
       fetchAllPages: activeStates
       cursor: nil
       accumulated: #()
 
-  fetchAllPages: activeStates :: List(String) cursor: cursor :: Integer | Nil accumulated: acc :: List(Dictionary) -> Result(List(Dictionary)) =>
+  fetchAllPages: activeStates :: List(String) cursor: cursor :: Integer | Nil accumulated: acc :: List(Issue) -> Result(List(Issue)) =>
     vars := #{
       "projectSlug" => self.projectSlug,
       "states" => activeStates,
@@ -95,7 +95,7 @@ Value subclass: LinearClient
           ifTrue: [Result error: (LinearError unknownPayload: "missing issues")]
           ifFalse: [
             nodes := issues at: "nodes" ifAbsent: [#()]
-            normalized := nodes collect: [:node | self normalizeIssue: node]
+            normalized := nodes collect: [:node | Issue fromNode: node]
             newAcc := acc ++ normalized
 
             pageInfo := issues at: "pageInfo" ifAbsent: [#{}]
@@ -138,22 +138,13 @@ Value subclass: LinearClient
   // --- Issue state refresh (BT-1377) ---
 
   /// Fetches current state names for a list of issue IDs (used for reconciliation).
-  fetchIssueStatesByIds: ids :: List(String) -> Result(List(Dictionary), LinearError) =>
+  fetchIssueStatesByIds: ids :: List(String) -> Result(List(IssueRef), LinearError) =>
     ids isEmpty ifTrue: [^Result ok: #()]
     (self query: self stateRefreshQuery variables: #{"ids" => ids})
       map: [:data |
         issues := data at: "issues" ifAbsent: [#{}]
         nodes := issues at: "nodes" ifAbsent: [#()]
-        nodes
-          collect: [:node |
-            #{
-              "id" => (node at: "id" ifAbsent: [nil]),
-              "identifier" => (node at: "identifier" ifAbsent: [nil]),
-              "state" => ((node at: "state" ifAbsent: [
-                #{}
-              ]) at: "name" ifAbsent: [nil])
-            }
-          ]
+        nodes collect: [:node | IssueRef fromNode: node]
       ]
 
   stateRefreshQuery -> String =>
@@ -169,7 +160,7 @@ Value subclass: LinearClient
   // --- Terminal issues fetch (BT-1377) ---
 
   /// Fetches issues in the given states (used for startup terminal cleanup).
-  fetchIssuesByStates: stateNames :: List(String) -> Result(List(Dictionary), LinearError) =>
+  fetchIssuesByStates: stateNames :: List(String) -> Result(List(Issue), LinearError) =>
     stateNames isEmpty ifTrue: [^Result ok: #()]
     (self query: self terminalQuery variables: #{
       "projectSlug" => self.projectSlug,
@@ -179,7 +170,7 @@ Value subclass: LinearClient
         issues := data at: "issues" ifAbsent: [nil]
         issues isNil ifTrue: [^#()]
         nodes := issues at: "nodes" ifAbsent: [#()]
-        nodes collect: [:node | self normalizeIssue: node]
+        nodes collect: [:node | Issue fromNode: node]
       ]
 
   terminalQuery -> String =>
@@ -197,49 +188,3 @@ Value subclass: LinearClient
         }
       }
     }"
-
-  // --- Issue normalization ---
-  normalizeIssue: node :: Dictionary -> Dictionary =>
-    state := (node at: "state" ifAbsent: [#{}]) at: "name" ifAbsent: [nil]
-    labels := self normalizeLabels: (node at: "labels" ifAbsent: [nil])
-    blockers := self normalizeBlockers: (node at: "inverseRelations" ifAbsent: [
-      nil
-    ])
-    priority := node at: "priority" ifAbsent: [nil]
-    priority := (priority isKindOf: Integer) ifTrue: [priority] ifFalse: [nil]
-    #{
-      "id" => (node at: "id" ifAbsent: [nil]),
-      "identifier" => (node at: "identifier" ifAbsent: [nil]),
-      "title" => (node at: "title" ifAbsent: [nil]),
-      "description" => (node at: "description" ifAbsent: [nil]),
-      "priority" => priority,
-      "state" => state,
-      "branch_name" => (node at: "branchName" ifAbsent: [nil]),
-      "url" => (node at: "url" ifAbsent: [nil]),
-      "labels" => labels,
-      "blocked_by" => blockers,
-      "created_at" => (node at: "createdAt" ifAbsent: [nil]),
-      "updated_at" => (node at: "updatedAt" ifAbsent: [nil])
-    }
-
-  normalizeLabels: labelsObj :: Dictionary -> List =>
-    labelsObj isNil ifTrue: [^#()]
-    nodes := labelsObj at: "nodes" ifAbsent: [#()]
-    nodes collect: [:l | (l at: "name" ifAbsent: [""]) lowercase]
-
-  normalizeBlockers: relationsObj :: Dictionary -> List =>
-    relationsObj isNil ifTrue: [^#()]
-    nodes := relationsObj at: "nodes" ifAbsent: [#()]
-    // Only include inverse relations of type "blocks"
-    blockers := nodes select: [:r | (r at: "type" ifAbsent: [""]) == "blocks"]
-    blockers
-      collect: [:r |
-        related := r at: "relatedIssue" ifAbsent: [#{}]
-        #{
-          "id" => (related at: "id" ifAbsent: [nil]),
-          "identifier" => (related at: "identifier" ifAbsent: [nil]),
-          "state" => ((related at: "state" ifAbsent: [
-            #{}
-          ]) at: "name" ifAbsent: [nil])
-        }
-      ]

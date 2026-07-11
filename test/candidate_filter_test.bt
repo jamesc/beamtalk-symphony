@@ -3,45 +3,57 @@
 TestCase subclass: CandidateFilterTest
 
   testSortByPriority =>
-    issues := #(#{
-      "identifier" => "A",
-      "priority" => 3,
-      "created_at" => "2026-01-01"
-    }, #{
-      "identifier" => "B",
-      "priority" => 1,
-      "created_at" => "2026-01-01"
-    }, #{"identifier" => "C", "priority" => 2, "created_at" => "2026-01-01"})
+    issues := #(Issue new: #{
+      #identifier => "A",
+      #priority => 3,
+      #createdAt => "2026-01-01"
+    }, Issue new: #{
+      #identifier => "B",
+      #priority => 1,
+      #createdAt => "2026-01-01"
+    }, Issue new: #{
+      #identifier => "C",
+      #priority => 2,
+      #createdAt => "2026-01-01"
+    })
     sorted := CandidateFilter sortForDispatch: issues
-    self assert: ((sorted at: 1) at: "identifier") equals: "B"
-    self assert: ((sorted at: 2) at: "identifier") equals: "C"
-    self assert: ((sorted at: 3) at: "identifier") equals: "A"
+    self assert: (sorted at: 1) identifier equals: "B"
+    self assert: (sorted at: 2) identifier equals: "C"
+    self assert: (sorted at: 3) identifier equals: "A"
 
   testNilPrioritySortsLast =>
-    issues := #(#{
-      "identifier" => "A",
-      "priority" => nil,
-      "created_at" => "2026-01-01"
-    }, #{"identifier" => "B", "priority" => 1, "created_at" => "2026-01-01"})
+    issues := #(Issue new: #{
+      #identifier => "A",
+      #priority => nil,
+      #createdAt => "2026-01-01"
+    }, Issue new: #{
+      #identifier => "B",
+      #priority => 1,
+      #createdAt => "2026-01-01"
+    })
     sorted := CandidateFilter sortForDispatch: issues
-    self assert: ((sorted at: 1) at: "identifier") equals: "B"
-    self assert: ((sorted at: 2) at: "identifier") equals: "A"
+    self assert: (sorted at: 1) identifier equals: "B"
+    self assert: (sorted at: 2) identifier equals: "A"
 
   testSortByCreatedAtThenIdentifier =>
-    issues := #(#{
-      "identifier" => "B",
-      "priority" => 1,
-      "created_at" => "2026-01-02"
-    }, #{"identifier" => "A", "priority" => 1, "created_at" => "2026-01-01"})
+    issues := #(Issue new: #{
+      #identifier => "B",
+      #priority => 1,
+      #createdAt => "2026-01-02"
+    }, Issue new: #{
+      #identifier => "A",
+      #priority => 1,
+      #createdAt => "2026-01-01"
+    })
     sorted := CandidateFilter sortForDispatch: issues
-    self assert: ((sorted at: 1) at: "identifier") equals: "A"
+    self assert: (sorted at: 1) identifier equals: "A"
 
   testEligibleIssue =>
-    issue := #{
-      "id" => "1",
-      "identifier" => "X-1",
-      "title" => "T",
-      "state" => "Todo"
+    issue := Issue new: #{
+      #id => "1",
+      #identifier => "X-1",
+      #title => "T",
+      #state => "Todo"
     }
     result := CandidateFilter
       eligible: #(issue)
@@ -54,11 +66,11 @@ TestCase subclass: CandidateFilterTest
     self assert: result size equals: 1
 
   testIneligibleIfAlreadyRunning =>
-    issue := #{
-      "id" => "1",
-      "identifier" => "X-1",
-      "title" => "T",
-      "state" => "Todo"
+    issue := Issue new: #{
+      #id => "1",
+      #identifier => "X-1",
+      #title => "T",
+      #state => "Todo"
     }
     entry := RunningEntry new: #{#issue => issue}
     result := CandidateFilter
@@ -72,11 +84,11 @@ TestCase subclass: CandidateFilterTest
     self assert: result size equals: 0
 
   testIneligibleIfClaimed =>
-    issue := #{
-      "id" => "1",
-      "identifier" => "X-1",
-      "title" => "T",
-      "state" => "Todo"
+    issue := Issue new: #{
+      #id => "1",
+      #identifier => "X-1",
+      #title => "T",
+      #state => "Todo"
     }
     result := CandidateFilter
       eligible: #(issue)
@@ -89,11 +101,11 @@ TestCase subclass: CandidateFilterTest
     self assert: result size equals: 0
 
   testIneligibleIfNotActiveState =>
-    issue := #{
-      "id" => "1",
-      "identifier" => "X-1",
-      "title" => "T",
-      "state" => "Backlog"
+    issue := Issue new: #{
+      #id => "1",
+      #identifier => "X-1",
+      #title => "T",
+      #state => "Backlog"
     }
     result := CandidateFilter
       eligible: #(issue)
@@ -106,11 +118,11 @@ TestCase subclass: CandidateFilterTest
     self assert: result size equals: 0
 
   testStateComparisonIsCaseInsensitive =>
-    issue := #{
-      "id" => "1",
-      "identifier" => "X-1",
-      "title" => "T",
-      "state" => "todo"
+    issue := Issue new: #{
+      #id => "1",
+      #identifier => "X-1",
+      #title => "T",
+      #state => "todo"
     }
     result := CandidateFilter
       eligible: #(issue)
@@ -123,17 +135,17 @@ TestCase subclass: CandidateFilterTest
     self assert: result size equals: 1
 
   testGlobalConcurrencyLimit =>
-    issue1 := #{
-      "id" => "1",
-      "identifier" => "X-1",
-      "title" => "T1",
-      "state" => "Todo"
+    issue1 := Issue new: #{
+      #id => "1",
+      #identifier => "X-1",
+      #title => "T1",
+      #state => "Todo"
     }
-    issue2 := #{
-      "id" => "2",
-      "identifier" => "X-2",
-      "title" => "T2",
-      "state" => "Todo"
+    issue2 := Issue new: #{
+      #id => "2",
+      #identifier => "X-2",
+      #title => "T2",
+      #state => "Todo"
     }
     entry := RunningEntry new: #{#issue => issue1}
     result := CandidateFilter
@@ -147,17 +159,17 @@ TestCase subclass: CandidateFilterTest
     self assert: result size equals: 0
 
   testPerStateConcurrencyLimit =>
-    issue1 := #{
-      "id" => "1",
-      "identifier" => "X-1",
-      "title" => "T1",
-      "state" => "Todo"
+    issue1 := Issue new: #{
+      #id => "1",
+      #identifier => "X-1",
+      #title => "T1",
+      #state => "Todo"
     }
-    issue2 := #{
-      "id" => "2",
-      "identifier" => "X-2",
-      "title" => "T2",
-      "state" => "Todo"
+    issue2 := Issue new: #{
+      #id => "2",
+      #identifier => "X-2",
+      #title => "T2",
+      #state => "Todo"
     }
     entry := RunningEntry new: #{#issue => issue1}
     result := CandidateFilter
@@ -171,17 +183,18 @@ TestCase subclass: CandidateFilterTest
     self assert: result size equals: 0
 
   testTodoWithNonTerminalBlockerNotEligible =>
-    issue := #{
-      "id" => "1",
-      "identifier" => "X-1",
-      "title" => "T",
-      "state" => "Todo",
-      "blocked_by" => #(#{
-        "id" => "2",
-        "identifier" => "X-2",
-        "state" => "In Progress"
-      })
-    }
+    issue := Issue
+      new: #{
+        #id => "1",
+        #identifier => "X-1",
+        #title => "T",
+        #state => "Todo",
+        #blockedBy => #(IssueRef new: #{
+          #id => "2",
+          #identifier => "X-2",
+          #state => "In Progress"
+        })
+      }
     result := CandidateFilter
       eligible: #(issue)
       running: #{}
@@ -193,17 +206,18 @@ TestCase subclass: CandidateFilterTest
     self assert: result size equals: 0
 
   testTodoWithTerminalBlockerIsEligible =>
-    issue := #{
-      "id" => "1",
-      "identifier" => "X-1",
-      "title" => "T",
-      "state" => "Todo",
-      "blocked_by" => #(#{
-        "id" => "2",
-        "identifier" => "X-2",
-        "state" => "Done"
-      })
-    }
+    issue := Issue
+      new: #{
+        #id => "1",
+        #identifier => "X-1",
+        #title => "T",
+        #state => "Todo",
+        #blockedBy => #(IssueRef new: #{
+          #id => "2",
+          #identifier => "X-2",
+          #state => "Done"
+        })
+      }
     result := CandidateFilter
       eligible: #(issue)
       running: #{}
@@ -215,7 +229,7 @@ TestCase subclass: CandidateFilterTest
     self assert: result size equals: 1
 
   testMissingRequiredFieldsNotEligible =>
-    issue := #{"id" => "1", "identifier" => "X-1", "state" => "Todo"}
+    issue := Issue new: #{#id => "1", #identifier => "X-1", #state => "Todo"}
     result := CandidateFilter
       eligible: #(issue)
       running: #{}

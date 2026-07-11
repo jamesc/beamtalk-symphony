@@ -38,7 +38,6 @@ TestCase subclass: LinearClientTest
 
   // --- Normalization ---
   testNormalizeIssue =>
-    client := LinearClient new
     node := #{
       "id" => "abc123",
       "identifier" => "BT-42",
@@ -53,16 +52,15 @@ TestCase subclass: LinearClientTest
       "labels" => #{"nodes" => #(#{"name" => "Bug"}, #{"name" => "URGENT"})},
       "inverseRelations" => #{"nodes" => #()}
     }
-    issue := client normalizeIssue: node
-    self assert: (issue at: "id") equals: "abc123"
-    self assert: (issue at: "identifier") equals: "BT-42"
-    self assert: (issue at: "title") equals: "Fix the bug"
-    self assert: (issue at: "state") equals: "Todo"
-    self assert: (issue at: "priority") equals: 2
-    self assert: (issue at: "branch_name") equals: "fix-bug"
+    issue := Issue fromNode: node
+    self assert: issue id equals: "abc123"
+    self assert: issue identifier equals: "BT-42"
+    self assert: issue title equals: "Fix the bug"
+    self assert: issue state equals: "Todo"
+    self assert: issue priority equals: 2
+    self assert: issue branchName equals: "fix-bug"
 
   testNormalizeLabelsToLowercase =>
-    client := LinearClient new
     node := #{
       "id" => "x",
       "identifier" => "X-1",
@@ -70,14 +68,13 @@ TestCase subclass: LinearClientTest
       "state" => #{"name" => "Todo"},
       "labels" => #{"nodes" => #(#{"name" => "Bug"}, #{"name" => "URGENT"})}
     }
-    issue := client normalizeIssue: node
-    labels := issue at: "labels"
+    issue := Issue fromNode: node
+    labels := issue labels
     self assert: (labels includes: "bug")
     self assert: (labels includes: "urgent")
     self deny: (labels includes: "Bug")
 
   testNormalizeBlockers =>
-    client := LinearClient new
     node := #{
       "id" => "x",
       "identifier" => "X-1",
@@ -101,13 +98,12 @@ TestCase subclass: LinearClientTest
         })
       }
     }
-    issue := client normalizeIssue: node
-    blockers := issue at: "blocked_by"
+    issue := Issue fromNode: node
+    blockers := issue blockedBy
     self assert: blockers size equals: 1
-    self assert: ((blockers at: 1) at: "identifier") equals: "Y-1"
+    self assert: (blockers at: 1) identifier equals: "Y-1"
 
   testNormalizePriorityNonIntegerBecomesNil =>
-    client := LinearClient new
     node := #{
       "id" => "x",
       "identifier" => "X-1",
@@ -115,8 +111,8 @@ TestCase subclass: LinearClientTest
       "state" => #{"name" => "Todo"},
       "priority" => "high"
     }
-    issue := client normalizeIssue: node
-    self assert: (issue at: "priority") equals: nil
+    issue := Issue fromNode: node
+    self assert: issue priority equals: nil
 
   testFetchCandidateIssuesEmptyStates =>
     client := LinearClient new

@@ -18,7 +18,11 @@ TestCase subclass: PromptRendererTest
       ++ (self var: "issue.identifier")
       ++ ": "
       ++ (self var: "issue.title")
-    issue := #{"identifier" => "BT-42", "title" => "Fix the bug", "id" => "abc"}
+    issue := Issue new: #{
+      #identifier => "BT-42",
+      #title => "Fix the bug",
+      #id => "abc"
+    }
     result := PromptRenderer
       render: template
       issue: issue
@@ -27,7 +31,7 @@ TestCase subclass: PromptRendererTest
 
   testRendersAttemptVariable =>
     template := "Attempt: " ++ (self var: "attempt")
-    issue := #{"id" => "x"}
+    issue := (Issue new: #{#id => "x"})
     result := PromptRenderer
       render: template
       issue: issue
@@ -36,7 +40,7 @@ TestCase subclass: PromptRendererTest
 
   testNilAttemptRendersEmpty =>
     template := "Attempt: " ++ (self var: "attempt")
-    issue := #{"id" => "x"}
+    issue := (Issue new: #{#id => "x"})
     result := PromptRenderer
       render: template
       issue: issue
@@ -46,14 +50,14 @@ TestCase subclass: PromptRendererTest
   testEmptyTemplateUsesDefault =>
     result := PromptRenderer
       render: ""
-      issue: #{"id" => "x"}
+      issue: (Issue new: #{#id => "x"})
       attempt: nil
     self assert: (self assertOk: result) equals: "You are working on an issue from Linear."
 
   testNilTemplateUsesDefault =>
     result := PromptRenderer
       render: nil
-      issue: #{"id" => "x"}
+      issue: (Issue new: #{#id => "x"})
       attempt: nil
     self assert: (self assertOk: result) equals: "You are working on an issue from Linear."
 
@@ -62,7 +66,7 @@ TestCase subclass: PromptRendererTest
       ++ "Desc: "
       ++ (self var: "issue.description")
       ++ self ifClose
-    issue := #{"description" => "Some description"}
+    issue := Issue new: #{#description => "Some description"}
     result := PromptRenderer
       render: template
       issue: issue
@@ -75,7 +79,7 @@ TestCase subclass: PromptRendererTest
       ++ " desc"
       ++ self ifClose
       ++ " end"
-    issue := #{}
+    issue := Issue new
     result := PromptRenderer
       render: template
       issue: issue
@@ -88,7 +92,7 @@ TestCase subclass: PromptRendererTest
       ++ " "
       ++ (self var: "label")
       ++ self forClose
-    issue := #{"labels" => #("bug", "urgent")}
+    issue := Issue new: #{#labels => #("bug", "urgent")}
     result := PromptRenderer
       render: template
       issue: issue
@@ -104,7 +108,7 @@ TestCase subclass: PromptRendererTest
       ++ " ("
       ++ (self var: "attempt")
       ++ ")"
-    issue := #{"identifier" => "X-1", "title" => "Do it"}
+    issue := Issue new: #{#identifier => "X-1", #title => "Do it"}
     result := PromptRenderer
       render: template
       issue: issue

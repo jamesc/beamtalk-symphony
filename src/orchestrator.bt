@@ -97,9 +97,9 @@ Actor subclass: Orchestrator
   // --- Dispatch ---
 
   /// Spawns an AgentRunner for the issue and tracks it in the running map.
-  dispatchIssue: issue :: Dictionary attempt: attempt :: Integer =>
-    issueId := issue at: "id"
-    identifier := issue at: "identifier" ifAbsent: [""]
+  dispatchIssue: issue :: Issue attempt: attempt :: Integer =>
+    issueId := issue id
+    identifier := issue identifier ifNil: [""]
     Logger info: "dispatching" metadata: #{"issue" => identifier}
 
     runner := AgentRunner
@@ -277,7 +277,7 @@ Actor subclass: Orchestrator
       ]
 
     candidates := fetchResult unwrap
-    issue := candidates detect: [:i | (i at: "id") == issueId] ifNone: [nil]
+    issue := candidates detect: [:i | i id == issueId] ifNone: [nil]
     issue isNil
       ifTrue: [
         // Issue no longer eligible — release claim
@@ -292,7 +292,7 @@ Actor subclass: Orchestrator
       ifTrue: [
         self
           scheduleRetry: issueId
-          identifier: (issue at: "identifier" ifAbsent: [""])
+          identifier: (issue identifier ifNil: [""])
           attempt: retryEntry attempt + 1
           delayMs: (RetryAttempt backoffMs: retryEntry attempt + 1 maxMs: self.deps config maxRetryBackoffMs)
           error: "no available orchestrator slots"
@@ -353,9 +353,9 @@ Actor subclass: Orchestrator
 
     refreshed
       do: [:issueData |
-        issueId := issueData at: "id" ifAbsent: [nil]
+        issueId := issueData id
         issueId isNil ifTrue: [^nil]
-        state := issueData at: "state" ifAbsent: [nil]
+        state := issueData state
         state isNil ifTrue: [^nil]
 
         isTerminal := terminalStates anySatisfy: [:s |
@@ -382,7 +382,7 @@ Actor subclass: Orchestrator
             entry := self.running at: issueId ifAbsent: [nil]
             entry isNil
               ifFalse: [
-                updatedIssue := entry issue at: "state" put: state
+                updatedIssue := entry issue withState: state
                 self.running := self.running at: issueId put: (entry withIssue: updatedIssue)
               ]
           ]
@@ -425,7 +425,7 @@ Actor subclass: Orchestrator
     issues := fetchResult unwrap
     issues
       do: [:issue |
-        identifier := issue at: "identifier" ifAbsent: [nil]
+        identifier := issue identifier
         identifier isNil ifFalse: [
           self.deps workspaceManager removeWorkspace: identifier
         ]
@@ -437,52 +437,12 @@ Actor subclass: Orchestrator
   // --- Runtime snapshot ---
 
   /// Returns a serializable snapshot of running agents, retries, and token totals.
-  getSnapshot -> Dictionary =>
-    runningList := self.running values
-      collect: [:entry |
-        #{
-          "issue_id" => (entry issue at: "id" ifAbsent: [""]),
-          "issue_identifier" => entry identifier,
-          "state" => (entry issue at: "state" ifAbsent: [""]),
-          "session_id" => entry session sessionId,
-          "turn_count" => entry session turnCount,
-          "last_event" => entry session lastEvent,
-          "last_message" => entry session lastMessage,
-          "started_at" => entry startedAt,
-          "last_event_at" => entry session lastTimestamp,
-          "tokens" => #{
-            "input_tokens" => entry tokens input,
-            "output_tokens" => entry tokens output,
-            "total_tokens" => entry tokens total
-          }
-        }
-      ]
-
-    retryList := self.retryAttempts values
-      collect: [:entry |
-        #{
-          "issue_id" => entry issueId,
-          "issue_identifier" => entry identifier,
-          "attempt" => entry attempt,
-          "due_at_ms" => entry dueAtMs,
-          "error" => entry error
-        }
-      ]
-
-    #{
-      "counts" => #{
-        "running" => self.running size,
-        "retrying" => self.retryAttempts size
-      },
-      "running" => runningList,
-      "retrying" => retryList,
-      "codex_totals" => #{
-        "input_tokens" => self.codexTotals input,
-        "output_tokens" => self.codexTotals output,
-        "total_tokens" => self.codexTotals total
-      },
-      "rate_limits" => self.codexRateLimits
-    }
+  getSnapshot -> Snapshot =>
+    Snapshot
+      from: self.running
+      retrying: self.retryAttempts
+      codexTotals: self.codexTotals
+      rateLimits: self.codexRateLimits
 
   /// Publishes the current snapshot to the shared ETS table for HttpServer.
   publishSnapshot =>

@@ -1,0 +1,74 @@
+// Copyright 2026 James Casey
+// SPDX-License-Identifier: Apache-2.0
+
+/// Issue — a normalized Linear issue, built from a GraphQL issue node.
+typed Value subclass: Issue
+  field: id :: String | Nil = nil
+  field: identifier :: String | Nil = nil
+  field: title :: String | Nil = nil
+  field: description :: String | Nil = nil
+  field: priority :: Integer | Nil = nil
+  field: state :: String | Nil = nil
+  field: branchName :: String | Nil = nil
+  field: url :: String | Nil = nil
+  field: labels :: List(String) = #()
+  field: blockedBy :: List(IssueRef) = #()
+  field: createdAt :: String | Nil = nil
+  field: updatedAt :: String | Nil = nil
+
+  /// Builds an Issue from a Linear GraphQL issue node.
+  class fromNode: node :: Dictionary -> Issue =>
+    state := (node at: "state" ifAbsent: [#{}]) at: "name" ifAbsent: [nil]
+    labels := self labelsFromNode: (node at: "labels" ifAbsent: [nil])
+    blockers := self blockersFromNode: (node at: "inverseRelations" ifAbsent: [
+      nil
+    ])
+    priority := node at: "priority" ifAbsent: [nil]
+    priority := (priority isKindOf: Integer) ifTrue: [priority] ifFalse: [nil]
+    self
+      new: #{
+        #id => (node at: "id" ifAbsent: [nil]),
+        #identifier => (node at: "identifier" ifAbsent: [nil]),
+        #title => (node at: "title" ifAbsent: [nil]),
+        #description => (node at: "description" ifAbsent: [nil]),
+        #priority => priority,
+        #state => state,
+        #branchName => (node at: "branchName" ifAbsent: [nil]),
+        #url => (node at: "url" ifAbsent: [nil]),
+        #labels => labels,
+        #blockedBy => blockers,
+        #createdAt => (node at: "createdAt" ifAbsent: [nil]),
+        #updatedAt => (node at: "updatedAt" ifAbsent: [nil])
+      }
+
+  class labelsFromNode: labelsObj :: Dictionary -> List(String) =>
+    labelsObj isNil ifTrue: [^#()]
+    nodes := labelsObj at: "nodes" ifAbsent: [#()]
+    nodes collect: [:l | (l at: "name" ifAbsent: [""]) lowercase]
+
+  class blockersFromNode: relationsObj :: Dictionary -> List(IssueRef) =>
+    relationsObj isNil ifTrue: [^#()]
+    nodes := relationsObj at: "nodes" ifAbsent: [#()]
+    // Only include inverse relations of type "blocks"
+    blockers := nodes select: [:r | (r at: "type" ifAbsent: [""]) == "blocks"]
+    blockers collect: [:r |
+      IssueRef fromNode: (r at: "relatedIssue" ifAbsent: [#{}])
+    ]
+
+  /// Converts back to the wire-shaped Dictionary, for boundaries that still
+  /// expect dict-like data (e.g. PromptRenderer's template variable lookup).
+  asDictionary -> Dictionary =>
+    #{
+      "id" => self.id,
+      "identifier" => self.identifier,
+      "title" => self.title,
+      "description" => self.description,
+      "priority" => self.priority,
+      "state" => self.state,
+      "branch_name" => self.branchName,
+      "url" => self.url,
+      "labels" => self.labels,
+      "blocked_by" => (self.blockedBy collect: [:r | r asDictionary]),
+      "created_at" => self.createdAt,
+      "updated_at" => self.updatedAt
+    }

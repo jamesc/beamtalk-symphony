@@ -1,0 +1,49 @@
+// Copyright 2026 James Casey
+// SPDX-License-Identifier: Apache-2.0
+
+/// Snapshot — the orchestrator's runtime state, served by the dashboard and
+/// the /api/v1/state and /api/v1/refresh HTTP endpoints.
+typed Value subclass: Snapshot
+  field: runningCount :: Integer = 0
+  field: retryingCount :: Integer = 0
+  field: running :: List(RunningSnapshotEntry) = #()
+  field: retrying :: List(RetrySnapshotEntry) = #()
+  field: codexTotals :: TokenUsage = TokenUsage new
+  field: rateLimits :: Dictionary | Nil = nil
+
+  class empty -> Snapshot => self new
+
+  /// Builds a Snapshot from the orchestrator's raw running/retryAttempts
+  /// state (Dictionary of issueId -> RunningEntry/RetryAttempt).
+  class from: running :: Dictionary retrying: retrying :: Dictionary codexTotals: codexTotals :: TokenUsage rateLimits: rateLimits :: Dictionary | Nil -> Snapshot =>
+    runningList := running values collect: [:entry |
+      RunningSnapshotEntry fromRunningEntry: entry
+    ]
+    retryList := retrying values collect: [:entry |
+      RetrySnapshotEntry fromRetryAttempt: entry
+    ]
+    self
+      new: #{
+        #runningCount => running size,
+        #retryingCount => retrying size,
+        #running => runningList,
+        #retrying => retryList,
+        #codexTotals => codexTotals,
+        #rateLimits => rateLimits
+      }
+
+  asDictionary -> Dictionary =>
+    #{
+      "counts" => #{
+        "running" => self.runningCount,
+        "retrying" => self.retryingCount
+      },
+      "running" => (self.running collect: [:e | e asDictionary]),
+      "retrying" => (self.retrying collect: [:e | e asDictionary]),
+      "codex_totals" => #{
+        "input_tokens" => self.codexTotals input,
+        "output_tokens" => self.codexTotals output,
+        "total_tokens" => self.codexTotals total
+      },
+      "rate_limits" => self.rateLimits
+    }
