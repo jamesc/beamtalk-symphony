@@ -10,8 +10,8 @@ sha = "2b8272dd3ca19aacadbfdbf83a7cd0353f1f6023"
 [[package]]
 name = "yaml"
 url = "https://github.com/jamesc/beamtalk-yaml"
-reference = "tag:v0.1.0"
-sha = "80f6c9c232d873463640153c4df8d3d974d2abb2"
+reference = "branch:main"
+sha = "6a804848466022f802ed5f532c9d58f331e05936"
 
 [[native_package]]
 name = "cowboy"
