@@ -58,9 +58,7 @@ typed Value subclass: LinearClient
         body
       ]
       ifError: [:e |
-        @expect type
-        err :: Error := e
-        ^Result error: (LinearError unknownPayload: err displayString)
+        ^Result error: (LinearError unknownPayload: e displayString)
       ]
 
     errors := jsonBody at: "errors" ifAbsent: [nil]

@@ -27,9 +27,7 @@ typed Value subclass: WorkspaceManager
   sanitizeIdentifier: identifier :: String -> String =>
     identifier
       collect: [:ch |
-        @expect type
-        char :: String := ch
-        (char matchesRegex: "[A-Za-z0-9._-]") ifTrue: [char] ifFalse: ["_"]
+        (ch matchesRegex: "[A-Za-z0-9._-]") ifTrue: [ch] ifFalse: ["_"]
       ]
 
   workspacePath: identifier :: String -> String =>

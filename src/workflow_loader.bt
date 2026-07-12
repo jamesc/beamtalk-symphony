@@ -59,12 +59,9 @@ typed Object subclass: WorkflowLoader
     ]
 
     ((Yaml parse: yamlText)
-      mapError: [:e |
-        @expect type
-        err :: Error := e
-        WorkflowError parseError: err
-      ])
+      mapError: [:e | WorkflowError parseError: e])
       andThen: [:config |
+        @expect type
         (config isKindOf: Dictionary) ifFalse: [
           ^Result error: (WorkflowError invalidFrontMatter: config class name)
         ]
