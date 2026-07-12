@@ -112,10 +112,7 @@ typed Actor subclass: Orchestrator
       promptTemplate: self.deps promptTemplate
       onEvent: [:event | self onCodexEvent: issueId event: event!]
 
-    runner
-      onExit: [:reason |
-        self onWorkerExit: issueId reason: reason!
-      ]
+    runner onExit: [:reason | self onWorkerExit: issueId reason: reason!]
 
     entry := RunningEntry
       forIssue: issue
