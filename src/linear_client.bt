@@ -51,15 +51,17 @@ typed Value subclass: LinearClient
       ^Result error: (LinearError apiStatus: resp status body: resp body)
     ]
 
-    jsonBody := resp bodyAsJson ifOk: [:v |
-      @expect type
-      body :: Dictionary := v
-      body
-    ] ifError: [:e |
-      @expect type
-      err :: Error := e
-      ^Result error: (LinearError unknownPayload: err displayString)
-    ]
+    jsonBody := resp bodyAsJson
+      ifOk: [:v |
+        @expect type
+        body :: Dictionary := v
+        body
+      ]
+      ifError: [:e |
+        @expect type
+        err :: Error := e
+        ^Result error: (LinearError unknownPayload: err displayString)
+      ]
 
     errors := jsonBody at: "errors" ifAbsent: [nil]
     errors isNil

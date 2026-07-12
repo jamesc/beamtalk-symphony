@@ -7,6 +7,7 @@
 /// Takes full context as arguments and returns plain data; never touches
 /// Orchestrator state or performs side effects (killing workers, etc).
 typed Value subclass: Reconciler
+
   /// Returns the issue IDs in `running` whose last event (or, absent that,
   /// elapsed time since start) exceeds `stallTimeoutMs`. `nowMs` is passed
   /// in explicitly so this is a pure function of its arguments.
@@ -15,9 +16,9 @@ typed Value subclass: Reconciler
       select: [:issueId |
         entry := running at: issueId
         lastTs := entry session lastTimestamp
-        elapsed := lastTs isNil
-          ifTrue: [entry elapsedMs]
-          ifFalse: [nowMs - lastTs]
+        elapsed := lastTs isNil ifTrue: [
+          entry elapsedMs
+        ] ifFalse: [nowMs - lastTs]
         elapsed > stallTimeoutMs
       ]
 
@@ -51,15 +52,19 @@ typed Value subclass: Reconciler
       ]
 
   class classifyOne: ref :: IssueRef state: state :: String terminalStates: terminalStates :: List(String) activeStates: activeStates :: List(String) into: acc :: Dictionary -> Dictionary =>
-    isTerminal := terminalStates anySatisfy: [:s | s lowercase == state lowercase]
-    isTerminal ifTrue: [
-      newTerminal := (acc at: #terminal) add: ref id
-      ^acc at: #terminal put: newTerminal
+    isTerminal := terminalStates anySatisfy: [:s |
+      s lowercase == state lowercase
     ]
+    isTerminal
+      ifTrue: [
+        newTerminal := (acc at: #terminal) add: ref id
+        ^acc at: #terminal put: newTerminal
+      ]
     isActive := activeStates anySatisfy: [:s | s lowercase == state lowercase]
-    isActive ifTrue: [
-      newActive := (acc at: #active) add: ref
-      ^acc at: #active put: newActive
-    ]
+    isActive
+      ifTrue: [
+        newActive := (acc at: #active) add: ref
+        ^acc at: #active put: newActive
+      ]
     newDropped := (acc at: #dropped) add: ref id
     acc at: #dropped put: newDropped

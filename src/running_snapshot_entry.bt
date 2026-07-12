@@ -16,10 +16,8 @@ typed Value subclass: RunningSnapshotEntry
   field: tokens :: TokenUsage = TokenUsage new
 
   class fromRunningEntry: entry :: RunningEntry -> RunningSnapshotEntry =>
-    @expect type
-    issueId :: String := entry issue id ifNil: [""]
-    @expect type
-    state :: String := entry issue state ifNil: [""]
+    issueId := entry issue id ifNil: [""]
+    state := entry issue state ifNil: [""]
     self
       new: #{
         #issueId => issueId,

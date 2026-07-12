@@ -23,7 +23,8 @@ typed Actor subclass: WorkflowWatcher
   initialize -> Nil => self schedulePoll!
 
   /// Sets the reload callback (used by supervisor initialize: to wire children).
-  onReload: callback :: Block(ResolvedConfig, String, Object) -> Block(ResolvedConfig, String, Object) => self.onReload := callback
+  onReload: callback :: Block(ResolvedConfig, String, Object) -> Block(ResolvedConfig, String, Object) =>
+    self.onReload := callback
 
   schedulePoll -> Timer =>
     Timer after: self.pollIntervalMs do: [self checkForChanges!]

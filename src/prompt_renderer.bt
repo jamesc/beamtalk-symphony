@@ -127,14 +127,11 @@ typed Value subclass: PromptRenderer
   renderForBody: body :: String items: coll :: Printable | Nil itemName: itemName :: String vars: vars :: Dictionary -> String =>
     coll isNil ifTrue: [^""]
     (coll isKindOf: List) ifFalse: [^""]
-    @expect type
-    items :: List := coll
+    items :: List(Printable) := coll
     items
       inject: ""
       into: [:acc :item |
-        @expect type
-        value :: Printable := item
-        innerVars := vars at: itemName put: value
+        innerVars := vars at: itemName put: item
         acc ++ (self interpolate: body vars: innerVars)
       ]
 

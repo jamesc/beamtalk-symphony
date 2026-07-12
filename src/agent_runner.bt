@@ -39,10 +39,7 @@ typed Actor subclass: AgentRunner
     self.codexClient isNil ifFalse: [self.codexClient stopProcess]
 
   begin -> AgentRunner =>
-    // ifNil: is declared to return bare Object, so the checker can't narrow
-    // it to String even with the annotation on identifier below.
-    @expect type
-    identifier :: String := self.issue identifier ifNil: [""]
+    identifier := self.issue identifier ifNil: [""]
     Logger info: "agent run starting" metadata: #{"issue" => identifier}
     result := self doRun
     result isError
@@ -61,8 +58,7 @@ typed Actor subclass: AgentRunner
     self
 
   doRun -> Result(Dictionary, Error) =>
-    @expect type
-    identifier :: String := self.issue identifier ifNil: [""]
+    identifier := self.issue identifier ifNil: [""]
     // Step 1: Create/reuse workspace
     wsResult := self.workspaceManager createForIssue: identifier
     wsResult isError ifTrue: [^wsResult]
@@ -182,10 +178,8 @@ typed Actor subclass: AgentRunner
     promptText := promptResult unwrap
 
     // Start the turn
-    @expect type
-    issueIdentifier :: String := self.issue identifier ifNil: [""]
-    @expect type
-    issueTitle :: String := self.issue title ifNil: [""]
+    issueIdentifier := self.issue identifier ifNil: [""]
+    issueTitle := self.issue title ifNil: [""]
     title := issueIdentifier ++ ": " ++ issueTitle
 
     turnResult := self.codexClient

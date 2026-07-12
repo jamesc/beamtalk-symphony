@@ -5,6 +5,7 @@
 /// worker exit or a failed reschedule attempt. Takes full context as
 /// arguments and returns a RetryPlan; never touches Orchestrator state.
 typed Value subclass: RetryPolicy
+
   /// Decides the next retry attempt after a worker process exits.
   /// A #normal exit means the turn loop finished cleanly — schedule a
   /// short continuation retry. Anything else is treated as an abnormal
@@ -12,14 +13,15 @@ typed Value subclass: RetryPolicy
   class planForExitReason: reason :: Object entry: entry :: RunningEntry maxBackoffMs: maxMs :: Integer -> RetryPlan =>
     reason == #normal
       ifTrue: [
-        ^RetryPlan
-          new: #{
-            #attempt => 1,
-            #delayMs => RetryAttempt continuationDelayMs,
-            #error => nil
-          }
+        ^RetryPlan new: #{
+          #attempt => 1,
+          #delayMs => RetryAttempt continuationDelayMs,
+          #error => nil
+        }
       ]
-    nextAttempt := entry retryAttempt isNil ifTrue: [1] ifFalse: [entry retryAttempt + 1]
+    nextAttempt := entry retryAttempt isNil ifTrue: [
+      1
+    ] ifFalse: [entry retryAttempt + 1]
     RetryPlan
       new: #{
         #attempt => nextAttempt,

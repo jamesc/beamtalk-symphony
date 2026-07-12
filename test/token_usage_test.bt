@@ -64,17 +64,32 @@ TestCase subclass: TokenUsageTest
     self assert: t input equals: 0
 
   testAccumulateDelta =>
-    totals := (TokenUsage new) applyAbsolute: 1000 output: 500 total: 1500
-    oldTokens := (TokenUsage new) applyAbsolute: 100 output: 50 total: 150
-    newTokens := oldTokens applyAbsolute: 250 output: 120 total: 370
+    totals := (TokenUsage new)
+      applyAbsolute: 1000
+      output: 500
+      total: 1500
+    oldTokens := (TokenUsage new)
+      applyAbsolute: 100
+      output: 50
+      total: 150
+    newTokens := oldTokens
+      applyAbsolute: 250
+      output: 120
+      total: 370
     updated := totals accumulateDelta: newTokens from: oldTokens
     self assert: updated input equals: 1150
     self assert: updated output equals: 570
     self assert: updated total equals: 1720
 
   testAccumulateDeltaWithNoChange =>
-    totals := (TokenUsage new) applyAbsolute: 1000 output: 500 total: 1500
-    same := (TokenUsage new) applyAbsolute: 100 output: 50 total: 150
+    totals := (TokenUsage new)
+      applyAbsolute: 1000
+      output: 500
+      total: 1500
+    same := (TokenUsage new)
+      applyAbsolute: 100
+      output: 50
+      total: 150
     updated := totals accumulateDelta: same from: same
     self assert: updated input equals: 1000
     self assert: updated output equals: 500

@@ -100,8 +100,7 @@ typed Actor subclass: Orchestrator
   /// Spawns an AgentRunner for the issue and tracks it in the running map.
   dispatchIssue: issue :: Issue attempt: attempt :: Integer -> Nil =>
     issueId := issue id
-    @expect type
-    identifier :: String := issue identifier ifNil: [""]
+    identifier := issue identifier ifNil: [""]
     Logger info: "dispatching" metadata: #{"issue" => identifier}
 
     runner := AgentRunner
@@ -113,11 +112,10 @@ typed Actor subclass: Orchestrator
       promptTemplate: self.deps promptTemplate
       onEvent: [:event | self onCodexEvent: issueId event: event!]
 
-    runner onExit: [:reason |
-      @expect type
-      exitReason :: Object := reason
-      self onWorkerExit: issueId reason: exitReason!
-    ]
+    runner
+      onExit: [:reason |
+        self onWorkerExit: issueId reason: reason!
+      ]
 
     entry := RunningEntry
       forIssue: issue
@@ -171,7 +169,10 @@ typed Actor subclass: Orchestrator
     output := usage at: "output" ifAbsent: [0]
     total := usage at: "total" ifAbsent: [0]
     oldTokens := entry tokens
-    newTokens := oldTokens applyAbsolute: input output: output total: total
+    newTokens := oldTokens
+      applyAbsolute: input
+      output: output
+      total: total
 
     self.codexTotals := self.codexTotals accumulateDelta: newTokens from: oldTokens
 
@@ -281,8 +282,7 @@ typed Actor subclass: Orchestrator
     availableSlots := self.deps config maxConcurrentAgents - self.running size
     availableSlots <= 0
       ifTrue: [
-        @expect type
-        identifier :: String := issue identifier ifNil: [""]
+        identifier := issue identifier ifNil: [""]
         plan := RetryPolicy
           planForRescheduleAfter: retryEntry
           maxBackoffMs: self.deps config maxRetryBackoffMs
@@ -364,8 +364,9 @@ typed Actor subclass: Orchestrator
           ]
       ]
 
-    (classification at: #dropped)
-      do: [:issueId | self terminateWorker: issueId cleanup: false]
+    (classification at: #dropped) do: [:issueId |
+      self terminateWorker: issueId cleanup: false
+    ]
 
   terminateWorker: issueId :: String cleanup: cleanup :: Boolean -> Nil =>
     entry := self.running at: issueId ifAbsent: [nil]

@@ -72,20 +72,22 @@ typed Value subclass: Config
 
   // --- Tracker ---
   trackerKind -> String | Nil =>
-    self
+    val := self
       nested: "tracker"
       key: "kind"
       default: nil
+    self coerceStringOrNil: val
 
   trackerEndpoint -> String =>
     kind := self trackerKind
     defaultEndpoint := kind == "linear" ifTrue: [
       "https://api.linear.app/graphql"
     ] ifFalse: [""]
-    self
+    val := self
       nested: "tracker"
       key: "endpoint"
       default: defaultEndpoint
+    self coerceString: val default: defaultEndpoint
 
   trackerApiKey -> String | Nil =>
     raw := self
@@ -119,16 +121,20 @@ typed Value subclass: Config
     result
 
   trackerActiveStates -> List(String) =>
-    self
+    default := #("Todo", "In Progress")
+    val := self
       nested: "tracker"
       key: "active_states"
-      default: #("Todo", "In Progress")
+      default: default
+    self coerceStringList: val default: default
 
   trackerTerminalStates -> List(String) =>
-    self
+    default := #("Closed", "Cancelled", "Canceled", "Duplicate", "Done")
+    val := self
       nested: "tracker"
       key: "terminal_states"
-      default: #("Closed", "Cancelled", "Canceled", "Duplicate", "Done")
+      default: default
+    self coerceStringList: val default: default
 
   // --- Polling ---
   pollIntervalMs -> Integer =>
@@ -136,15 +142,16 @@ typed Value subclass: Config
       nested: "polling"
       key: "interval_ms"
       default: 30000
-    self coerceInt: val default: 30000
+    (self coerceInt: val default: 30000) ifNil: [30000]
 
   // --- Workspace ---
   workspaceRoot -> String =>
+    defaultRoot := File tempDirectory ++ "/symphony_workspaces"
     raw := self
       nested: "workspace"
       key: "root"
       default: nil
-    raw isNil ifTrue: [^File tempDirectory ++ "/symphony_workspaces"]
+    raw isNil ifTrue: [^defaultRoot]
     (raw isKindOf: String)
       ifTrue: [
         (raw startsWith: "$")
@@ -155,8 +162,7 @@ typed Value subclass: Config
           ]
         ^self expandHome: raw
       ]
-    result :: String := raw
-    result
+    defaultRoot
 
   // --- Agent ---
   maxConcurrentAgents -> Integer =>
@@ -164,21 +170,21 @@ typed Value subclass: Config
       nested: "agent"
       key: "max_concurrent_agents"
       default: 10
-    self coerceInt: val default: 10
+    (self coerceInt: val default: 10) ifNil: [10]
 
   maxRetryBackoffMs -> Integer =>
     val := self
       nested: "agent"
       key: "max_retry_backoff_ms"
       default: 300000
-    self coerceInt: val default: 300000
+    (self coerceInt: val default: 300000) ifNil: [300000]
 
   maxTurns -> Integer =>
     val := self
       nested: "agent"
       key: "max_turns"
       default: 20
-    self coerceInt: val default: 20
+    (self coerceInt: val default: 20) ifNil: [20]
 
   maxConcurrentAgentsByState -> Dictionary(String, Integer) =>
     raw := self
@@ -186,12 +192,11 @@ typed Value subclass: Config
       key: "max_concurrent_agents_by_state"
       default: #{}
     (raw isKindOf: Dictionary) ifFalse: [^#{}]
-    rawMap :: Dictionary := raw
     // Build normalized map using inject on keys
-    rawMap keys
+    raw keys
       inject: #{}
       into: [:acc :k |
-        intVal := self coerceInt: (rawMap at: k) default: nil
+        intVal := self coerceInt: (raw at: k) default: nil
         self
           addToMap: acc
           key: k lowercase
@@ -205,74 +210,82 @@ typed Value subclass: Config
 
   // --- Codex ---
   codexCommand -> String =>
-    self
+    val := self
       nested: "codex"
       key: "command"
       default: "codex app-server"
+    self coerceString: val default: "codex app-server"
 
   codexApprovalPolicy -> String | Nil =>
-    self
+    val := self
       nested: "codex"
       key: "approval_policy"
       default: nil
+    self coerceStringOrNil: val
 
   codexThreadSandbox -> String | Nil =>
-    self
+    val := self
       nested: "codex"
       key: "thread_sandbox"
       default: nil
+    self coerceStringOrNil: val
 
   codexTurnSandboxPolicy -> String | Nil =>
-    self
+    val := self
       nested: "codex"
       key: "turn_sandbox_policy"
       default: nil
+    self coerceStringOrNil: val
 
   codexTurnTimeoutMs -> Integer =>
     val := self
       nested: "codex"
       key: "turn_timeout_ms"
       default: 3600000
-    self coerceInt: val default: 3600000
+    (self coerceInt: val default: 3600000) ifNil: [3600000]
 
   codexReadTimeoutMs -> Integer =>
     val := self
       nested: "codex"
       key: "read_timeout_ms"
       default: 5000
-    self coerceInt: val default: 5000
+    (self coerceInt: val default: 5000) ifNil: [5000]
 
   codexStallTimeoutMs -> Integer =>
     val := self
       nested: "codex"
       key: "stall_timeout_ms"
       default: 300000
-    self coerceInt: val default: 300000
+    (self coerceInt: val default: 300000) ifNil: [300000]
 
   // --- Hooks ---
   hooksAfterCreate -> String | Nil =>
-    self
+    val := self
       nested: "hooks"
       key: "after_create"
       default: nil
+    self coerceStringOrNil: val
 
   hooksBeforeRun -> String | Nil =>
-    self
+    val := self
       nested: "hooks"
       key: "before_run"
       default: nil
+    self coerceStringOrNil: val
 
   hooksAfterRun -> String | Nil =>
-    self
+    val := self
       nested: "hooks"
       key: "after_run"
       default: nil
+    self coerceStringOrNil: val
 
   hooksBeforeRemove -> String | Nil =>
-    self
+    val := self
       nested: "hooks"
       key: "before_remove"
       default: nil
+    self coerceStringOrNil: val
 
   hooksTimeoutMs -> Integer =>
     val := self
@@ -283,7 +296,7 @@ typed Value subclass: Config
     result > 0 ifTrue: [result] ifFalse: [60000]
 
   // --- Server (extension) ---
-  serverPort -> Integer =>
+  serverPort -> Integer | Nil =>
     raw := self.raw at: "server" ifAbsent: [nil]
     raw isNil ifTrue: [^nil]
     (raw isKindOf: Dictionary) ifFalse: [^nil]
@@ -387,4 +400,16 @@ typed Value subclass: Config
     (val isKindOf: String) ifTrue: [
       ^[val asInteger] on: Error do: [:e | default]
     ]
+    default
+
+  coerceString: val :: Object | Nil default: default :: String -> String =>
+    (val isKindOf: String) ifTrue: [^val]
+    default
+
+  coerceStringOrNil: val :: Object | Nil -> String | Nil =>
+    (val isKindOf: String) ifTrue: [^val]
+    nil
+
+  coerceStringList: val :: Object | Nil default: default :: List(String) -> List(String) =>
+    (val isKindOf: List) ifTrue: [^val]
     default
