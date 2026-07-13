@@ -25,10 +25,9 @@ typed Value subclass: WorkspaceManager
 
   // --- Path derivation ---
   sanitizeIdentifier: identifier :: String -> String =>
-    identifier
-      collect: [:ch |
-        (ch matchesRegex: "[A-Za-z0-9._-]") ifTrue: [ch] ifFalse: ["_"]
-      ]
+    identifier collect: [:ch |
+      (ch matchesRegex: "[A-Za-z0-9._-]") ifTrue: [ch] ifFalse: ["_"]
+    ]
 
   workspacePath: identifier :: String -> String =>
     key := self sanitizeIdentifier: identifier

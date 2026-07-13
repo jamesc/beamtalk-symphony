@@ -51,28 +51,22 @@ typed Value subclass: LinearClient
       ^Result error: (LinearError apiStatus: resp status body: resp body)
     ]
 
-    jsonBody := resp bodyAsJson
-      ifOk: [:v |
+    (resp bodyAsJson mapError: [:e | LinearError unknownPayload: e displayString])
+      andThen: [:v |
         @expect type
-        body :: Dictionary := v
-        body
-      ]
-      ifError: [:e |
-        ^Result error: (LinearError unknownPayload: e displayString)
-      ]
+        jsonBody :: Dictionary := v
 
-    errors := jsonBody at: "errors" ifAbsent: [nil]
-    errors isNil
-      ifFalse: [
-        ^Result error: (LinearError graphqlErrors: errors data: (jsonBody at: "data" ifAbsent: nil))
+        errors := jsonBody at: "errors" ifAbsent: [nil]
+        errors isNil
+          ifFalse: [
+            ^Result error: (LinearError graphqlErrors: errors data: (jsonBody at: "data" ifAbsent: [nil]))
+          ]
+
+        data := jsonBody at: "data" ifAbsent: [nil]
+        data isNil
+          ifTrue: [Result error: (LinearError unknownPayload: "missing data field")]
+          ifFalse: [Result ok: data]
       ]
-
-    data := jsonBody at: "data" ifAbsent: [nil]
-    data isNil ifTrue: [
-      ^Result error: (LinearError unknownPayload: "missing data field")
-    ]
-
-    Result ok: data
 
   // --- Candidate issue fetch (BT-1376) ---
 

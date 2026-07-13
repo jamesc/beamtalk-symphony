@@ -229,7 +229,7 @@ typed Actor subclass: HttpServer
       ++ "</td></tr>"
 
   renderRetryRow: r :: RetrySnapshotEntry -> String =>
-    errorMsg := r error isNil ifTrue: ["—"] ifFalse: [r error]
+    errorMsg := r error ifNil: ["—"]
     "<tr><td><strong>"
       ++ r issueIdentifier displayString
       ++ "</strong></td>"

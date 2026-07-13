@@ -58,8 +58,7 @@ typed Object subclass: WorkflowLoader
       ^Result ok: #{"config" => #{}, "prompt_template" => promptBody}
     ]
 
-    ((Yaml parse: yamlText)
-      mapError: [:e | WorkflowError parseError: e])
+    ((Yaml parse: yamlText) mapError: [:e | WorkflowError parseError: e])
       andThen: [:config |
         @expect type
         (config isKindOf: Dictionary) ifFalse: [
