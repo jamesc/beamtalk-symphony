@@ -403,10 +403,19 @@ typed Value subclass: Config
     ]
 
   coerceString: val :: Object | Nil default: default :: String -> String =>
-    val match: [s :: String -> s; _ -> default]
+    val match: [
+      s :: String -> s;
+      _ -> default
+    ]
 
   coerceStringOrNil: val :: Object | Nil -> String | Nil =>
-    val match: [s :: String -> s; _ -> nil]
+    val match: [
+      s :: String -> s;
+      _ -> nil
+    ]
 
   coerceStringList: val :: Object | Nil default: default :: List(String) -> List(String) =>
-    val match: [l :: List -> l; _ -> default]
+    val match: [
+      l :: List -> l;
+      _ -> default
+    ]
