@@ -34,6 +34,4 @@ typed Value subclass: CodexError
 
   displayString -> String =>
     base := "CodexError(" ++ self.kind ++ ")"
-    self.detail isNil ifTrue: [
-      base
-    ] ifFalse: [base ++ ": " ++ self.detail displayString]
+    self.detail ifNil: [base] ifNotNil: [:d | base ++ ": " ++ d displayString]

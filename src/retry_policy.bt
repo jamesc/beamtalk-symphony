@@ -19,9 +19,7 @@ typed Value subclass: RetryPolicy
           #error => nil
         }
       ]
-    nextAttempt := entry retryAttempt isNil ifTrue: [
-      1
-    ] ifFalse: [entry retryAttempt + 1]
+    nextAttempt := entry retryAttempt ifNil: [1] ifNotNil: [:n | n + 1]
     RetryPlan
       new: #{
         #attempt => nextAttempt,

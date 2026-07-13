@@ -35,11 +35,11 @@ typed Actor subclass: CodexClient
       d :: Dictionary -> (d at: "total" ifAbsent: [nil]);
       _ -> nil
     ]
-    usage := usage isNil ifTrue: [
+    usage := usage ifNil: [
       params at: "total_token_usage" ifAbsent: [
         params at: "usage" ifAbsent: [nil]
       ]
-    ] ifFalse: [usage]
+    ]
     usage isNil ifTrue: [^nil]
     (usage isKindOf: Dictionary) ifFalse: [^nil]
     #{

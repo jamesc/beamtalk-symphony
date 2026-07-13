@@ -211,7 +211,7 @@ typed Actor subclass: HttpServer
     self renderRetryRowsFrom: list rest accumulated: acc ++ row
 
   renderRunningRow: r :: RunningSnapshotEntry -> String =>
-    lastEvent := r lastEvent isNil ifTrue: ["—"] ifFalse: [r lastEvent]
+    lastEvent := r lastEvent ifNil: ["—"]
     "<tr><td><strong>"
       ++ r issueIdentifier displayString
       ++ "</strong></td>"

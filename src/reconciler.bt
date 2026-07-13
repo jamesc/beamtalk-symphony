@@ -16,9 +16,7 @@ typed Value subclass: Reconciler
       select: [:issueId |
         entry := running at: issueId
         lastTs := entry session lastTimestamp
-        elapsed := lastTs isNil ifTrue: [
-          entry elapsedMs
-        ] ifFalse: [nowMs - lastTs]
+        elapsed := lastTs ifNil: [entry elapsedMs] ifNotNil: [:ts | nowMs - ts]
         elapsed > stallTimeoutMs
       ]
 
