@@ -60,9 +60,11 @@ typed Object subclass: WorkflowLoader
 
     ((Yaml parse: yamlText) mapError: [:e | WorkflowError parseError: e])
       andThen: [:config |
-        @expect type
-        (config isKindOf: Dictionary) ifFalse: [
-          ^Result error: (WorkflowError invalidFrontMatter: config class name)
+        config match: [
+          d :: Dictionary -> Result ok: #{
+            "config" => d,
+            "prompt_template" => promptBody
+          };
+          _ -> Result error: (WorkflowError invalidFrontMatter: config class name)
         ]
-        Result ok: #{"config" => config, "prompt_template" => promptBody}
       ]
