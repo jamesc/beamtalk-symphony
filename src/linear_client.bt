@@ -23,10 +23,11 @@ typed Value subclass: LinearClient
   // --- Error helpers ---
   class errorKind: result :: Result -> String =>
     result isError ifFalse: [^nil]
-    err := result error
-    (err isKindOf: LinearError) ifTrue: [^err kind]
-    (err isKindOf: Dictionary) ifTrue: [^err at: "kind" ifAbsent: ["unknown"]]
-    "unknown"
+    result error match: [
+      e :: LinearError -> e kind;
+      d :: Dictionary -> (d at: "kind" ifAbsent: ["unknown"]);
+      _ -> "unknown"
+    ]
 
   // --- Core GraphQL transport ---
 

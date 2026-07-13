@@ -162,11 +162,8 @@ typed Value subclass: PromptRenderer
     parts
       inject: vars
       into: [:val :part |
-        val isNil
-          ifTrue: [nil]
-          ifFalse: [
-            (val isKindOf: Dictionary) ifTrue: [
-              val at: part ifAbsent: [nil]
-            ] ifFalse: [nil]
-          ]
+        val match: [
+          d :: Dictionary -> (d at: part ifAbsent: [nil]);
+          _ -> nil
+        ]
       ]

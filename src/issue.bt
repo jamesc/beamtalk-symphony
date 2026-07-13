@@ -24,7 +24,7 @@ typed Value subclass: Issue
       nil
     ])
     priority := node at: "priority" ifAbsent: [nil]
-    priority := (priority isKindOf: Integer) ifTrue: [priority] ifFalse: [nil]
+    priority := priority match: [n :: Integer -> n; _ -> nil]
     self
       new: #{
         #id => (node at: "id" ifAbsent: [nil]),

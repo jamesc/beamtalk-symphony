@@ -395,21 +395,18 @@ typed Value subclass: Config
     path
 
   coerceInt: val :: Object | Nil default: default :: Integer | Nil -> Integer | Nil =>
-    val isNil ifTrue: [^default]
-    (val isKindOf: Integer) ifTrue: [^val]
-    (val isKindOf: String) ifTrue: [
-      ^[val asInteger] on: Error do: [:e | default]
+    val match: [
+      nil -> default;
+      n :: Integer -> n;
+      s :: String -> ([s asInteger] on: Error do: [:e | default]);
+      _ -> default
     ]
-    default
 
   coerceString: val :: Object | Nil default: default :: String -> String =>
-    (val isKindOf: String) ifTrue: [^val]
-    default
+    val match: [s :: String -> s; _ -> default]
 
   coerceStringOrNil: val :: Object | Nil -> String | Nil =>
-    (val isKindOf: String) ifTrue: [^val]
-    nil
+    val match: [s :: String -> s; _ -> nil]
 
   coerceStringList: val :: Object | Nil default: default :: List(String) -> List(String) =>
-    (val isKindOf: List) ifTrue: [^val]
-    default
+    val match: [l :: List -> l; _ -> default]
