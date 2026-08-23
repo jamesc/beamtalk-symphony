@@ -1,10 +1,15 @@
 // Copyright 2026 James Casey
 // SPDX-License-Identifier: Apache-2.0
 
-/// RetryPolicy — pure decision logic for scheduling issue retries after a
+/// RetryPlanner — pure decision logic for scheduling issue retries after a
 /// worker exit or a failed reschedule attempt. Takes full context as
 /// arguments and returns a RetryPlan; never touches Orchestrator state.
-typed Value subclass: RetryPolicy
+///
+/// Named RetryPlanner (not RetryPolicy) to avoid colliding with stdlib's
+/// RetryPolicy, a general-purpose backoff/retry-execution Value. The actual
+/// backoff math now delegates to stdlib RetryPolicy — see RetryAttempt
+/// backoffMs:maxMs:.
+typed Value subclass: RetryPlanner
 
   /// Decides the next retry attempt after a worker process exits.
   /// A #normal exit means the turn loop finished cleanly — schedule a

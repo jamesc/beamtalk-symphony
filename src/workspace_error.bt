@@ -42,6 +42,9 @@ typed Value subclass: WorkspaceError
       #actual => actual
     }
 
+  class pathResolutionFailed: detail :: Printable -> WorkspaceError =>
+    self new: #{#kind => "path_resolution_failed", #detail => detail}
+
   displayString -> String =>
     base := "WorkspaceError(" ++ self.kind ++ ")"
     self.detail ifNil: [base] ifNotNil: [:d | base ++ ": " ++ d displayString]

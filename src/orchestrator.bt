@@ -101,6 +101,13 @@ typed Actor subclass: Orchestrator
   dispatchIssue: issue :: Issue attempt: attempt :: Integer -> Nil =>
     issueId := issue id
     identifier := issue identifier ifNil: [""]
+    issueId isNil
+      ifTrue: [
+        Logger error: "cannot dispatch issue with no id" metadata: #{
+          "issue_identifier" => identifier
+        }
+        ^nil
+      ]
     Logger info: "dispatching" metadata: #{"issue" => identifier}
 
     runner := AgentRunner
@@ -129,11 +136,27 @@ typed Actor subclass: Orchestrator
       "issue_identifier" => identifier
     }
 
+  // --- Lookup helpers ---
+
+  /// Looks up a running entry, or nil if absent. Dictionary>>at:ifAbsent:
+  /// requires the absent-block to return the value type itself, so a plain
+  /// nil-returning lookup goes through includesKey: instead.
+  runningEntryFor: issueId :: String -> RunningEntry | Nil =>
+    (self.running includesKey: issueId) ifTrue: [
+      self.running at: issueId
+    ] ifFalse: [nil]
+
+  /// Looks up a pending retry attempt, or nil if absent — see runningEntryFor:.
+  retryEntryFor: issueId :: String -> RetryAttempt | Nil =>
+    (self.retryAttempts includesKey: issueId) ifTrue: [
+      self.retryAttempts at: issueId
+    ] ifFalse: [nil]
+
   // --- Codex event handling ---
 
   /// Processes a codex stream event, updating session info and token counters.
   onCodexEvent: issueId :: String event: event :: Dictionary -> Nil =>
-    entry := self.running at: issueId ifAbsent: [nil]
+    entry := self runningEntryFor: issueId
     entry isNil ifTrue: [^nil]
 
     // Update session info
@@ -176,14 +199,15 @@ typed Actor subclass: Orchestrator
     entry withTokens: newTokens
 
   /// Updates rate limits if non-nil.
-  applyRateLimits: rateLimits :: Dictionary | Nil -> Dictionary | Nil =>
+  applyRateLimits: rateLimits :: Dictionary | Nil -> Nil =>
     rateLimits isNil ifFalse: [self.codexRateLimits := rateLimits]
+    nil
 
   // --- Worker exit handling ---
 
   /// Handles worker process exit — schedules continuation or backoff retry.
   onWorkerExit: issueId :: String reason: reason :: Object -> Nil =>
-    entry := self.running at: issueId ifAbsent: [nil]
+    entry := self runningEntryFor: issueId
     entry isNil ifTrue: [^nil]
 
     // Remove from running
@@ -200,7 +224,7 @@ typed Actor subclass: Orchestrator
 
     reason == #normal ifTrue: [self.completed := self.completed add: issueId]
 
-    plan := RetryPolicy
+    plan := RetryPlanner
       planForExitReason: reason
       entry: entry
       maxBackoffMs: self.deps config maxRetryBackoffMs
@@ -214,7 +238,7 @@ typed Actor subclass: Orchestrator
   // --- Retry queue ---
   scheduleRetry: issueId :: String identifier: identifier :: String attempt: attempt :: Integer delayMs: delayMs :: Integer error: error :: String | Nil -> Nil =>
     // Cancel existing retry timer
-    existing := self.retryAttempts at: issueId ifAbsent: [nil]
+    existing := self retryEntryFor: issueId
     existing isNil ifFalse: [
       existing timerRef isNil ifFalse: [existing timerRef cancel]
     ]
@@ -243,7 +267,7 @@ typed Actor subclass: Orchestrator
       }
 
   onRetryTimer: issueId :: String -> Nil =>
-    retryEntry := self.retryAttempts at: issueId ifAbsent: [nil]
+    retryEntry := self retryEntryFor: issueId
     retryEntry isNil ifTrue: [^nil]
     self.retryAttempts := self.retryAttempts removeKey: issueId
 
@@ -252,7 +276,7 @@ typed Actor subclass: Orchestrator
     fetchResult isError
       ifTrue: [
         // Re-schedule retry
-        plan := RetryPolicy
+        plan := RetryPlanner
           planForRescheduleAfter: retryEntry
           maxBackoffMs: self.deps config maxRetryBackoffMs
           error: "retry poll failed"
@@ -266,8 +290,8 @@ typed Actor subclass: Orchestrator
       ]
 
     candidates := fetchResult unwrap
-    issue := candidates detect: [:i | i id == issueId] ifNone: [nil]
-    issue isNil
+    found := candidates detect: [:i | i id == issueId] ifNone: [nil]
+    found isNil
       ifTrue: [
         // Issue no longer eligible — release claim
         self.claimed := self.claimed reject: [:id | id == issueId]
@@ -275,12 +299,17 @@ typed Actor subclass: Orchestrator
         ^nil
       ]
 
+    // detect:ifNone: widens the found element to Issue | Object to
+    // accommodate an arbitrary ifNone: block return type; the isNil guard
+    // above has already ruled out anything but Issue here.
+    issue :: Issue := found
+
     // Check slots
     availableSlots := self.deps config maxConcurrentAgents - self.running size
     availableSlots <= 0
       ifTrue: [
         identifier := issue identifier ifNil: [""]
-        plan := RetryPolicy
+        plan := RetryPlanner
           planForRescheduleAfter: retryEntry
           maxBackoffMs: self.deps config maxRetryBackoffMs
           error: "no available orchestrator slots"
@@ -343,7 +372,7 @@ typed Actor subclass: Orchestrator
 
     (classification at: #terminal)
       do: [:issueId |
-        entry := self.running at: issueId ifAbsent: [nil]
+        entry := self runningEntryFor: issueId
         entry isNil
           ifFalse: [
             self terminateWorker: issueId cleanup: true
@@ -353,7 +382,7 @@ typed Actor subclass: Orchestrator
 
     (classification at: #active)
       do: [:ref |
-        entry := self.running at: ref id ifAbsent: [nil]
+        entry := self runningEntryFor: ref id
         entry isNil
           ifFalse: [
             updatedIssue := entry issue withState: ref state
@@ -366,7 +395,7 @@ typed Actor subclass: Orchestrator
     ]
 
   terminateWorker: issueId :: String cleanup: cleanup :: Boolean -> Nil =>
-    entry := self.running at: issueId ifAbsent: [nil]
+    entry := self runningEntryFor: issueId
     entry isNil ifTrue: [^nil]
 
     // Kill the worker process

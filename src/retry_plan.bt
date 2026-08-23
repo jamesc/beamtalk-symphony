@@ -1,7 +1,7 @@
 // Copyright 2026 James Casey
 // SPDX-License-Identifier: Apache-2.0
 
-/// RetryPlan — the outcome of a RetryPolicy decision: how many attempts in,
+/// RetryPlan — the outcome of a RetryPlanner decision: how many attempts in,
 /// how long to wait, and the error (if any) that triggered the retry.
 typed Value subclass: RetryPlan
   field: attempt :: Integer

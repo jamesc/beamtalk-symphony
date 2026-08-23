@@ -74,6 +74,25 @@ TestCase subclass: OrchestratorTest
   testContinuationDelay =>
     self assert: RetryAttempt continuationDelayMs equals: 1000
 
+  // --- Dispatch guards ---
+  testDispatchIssueWithNilIdSkipsDispatch =>
+    Erlang os putenv: "ORCH_TEST_KEY5" value: "test_key"
+    config := (Config
+      resolve: #{
+        "tracker" => #{
+          "kind" => "linear",
+          "api_key" => "$ORCH_TEST_KEY5",
+          "project_slug" => "test"
+        }
+      }) unwrap
+    orch := Orchestrator create: config promptTemplate: "test"
+    issue := Issue new: #{#id => nil, #identifier => "TEST-999"}
+    orch dispatchIssue: issue attempt: 0
+    snapshot := orch getSnapshot
+    self assert: snapshot runningCount equals: 0
+    self assert: orch isAlive
+    self assert: orch stop equals: #ok
+
   // --- Snapshot structure ---
   testSnapshotStructure =>
     Erlang os putenv: "ORCH_TEST_KEY4" value: "test_key"

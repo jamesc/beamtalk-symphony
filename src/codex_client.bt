@@ -70,6 +70,7 @@ typed Actor subclass: CodexClient
         self.proc stop
         self.proc := nil
       ]
+    nil
 
   // --- Subprocess launch ---
 

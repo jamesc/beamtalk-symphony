@@ -37,6 +37,7 @@ typed Actor subclass: AgentRunner
   // --- Main lifecycle ---
   terminate: _reason :: Object -> Nil =>
     self.codexClient isNil ifFalse: [self.codexClient stopProcess]
+    nil
 
   begin -> AgentRunner =>
     identifier := self.issue identifier ifNil: [""]
