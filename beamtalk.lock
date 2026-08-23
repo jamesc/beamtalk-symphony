@@ -24,7 +24,7 @@ sha = ""
 
 [[native_package]]
 name = "cowlib"
-version = "2.16.0"
+version = "2.19.0"
 sha = ""
 
 [[native_package]]
@@ -34,7 +34,7 @@ sha = ""
 
 [[native_package]]
 name = "ranch"
-version = "2.2.0"
+version = "2.2.1"
 sha = ""
 
 [[native_package]]
