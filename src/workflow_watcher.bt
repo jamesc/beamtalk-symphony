@@ -75,4 +75,5 @@ typed Actor subclass: WorkflowWatcher
 
   getModTime: filePath :: String -> DateTime | Nil =>
     // Returns modification time or nil
-    (File lastModified: filePath) valueOr: nil
+    result := File lastModified: filePath
+    result isError ifTrue: [nil] ifFalse: [result unwrap]

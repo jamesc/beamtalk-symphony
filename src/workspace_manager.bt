@@ -33,13 +33,17 @@ typed Value subclass: WorkspaceManager
     key := self sanitizeIdentifier: identifier
     self.root ++ "/" ++ key
 
+  /// Wraps a generic File-operation Error as a WorkspaceError.
+  wrapPathError: e :: Error -> WorkspaceError =>
+    WorkspaceError pathResolutionFailed: e displayString
+
   // --- Containment validation ---
-  validateContainment: wsPath :: String -> Result(Boolean, Error) =>
-    (File absolutePath: self.root)
+  validateContainment: wsPath :: String -> Result(Boolean, WorkspaceError) =>
+    ((File absolutePath: self.root) mapError: [:e | self wrapPathError: e])
       andThen: [:absRoot |
-        (File absolutePath: wsPath) andThen: [:absWs |
-          self checkContainment: absRoot workspace: absWs
-        ]
+        ((File absolutePath: wsPath) mapError: [:e |
+          self wrapPathError: e
+        ]) andThen: [:absWs | self checkContainment: absRoot workspace: absWs]
       ]
 
   checkContainment: absRoot :: String workspace: absWs :: String -> Result(Boolean, WorkspaceError) =>
@@ -150,13 +154,13 @@ typed Value subclass: WorkspaceManager
     Result ok: true
 
   // --- Validation for agent launch ---
-  validateCwd: cwd :: String forIssue: identifier :: String -> Result(Boolean, Error) =>
+  validateCwd: cwd :: String forIssue: identifier :: String -> Result(Boolean, WorkspaceError) =>
     expected := self workspacePath: identifier
-    (File absolutePath: expected)
+    ((File absolutePath: expected) mapError: [:e | self wrapPathError: e])
       andThen: [:absExpected |
-        (File absolutePath: cwd) andThen: [:absCwd |
-          self checkCwd: absExpected actual: absCwd
-        ]
+        ((File absolutePath: cwd) mapError: [:e |
+          self wrapPathError: e
+        ]) andThen: [:absCwd | self checkCwd: absExpected actual: absCwd]
       ]
 
   checkCwd: absExpected :: String actual: absCwd :: String -> Result(Boolean, WorkspaceError) =>

@@ -278,7 +278,7 @@ typed Value subclass: Config
       nested: "hooks"
       key: "timeout_ms"
       default: 60000
-    result := self coerceInt: val default: 60000
+    result := (self coerceInt: val default: 60000) ifNil: [60000]
     result > 0 ifTrue: [result] ifFalse: [60000]
 
   // --- Server (extension) ---
