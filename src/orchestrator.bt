@@ -100,12 +100,14 @@ typed Actor subclass: Orchestrator
   /// Spawns an AgentRunner for the issue and tracks it in the running map.
   dispatchIssue: issue :: Issue attempt: attempt :: Integer -> Nil =>
     issueId := issue id
+    identifier := issue identifier ifNil: [""]
     issueId isNil
       ifTrue: [
-        Logger error: "cannot dispatch issue with no id" metadata: #{}
+        Logger error: "cannot dispatch issue with no id" metadata: #{
+          "issue_identifier" => identifier
+        }
         ^nil
       ]
-    identifier := issue identifier ifNil: [""]
     Logger info: "dispatching" metadata: #{"issue" => identifier}
 
     runner := AgentRunner

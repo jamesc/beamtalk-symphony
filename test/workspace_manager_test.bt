@@ -103,3 +103,14 @@ TestCase subclass: WorkspaceManagerTest
     // Wrong cwd
     badResult := wm validateCwd: "/tmp/wrong" forIssue: "VAL-1"
     self assert: badResult isError
+
+  testWrapPathErrorProducesPathResolutionFailed =>
+    // File absolutePath: never actually returns an error Result for a
+    // String argument (it's pure path-string manipulation, no filesystem
+    // check), so the wrapping can't be forced through the real File call —
+    // exercise wrapPathError: directly instead to verify the wrapping logic.
+    wm := WorkspaceManager new: #{#root => self.tmpDir}
+    err := [Error signal: "boom"] on: Error do: [:e | e]
+    wrapped := wm wrapPathError: err
+    self assert: wrapped kind equals: "path_resolution_failed"
+    self assert: wrapped detail equals: err displayString
