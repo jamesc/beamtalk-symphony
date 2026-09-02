@@ -28,12 +28,8 @@ typed Actor subclass: HttpServer
     [Ets named: #symphony_http] on: Error do: [:e | nil]
     [(Ets named: #symphony_http) delete] on: Error do: [:e | nil]
     self.refs := Ets new: #symphony_http type: #set
-    handler := [:req |
-      @expect type
-      request :: HTTPRequest := req
-      self handleRequest: request
-    ]
-    result := [HTTPServer start: self.port handler: handler]
+    router := self buildRouter
+    result := [HTTPServer start: self.port handler: router]
       on: Error
       do: [:e |
         Logger error: "http server failed to start" metadata: #{
@@ -53,25 +49,34 @@ typed Actor subclass: HttpServer
   actualPort -> Integer => self.server port
 
   // --- Request routing ---
-  handleRequest: req :: HTTPRequest -> HTTPResponse =>
-    method := req method
-    path := req path
-    method == "GET" ifTrue: [^self handleGet: path]
-    method == "POST" ifTrue: [^self handlePost: path]
-    self respond: 405 body: (self errorJson: "method_not_allowed" msg: "Method not allowed")
 
-  handleGet: path :: String -> HTTPResponse =>
-    path == "/" ifTrue: [^self handleDashboard]
-    path == "/api/v1/state" ifTrue: [^self handleState]
-    path == "/api/v1/refresh" ifTrue: [^self handleRefresh]
-    (path startsWith: "/api/v1/") ifTrue: [
-      ^self handleIssueDetail: (path drop: 8)
-    ]
-    self respond: 404 body: (self errorJson: "not_found" msg: "Not found")
+  /// Compiles the dashboard/API routes, each wrapped with the request-log
+  /// plug. Route order matters: `/api/v1/state` and `/api/v1/refresh` must
+  /// be checked before the `/api/v1/:id` catch-all.
+  buildRouter -> HTTPRouter =>
+    HTTPRouter
+      build: [:r |
+        r get: "/" handler: (self logged: [:req | self handleDashboard]);
+          get: "/api/v1/state" handler: (self logged: [:req |
+            self handleState
+          ]);
+          get: "/api/v1/refresh" handler: (self logged: [:req |
+            self handleRefresh
+          ]);
+          post: "/api/v1/refresh" handler: (self logged: [:req |
+            self handleRefresh
+          ]);
+          get: "/api/v1/:id" handler: (self logged: [:req |
+            self handleIssueDetail: (req param: "id")
+          ]);
+          notFound: (self logged: [:req |
+            self respond: 404 body: (self errorJson: "not_found" msg: "Not found")
+          ])
+      ]
 
-  handlePost: path :: String -> HTTPResponse =>
-    path == "/api/v1/refresh" ifTrue: [^self handleRefresh]
-    self respond: 404 body: (self errorJson: "not_found" msg: "Not found")
+  /// Wraps `handler` with `RequestLogger` via `PlugChain`.
+  logged: handler :: Block(HTTPRequest, HTTPResponse) -> Block(HTTPRequest, HTTPResponse) =>
+    PlugChain chain: #(RequestLogger new) handler: handler
 
   // --- Response helpers ---
   respond: status :: Integer body: body :: String -> HTTPResponse =>
@@ -253,9 +258,6 @@ typed Actor subclass: HttpServer
     self respond: 200 body: (Json generate: snapshot)
 
   handleIssueDetail: identifier :: String -> HTTPResponse =>
-    identifier isEmpty ifTrue: [
-      ^self respond: 404 body: (self errorJson: "not_found" msg: "Not found")
-    ]
     snapshot := self getSnapshot
     found := snapshot running detect: [:r |
       r issueIdentifier == identifier
