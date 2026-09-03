@@ -2,9 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /// WorkspaceError — typed error for workspace management failures.
-typed Value subclass: WorkspaceError
-  field: kind :: String = ""
-  field: detail :: Printable | Nil = nil
+typed TaggedError subclass: WorkspaceError
   field: workspace :: String | Nil = nil
   field: root :: String | Nil = nil
   field: expected :: String | Nil = nil
@@ -44,7 +42,3 @@ typed Value subclass: WorkspaceError
 
   class pathResolutionFailed: detail :: Printable -> WorkspaceError =>
     self new: #{#kind => "path_resolution_failed", #detail => detail}
-
-  displayString -> String =>
-    base := "WorkspaceError(" ++ self.kind ++ ")"
-    self.detail ifNil: [base] ifNotNil: [:d | base ++ ": " ++ d displayString]

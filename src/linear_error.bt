@@ -2,9 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /// LinearError — typed error for Linear API failures.
-typed Value subclass: LinearError
-  field: kind :: String = ""
-  field: detail :: String | Nil = nil
+typed TaggedError subclass: LinearError
   field: status :: Integer | Nil = nil
   field: body :: String | Nil = nil
   field: errors :: List | Nil = nil
@@ -24,7 +22,3 @@ typed Value subclass: LinearError
 
   class missingEndCursor -> LinearError =>
     self new: #{#kind => "missing_end_cursor"}
-
-  displayString -> String =>
-    base := "LinearError(" ++ self.kind ++ ")"
-    self.detail ifNil: [base] ifNotNil: [:d | base ++ ": " ++ d displayString]

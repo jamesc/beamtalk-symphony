@@ -2,11 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /// TemplateError — typed error for prompt template rendering failures.
-typed Value subclass: TemplateError
-  field: kind :: String = "render_error"
-  field: detail :: String = ""
+typed TaggedError subclass: TemplateError
 
   class renderError: detail :: String -> TemplateError =>
-    self new: #{#detail => detail}
-
-  displayString -> String => "TemplateError: " ++ self.detail displayString
+    self new: #{#kind => "render_error", #detail => detail}

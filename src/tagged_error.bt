@@ -1,0 +1,14 @@
+// Copyright 2026 James Casey
+// SPDX-License-Identifier: Apache-2.0
+
+/// TaggedError — shared base for this app's kind/detail-tagged error values
+/// (CodexError, LinearError, TemplateError, WorkflowError, WorkspaceError).
+/// Provides the common "ClassName(kind): detail" displayString so each
+/// subclass only needs to declare its own extra fields and factories.
+typed Value subclass: TaggedError
+  field: kind :: String = ""
+  field: detail :: Printable | Nil = nil
+
+  displayString -> String =>
+    base := self class name displayString ++ "(" ++ self.kind ++ ")"
+    self.detail ifNil: [base] ifNotNil: [:d | base ++ ": " ++ d displayString]

@@ -2,9 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /// WorkflowError — typed error for workflow file parsing failures.
-typed Value subclass: WorkflowError
-  field: kind :: String = ""
-  field: detail :: Printable | Nil = nil
+typed TaggedError subclass: WorkflowError
   field: path :: String | Nil = nil
 
   class missingFile: path :: String -> WorkflowError =>

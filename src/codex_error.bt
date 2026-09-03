@@ -2,9 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /// CodexError — typed error for codex subprocess failures.
-typed Value subclass: CodexError
-  field: kind :: String = ""
-  field: detail :: Printable | Nil
+typed TaggedError subclass: CodexError
   field: step :: String | Nil
   field: exitCode :: Integer | Nil
   field: message :: Dictionary | Nil
@@ -31,7 +29,3 @@ typed Value subclass: CodexError
 
   class turnInputRequired: msg :: Dictionary -> CodexError =>
     self new: #{#kind => "turn_input_required", #message => msg}
-
-  displayString -> String =>
-    base := "CodexError(" ++ self.kind ++ ")"
-    self.detail ifNil: [base] ifNotNil: [:d | base ++ ": " ++ d displayString]

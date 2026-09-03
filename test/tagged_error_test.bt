@@ -1,0 +1,50 @@
+// Copyright 2026 James Casey
+// SPDX-License-Identifier: Apache-2.0
+
+// Tests for TaggedError and the shared displayString it gives every
+// domain error (CodexError, LinearError, TemplateError, WorkflowError,
+// WorkspaceError) that subclasses it.
+
+TestCase subclass: TaggedErrorTest
+
+  testBaseDisplayStringWithNoDetail =>
+    err := TaggedError new: #{#kind => "some_kind"}
+    self assert: err displayString equals: "TaggedError(some_kind)"
+
+  testBaseDisplayStringWithDetail =>
+    err := TaggedError new: #{#kind => "some_kind", #detail => "extra info"}
+    self assert: err displayString equals: "TaggedError(some_kind): extra info"
+
+  testCodexErrorDisplayString =>
+    err := CodexError notFound: "no thread"
+    self assert: err displayString equals: "CodexError(not_found): no thread"
+
+  testCodexErrorWithoutDetail =>
+    err := CodexError turnTimeout
+    self assert: err displayString equals: "CodexError(turn_timeout)"
+
+  testLinearErrorDisplayString =>
+    err := LinearError apiRequest: "boom"
+    self assert: err displayString equals: "LinearError(api_request): boom"
+
+  testTemplateErrorDisplayString =>
+    err := TemplateError renderError: "bad var"
+    self assert: err displayString equals: "TemplateError(render_error): bad var"
+
+  testWorkspaceErrorDisplayString =>
+    err := WorkspaceError createError: "disk full"
+    self assert: err displayString equals: "WorkspaceError(create_error): disk full"
+
+  // WorkflowError overrides displayString to fall back to `path` when there's
+  // no `detail` — this is the one subclass whose formatting genuinely differs.
+  testWorkflowErrorDisplayStringWithDetail =>
+    err := WorkflowError invalidFrontMatter: "not a map"
+    self assert: err displayString equals: "WorkflowError(invalid_front_matter): not a map"
+
+  testWorkflowErrorDisplayStringFallsBackToPath =>
+    err := WorkflowError missingFile: "WORKFLOW.md"
+    self assert: err displayString equals: "WorkflowError(missing_file): WORKFLOW.md"
+
+  testWorkflowErrorDisplayStringWithNeitherDetailNorPath =>
+    err := WorkflowError new: #{#kind => "unknown"}
+    self assert: err displayString equals: "WorkflowError(unknown)"
