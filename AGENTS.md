@@ -5,9 +5,20 @@
 ```
 symphony/
 ├── beamtalk.toml    # Package manifest
-├── src/             # Source files (.bt)
-│   └── main.bt      # Entry point
-├── test/            # BUnit test files
+├── src/             # Source files (.bt), grouped by subsystem
+│   ├── main.bt              # Entry point
+│   ├── orchestrator.bt      # Top-level poll/dispatch loop
+│   ├── symphony_supervisor.bt
+│   ├── tagged_error.bt      # Shared base for domain *_error.bt classes
+│   ├── config/               # Config loading/validation, .env
+│   ├── codex/                 # Codex subprocess client + agent runner
+│   ├── linear/                 # Linear GraphQL client + Issue model
+│   ├── workflow/                # WORKFLOW.md loading/watching, prompt templating
+│   ├── workspace/                # Git worktree / workspace management
+│   ├── dispatch/                  # Orchestrator decision logic (candidates, retry, reconciliation)
+│   ├── state/                      # Orchestrator runtime state + wire-format snapshots
+│   └── http/                        # HTTP/dashboard API
+├── test/            # BUnit test files, mirroring src/ subdirectories
 ├── _build/          # Build output (generated)
 ├── AGENTS.md        # This file
 ├── .github/
