@@ -290,19 +290,14 @@ typed Actor subclass: Orchestrator
       ]
 
     candidates := fetchResult unwrap
-    found := candidates detect: [:i | i id == issueId] ifNone: [nil]
-    found isNil
+    issue := candidates detect: [:i | i id == issueId] ifNone: [nil]
+    issue isNil
       ifTrue: [
         // Issue no longer eligible — release claim
         self.claimed := self.claimed reject: [:id | id == issueId]
         Logger info: "claim released" metadata: #{"issue_id" => issueId}
         ^nil
       ]
-
-    // detect:ifNone: widens the found element to Issue | Object to
-    // accommodate an arbitrary ifNone: block return type; the isNil guard
-    // above has already ruled out anything but Issue here.
-    issue :: Issue := found
 
     // Check slots
     availableSlots := self.deps config maxConcurrentAgents - self.running size
