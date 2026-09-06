@@ -9,6 +9,6 @@ version = "0.1.0"
 supervisor = "SymphonySupervisor"
 
 [dependencies]
-http = "0.1.4"
+http = "0.1.5"
 
 yaml = "0.1.1"
