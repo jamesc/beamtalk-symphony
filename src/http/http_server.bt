@@ -8,7 +8,7 @@
 /// since handler blocks run in cowboy's process and can't make actor calls.
 /// The orchestrator pushes its snapshot to ETS via `publishSnapshot`.
 typed Actor subclass: HttpServer
-  state: server :: HTTPServer
+  late state: server :: HTTPServer
   state: port :: Integer
   state: refs :: Ets(Symbol, Snapshot)
 
@@ -19,7 +19,7 @@ typed Actor subclass: HttpServer
 
   /// Lifecycle hook — stops the HTTP listener on shutdown.
   terminate: _reason :: Object -> Nil =>
-    self.server isNil ifFalse: [self.server stop]
+    (self hasField: #server) ifTrue: [self.server stop]
     self.refs isNil ifFalse: [[self.refs delete] on: Error do: [:e | nil]]
 
   /// Lifecycle hook — starts the HTTP listener after spawn.

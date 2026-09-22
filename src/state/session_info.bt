@@ -4,13 +4,13 @@
 /// SessionInfo — immutable value holding codex session IDs, event history,
 /// and turn count for a running agent.
 typed Value subclass: SessionInfo
-  field: sessionId :: String
-  field: threadId :: String
-  field: turnId :: String
-  field: codexPid :: Pid
-  field: lastEvent :: String
-  field: lastMessage :: String
-  field: lastTimestamp :: Integer
+  field: sessionId :: String | Nil = nil
+  field: threadId :: String | Nil = nil
+  field: turnId :: String | Nil = nil
+  field: codexPid :: Pid | Nil = nil
+  field: lastEvent :: String | Nil = nil
+  field: lastMessage :: String | Nil = nil
+  field: lastTimestamp :: Integer | Nil = nil
   field: turnCount :: Integer
 
   incrementTurnCount -> SessionInfo => self withTurnCount: self turnCount + 1

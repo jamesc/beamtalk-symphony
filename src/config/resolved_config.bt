@@ -6,34 +6,34 @@
 /// All required fields are guaranteed present; optional fields default to "".
 typed Value subclass: ResolvedConfig
   // --- Tracker ---
-  field: trackerKind :: String
-  field: trackerEndpoint :: String
-  field: trackerApiKey :: String
-  field: trackerProjectSlug :: String
-  field: trackerActiveStates :: List(String)
-  field: trackerTerminalStates :: List(String)
+  field: trackerKind :: String = ""
+  field: trackerEndpoint :: String = ""
+  field: trackerApiKey :: String = ""
+  field: trackerProjectSlug :: String = ""
+  field: trackerActiveStates :: List(String) = #("Todo", "In Progress")
+  field: trackerTerminalStates :: List(String) = #("Closed", "Cancelled", "Canceled", "Duplicate", "Done")
   // --- Polling ---
-  field: pollIntervalMs :: Integer
+  field: pollIntervalMs :: Integer = 30000
   // --- Workspace ---
-  field: workspaceRoot :: String
+  field: workspaceRoot :: String = ""
   // --- Agent ---
-  field: maxConcurrentAgents :: Integer
-  field: maxRetryBackoffMs :: Integer
-  field: maxTurns :: Integer
-  field: maxConcurrentAgentsByState :: Dictionary
+  field: maxConcurrentAgents :: Integer = 10
+  field: maxRetryBackoffMs :: Integer = 300000
+  field: maxTurns :: Integer = 20
+  field: maxConcurrentAgentsByState :: Dictionary = #{}
   // --- Codex ---
-  field: codexCommand :: String
-  field: codexApprovalPolicy :: String
-  field: codexThreadSandbox :: String
-  field: codexTurnSandboxPolicy :: String
-  field: codexTurnTimeoutMs :: Integer
-  field: codexReadTimeoutMs :: Integer
-  field: codexStallTimeoutMs :: Integer
+  field: codexCommand :: String = "codex app-server"
+  field: codexApprovalPolicy :: String = ""
+  field: codexThreadSandbox :: String = ""
+  field: codexTurnSandboxPolicy :: String = ""
+  field: codexTurnTimeoutMs :: Integer = 3600000
+  field: codexReadTimeoutMs :: Integer = 5000
+  field: codexStallTimeoutMs :: Integer = 300000
   // --- Hooks ---
-  field: hooksAfterCreate :: String
-  field: hooksBeforeRun :: String
-  field: hooksAfterRun :: String
-  field: hooksBeforeRemove :: String
-  field: hooksTimeoutMs :: Integer
+  field: hooksAfterCreate :: String = ""
+  field: hooksBeforeRun :: String = ""
+  field: hooksAfterRun :: String = ""
+  field: hooksBeforeRemove :: String = ""
+  field: hooksTimeoutMs :: Integer = 60000
   // --- Server ---
-  field: serverPort :: Integer | Nil
+  field: serverPort :: Integer | Nil = nil

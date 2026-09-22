@@ -16,8 +16,9 @@ typed Value subclass: RunningSnapshotEntry
   field: tokens :: TokenUsage = TokenUsage new
 
   class fromRunningEntry: entry :: RunningEntry -> RunningSnapshotEntry =>
-    issueId := entry issue id ifNil: [""]
-    state := entry issue state ifNil: [""]
+    issue := entry issue
+    issueId := issue isNil ifTrue: [""] ifFalse: [issue id ifNil: [""]]
+    state := issue isNil ifTrue: [""] ifFalse: [issue state ifNil: [""]]
     self
       new: #{
         #issueId => issueId,
@@ -27,7 +28,7 @@ typed Value subclass: RunningSnapshotEntry
         #turnCount => entry session turnCount,
         #lastEvent => entry session lastEvent,
         #lastMessage => entry session lastMessage,
-        #startedAt => entry startedAt,
+        #startedAt => entry startedAt ifNil: [0],
         #lastEventAt => entry session lastTimestamp,
         #tokens => entry tokens
       }
