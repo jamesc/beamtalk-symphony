@@ -8,7 +8,11 @@ version = "0.1.0"
 [application]
 supervisor = "SymphonySupervisor"
 
+[release]
+console = true
+include-compiler = true
+
 [dependencies]
-http = "0.1.5"
+http = "0.1.6"
 
 yaml = "0.1.1"
