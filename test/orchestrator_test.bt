@@ -3,6 +3,11 @@
 
 TestCase subclass: OrchestratorTest
 
+  /// A tracker endpoint nothing listens on: the orchestrator's background
+  /// fetches fail at once with connection refused instead of reaching the
+  /// real Linear API, keeping these tests hermetic and fast.
+  closedEndpoint -> String => "http://127.0.0.1:1/graphql"
+
   testStartCreatesActor =>
     Erlang os putenv: "ORCH_TEST_KEY" value: "test_key"
     config := (Config
@@ -10,7 +15,8 @@ TestCase subclass: OrchestratorTest
         "tracker" => #{
           "kind" => "linear",
           "api_key" => "$ORCH_TEST_KEY",
-          "project_slug" => "test"
+          "project_slug" => "test",
+          "endpoint" => self closedEndpoint
         }
       }) unwrap
     orch := Orchestrator create: config promptTemplate: "test"
@@ -24,7 +30,8 @@ TestCase subclass: OrchestratorTest
         "tracker" => #{
           "kind" => "linear",
           "api_key" => "$ORCH_TEST_KEY2",
-          "project_slug" => "test"
+          "project_slug" => "test",
+          "endpoint" => self closedEndpoint
         }
       }) unwrap
     orch := Orchestrator create: config promptTemplate: "test"
@@ -44,7 +51,8 @@ TestCase subclass: OrchestratorTest
         "tracker" => #{
           "kind" => "linear",
           "api_key" => "$ORCH_TEST_KEY3",
-          "project_slug" => "test"
+          "project_slug" => "test",
+          "endpoint" => self closedEndpoint
         },
         "polling" => #{"interval_ms" => 30000}
       }) unwrap
@@ -55,7 +63,8 @@ TestCase subclass: OrchestratorTest
         "tracker" => #{
           "kind" => "linear",
           "api_key" => "$ORCH_TEST_KEY3",
-          "project_slug" => "test"
+          "project_slug" => "test",
+          "endpoint" => self closedEndpoint
         },
         "polling" => #{"interval_ms" => 5000}
       }) unwrap
@@ -82,7 +91,8 @@ TestCase subclass: OrchestratorTest
         "tracker" => #{
           "kind" => "linear",
           "api_key" => "$ORCH_TEST_KEY5",
-          "project_slug" => "test"
+          "project_slug" => "test",
+          "endpoint" => self closedEndpoint
         }
       }) unwrap
     orch := Orchestrator create: config promptTemplate: "test"
@@ -101,7 +111,8 @@ TestCase subclass: OrchestratorTest
         "tracker" => #{
           "kind" => "linear",
           "api_key" => "$ORCH_TEST_KEY4",
-          "project_slug" => "test"
+          "project_slug" => "test",
+          "endpoint" => self closedEndpoint
         }
       }) unwrap
     orch := Orchestrator create: config promptTemplate: "test"
