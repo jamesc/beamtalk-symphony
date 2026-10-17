@@ -170,15 +170,14 @@ typed Actor subclass: Orchestrator
     session := entry session
     session := (session withLastEvent: method) withLastTimestamp: timestamp
     // Increment turn count on turn completion
-    session := method == "turn/completed" ifTrue: [
-      session withTurnCount: session turnCount + 1
-    ] ifFalse: [session]
+    method == "turn/completed" ifTrue: [
+      session := session withTurnCount: session turnCount + 1
+    ]
     entry := entry withSession: session
 
-    // Update token usage — call applyUsage: unconditionally to avoid block mutation
-    // (applyUsage: handles nil usage internally)
+    // Update token usage
     usage := event at: "usage" ifAbsent: [nil]
-    entry := self applyUsage: usage toEntry: entry
+    usage ifNotNil: [:u | entry := self applyUsage: u toEntry: entry]
 
     // Update rate limits
     self applyRateLimits: (event at: "rateLimits" ifAbsent: [nil])
@@ -187,9 +186,7 @@ typed Actor subclass: Orchestrator
     self publishSnapshot
 
   /// Applies token usage to a running entry and accumulates global totals.
-  /// Returns entry unchanged if usage is nil.
-  applyUsage: usage :: Dictionary | Nil toEntry: entry :: RunningEntry -> RunningEntry =>
-    usage isNil ifTrue: [^entry]
+  applyUsage: usage :: Dictionary toEntry: entry :: RunningEntry -> RunningEntry =>
     input := usage at: "input" ifAbsent: [0]
     output := usage at: "output" ifAbsent: [0]
     total := usage at: "total" ifAbsent: [0]

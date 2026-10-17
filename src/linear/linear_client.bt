@@ -84,13 +84,7 @@ typed Value subclass: LinearClient
       accumulated: #()
 
   fetchAllPages: activeStates :: List(String) cursor: cursor :: Integer | Nil accumulated: acc :: List(Issue) -> Result(List(Issue)) =>
-    vars := #{
-      "projectSlug" => self.projectSlug,
-      "states" => activeStates,
-      "first" => 50
-    }
-    vars := cursor isNil ifTrue: [vars] ifFalse: [vars at: "after" put: cursor]
-
+    vars := self candidateVars: activeStates cursor: cursor
     (self query: self candidateQuery variables: vars)
       andThen: [:data |
         issues := data at: "issues" ifAbsent: [nil]
@@ -115,6 +109,17 @@ typed Value subclass: LinearClient
               accumulated: newAcc
           ]
       ]
+
+  /// GraphQL variables for one page of the candidate query; `after` is set
+  /// only when continuing from a previous page's `endCursor`.
+  candidateVars: activeStates :: List(String) cursor: cursor :: Integer | Nil -> Dictionary =>
+    vars := #{
+      "projectSlug" => self.projectSlug,
+      "states" => activeStates,
+      "first" => 50
+    }
+    cursor ifNotNil: [:c | vars := vars at: "after" put: c]
+    vars
 
   candidateQuery -> String =>
     "query($projectSlug: String!, $states: [String!]!, $first: Int!, $after: String) \{

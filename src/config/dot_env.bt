@@ -11,18 +11,21 @@ typed Object subclass: DotEnv
     ] ifError: [:_e | Result ok: 0]
 
   class parseAndLoad: content :: String -> Result(Integer, Error) =>
-    lines := content lines
-    count := lines inject: 0 into: [:acc :line | self loadLine: line count: acc]
+    count := 0
+    content lines do: [:line |
+      (self loadLine: line) ifTrue: [count := count + 1]
+    ]
     Result ok: count
 
-  class loadLine: line :: String count: acc :: Integer -> Integer =>
+  /// Sets the variable on a KEY=VALUE line; answers whether one was set.
+  class loadLine: line :: String -> Boolean =>
     trimmed := line trim
-    trimmed isEmpty ifTrue: [^acc]
-    (trimmed startsWith: "#") ifTrue: [^acc]
+    trimmed isEmpty ifTrue: [^false]
+    (trimmed startsWith: "#") ifTrue: [^false]
     eqIdx := trimmed indexOf: "="
-    eqIdx isNil ifTrue: [^acc]
+    eqIdx isNil ifTrue: [^false]
     key := (trimmed take: eqIdx - 1) trim
     val := trimmed drop: eqIdx
-    key isEmpty ifTrue: [^acc]
+    key isEmpty ifTrue: [^false]
     System setEnv: key value: val
-    acc + 1
+    true
