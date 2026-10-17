@@ -30,9 +30,14 @@ typed Actor subclass: Orchestrator
     self spawnWith: #{#deps => deps}
 
   /// Lifecycle hook — starts the poll loop.
+  ///
+  /// The startup cleanup talks to the tracker, so it is cast rather than run
+  /// here: `initialize` runs inside `spawnWith:`'s 5s timeout, and a slow
+  /// tracker must not fail the spawn (or restart-loop the supervisor). The
+  /// cast is queued before the first tick, so cleanup still runs first.
   initialize -> Nil =>
     Logger info: "orchestrator initialized"
-    self startupTerminalCleanup
+    self startupTerminalCleanup!
     self scheduleTick: 0
 
   /// Lifecycle hook — cancels timers and kills running workers on shutdown.
