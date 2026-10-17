@@ -29,19 +29,9 @@ typed Object subclass: WorkflowLoader
 
   class extractFrontMatter: rest :: List(String) -> Result(Dictionary, WorkflowError) =>
     nl := String fromCodePoint: 10
-    // Find closing --- index using inject (block mutations don't propagate)
-    closingIdx := rest
-      inject: #(0, 1)
-      into: [:acc :line |
-        found := acc at: 1
-        idx := acc at: 2
-        found == 0 ifTrue: [
-          line trim == "---" ifTrue: [#(idx, idx + 1)] ifFalse: [#(0, idx + 1)]
-        ] ifFalse: [#(found, idx + 1)]
-      ]
-    closingIdx := closingIdx at: 1
+    closingIdx := (rest collect: [:line | line trim]) indexOf: "---"
 
-    closingIdx == 0 ifTrue: [
+    closingIdx isNil ifTrue: [
       ^Result ok: #{"config" => #{}, "prompt_template" => (rest join: nl) trim}
     ]
 

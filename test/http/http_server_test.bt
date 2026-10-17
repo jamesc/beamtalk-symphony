@@ -45,6 +45,30 @@ TestCase subclass: HttpServerTest
     self assertStatus: 200 from: result
     self assert: ((self bodyFrom: result) includesSubstring: "Symphony")
 
+  testDashboardRendersRunningAndRetryRows =>
+    self.srv isNil ifTrue: [^self skip: "HTTPServer not available"]
+    running := #("A-1", "A-2") collect: [:id |
+      RunningSnapshotEntry new: #{#issueIdentifier => id, #state => "Todo"}
+    ]
+    retry := RetrySnapshotEntry new: #{
+      #issueIdentifier => "R-1",
+      #attempt => 3,
+      #error => "boom"
+    }
+    retrying := #(retry)
+    snapshot := Snapshot
+      new: #{
+        #runningCount => 2,
+        #retryingCount => 1,
+        #running => running,
+        #retrying => retrying
+      }
+    html := self.srv renderDashboard: snapshot
+    self assert: (html includesSubstring: "<strong>A-1</strong>")
+    self assert: (html includesSubstring: "<strong>A-2</strong>")
+    self assert: (html includesSubstring: "<strong>R-1</strong>")
+    self assert: (html includesSubstring: "<td>boom</td>")
+
   testApiState =>
     self.srv isNil ifTrue: [^self skip: "HTTPServer not available"]
     result := HTTPClient get: self baseUrl ++ "/api/v1/state"

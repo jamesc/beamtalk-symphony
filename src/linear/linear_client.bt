@@ -89,7 +89,7 @@ typed Value subclass: LinearClient
       "states" => activeStates,
       "first" => 50
     }
-    vars := cursor isNil ifTrue: [vars] ifFalse: [vars at: "after" put: cursor]
+    cursor ifNotNil: [:c | vars := vars at: "after" put: c]
 
     (self query: self candidateQuery variables: vars)
       andThen: [:data |

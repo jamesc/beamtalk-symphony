@@ -178,21 +178,15 @@ typed Value subclass: Config
       key: "max_concurrent_agents_by_state"
       default: #{}
     (raw isKindOf: Dictionary) ifFalse: [^#{}]
-    // Build normalized map using inject on keys
+    result := #{}
     raw keys
-      inject: #{}
-      into: [:acc :k |
-        intVal := self coerceInt: (raw at: k) default: nil
-        self
-          addToMap: acc
-          key: k lowercase
-          value: intVal
+      do: [:k |
+        v := self coerceInt: (raw at: k) default: nil
+        (v notNil and: [
+          v > 0
+        ]) ifTrue: [result := result at: k lowercase put: v]
       ]
-
-  addToMap: acc :: Dictionary key: k :: String value: v :: Integer | Nil -> Dictionary(String, Integer) =>
-    v isNil ifTrue: [^acc]
-    v > 0 ifTrue: [^acc at: k put: v]
-    acc
+    result
 
   // --- Codex ---
   codexCommand -> String =>

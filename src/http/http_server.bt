@@ -197,23 +197,10 @@ typed Actor subclass: HttpServer
     "<div class=footer>Auto-refreshes every 5s · <a href=/api/v1/state>JSON API</a></div></body></html>"
 
   renderRunningRows: list :: List(RunningSnapshotEntry) -> String =>
-    list isEmpty ifTrue: [^""]
-    // Build rows one at a time to avoid self-capture in block
-    self renderRunningRowsFrom: list accumulated: ""
-
-  renderRunningRowsFrom: list :: List(RunningSnapshotEntry) accumulated: acc :: String -> String =>
-    list isEmpty ifTrue: [^acc]
-    row := self renderRunningRow: list first
-    self renderRunningRowsFrom: list rest accumulated: acc ++ row
+    list inject: "" into: [:acc :r | acc ++ (self renderRunningRow: r)]
 
   renderRetryRows: list :: List(RetrySnapshotEntry) -> String =>
-    list isEmpty ifTrue: [^""]
-    self renderRetryRowsFrom: list accumulated: ""
-
-  renderRetryRowsFrom: list :: List(RetrySnapshotEntry) accumulated: acc :: String -> String =>
-    list isEmpty ifTrue: [^acc]
-    row := self renderRetryRow: list first
-    self renderRetryRowsFrom: list rest accumulated: acc ++ row
+    list inject: "" into: [:acc :r | acc ++ (self renderRetryRow: r)]
 
   renderRunningRow: r :: RunningSnapshotEntry -> String =>
     lastEvent := r lastEvent ifNil: ["—"]
