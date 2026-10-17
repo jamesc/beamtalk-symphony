@@ -119,6 +119,16 @@ TestCase subclass: LinearClientTest
     result := client fetchCandidateIssues: #()
     self assert: (self assertOk: result) equals: #()
 
+  testCandidateVarsFirstPageHasNoCursor =>
+    vars := LinearClient new candidateVars: #("Todo") cursor: nil
+    self deny: (vars includesKey: "after")
+    self assert: (vars at: "first") equals: 50
+
+  testCandidateVarsCarriesCursor =>
+    vars := LinearClient new candidateVars: #("Todo") cursor: 42
+    self assert: (vars at: "after") equals: 42
+    self assert: (vars at: "states") equals: #("Todo")
+
   testFetchIssueStatesByIdsEmpty =>
     client := LinearClient new
     result := client fetchIssueStatesByIds: #()
