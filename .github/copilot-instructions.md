@@ -1,6 +1,6 @@
 # Copilot Instructions for symphony
 
-This is a [Beamtalk](https://jamesc.github.io/beamtalk) project that compiles to the BEAM virtual machine.
+This is a [Beamtalk](https://www.beamtalk.dev) project that compiles to the BEAM virtual machine.
 
 ## Key Conventions
 
@@ -17,6 +17,10 @@ This is a [Beamtalk](https://jamesc.github.io/beamtalk) project that compiles to
 - Implicit returns (last expression is the return value)
 - Use `^` only for early returns, never on the last expression
 - Newlines separate statements (no periods)
+- One class per `.bt` file, named in snake_case after the class (`CheckRegistry` → `check_registry.bt`)
+- `Value subclass:` declares immutable `field:` slots, `Actor subclass:` declares mutable `state:` slots, and `Object subclass:` holds no instance data
+- Type annotations use `::` (`field: x :: Integer = 0`); equality is `=:=` (strict) or `==` (loose), never `=`
+- Erlang FFI calls return a `Result` (`ifOk:ifError:`, `andThen:`, `unwrap`)
 
 ## Build Commands
 
@@ -29,6 +33,7 @@ beamtalk test     # Run tests
 ## MCP / Live Workspace
 
 `.mcp.json` configures the `beamtalk` MCP server. In Claude Code it starts
-automatically. Use the MCP tools (`evaluate`, `load_file`, `reload_module`,
-`run_tests`, `docs`, `inspect`) to interact with a live REPL rather than
-inferring behaviour from source. See `AGENTS.md` for the full tool list.
+automatically. Call `describe` first, then `load_project` to load all source.
+Use `evaluate`, `test`, `inspect`, and `show_codegen` to interact with a live
+REPL rather than inferring behaviour from source. See `AGENTS.md` for the
+full tool list and development workflow.
