@@ -21,9 +21,10 @@ jobs:
         with:
           otp-version: "28.5"
 
+      # --edge until nightlies publish again (BT-3980); then switch back to --nightly.
       - name: Install Beamtalk
         run: |
-          curl -fsSL https://beamtalk.dev/install.sh | sudo sh -s -- --nightly --prefix /usr/local
+          curl -fsSL https://beamtalk.dev/install.sh | sudo sh -s -- --edge --prefix /usr/local
           beamtalk --version
 
       - name: Install just
