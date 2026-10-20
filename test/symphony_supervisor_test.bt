@@ -1,8 +1,16 @@
 // Tests for SymphonySupervisor — configuration tests only.
-// Lifecycle tests require live OTP application context.
+// Lifecycle tests require live OTP application context: starting the
+// supervisor reads WORKFLOW.md and starts the Orchestrator.
 
 TestCase subclass: SymphonySupervisorTest
 
-  testStrategy => self assert: SymphonySupervisor strategy equals: #oneForOne
+  // Configuration is instance-side (ADR 0135), and reading it needs a running
+  // supervisor, so check that the instance-side methods are defined.
+  testConfigurationIsInstanceSide =>
+    self assert: (SymphonySupervisor includesSelector: #strategy)
+    self assert: (SymphonySupervisor includesSelector: #childSpecs)
+    self assert: (SymphonySupervisor includesSelector: #initialize)
+    self deny: (SymphonySupervisor class includesSelector: #children)
+    self deny: (SymphonySupervisor class includesSelector: #initialize:)
 
   testIsSupervisor => self assert: SymphonySupervisor isSupervisor

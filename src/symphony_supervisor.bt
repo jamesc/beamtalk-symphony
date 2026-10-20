@@ -8,10 +8,13 @@ typed Supervisor subclass: SymphonySupervisor
 
   class start -> Result(Self, Error) => self supervise
 
-  class strategy -> Symbol => #oneForOne
+  strategy -> Symbol => #oneForOne
 
   /// Builds the child spec list: loads .env, parses WORKFLOW.md, creates clients.
-  class children -> List(SupervisionSpec) =>
+  /// This is the only method that reads .env and WORKFLOW.md. The runtime sends
+  /// each setting separately (ADR 0135), so do not read the files again in
+  /// `strategy` or `initialize`.
+  childSpecs -> List(SupervisionSpec) =>
     DotEnv load: File cwd ++ "/.env"
 
     wfResult := WorkflowLoader load: "./WORKFLOW.md"
@@ -50,9 +53,9 @@ typed Supervisor subclass: SymphonySupervisor
     specs add: httpSpec
 
   /// Wires the watcher's reload callback to the orchestrator after both start.
-  class initialize: sup :: SymphonySupervisor -> Nil =>
-    orch :: Orchestrator := (sup which: Orchestrator) unwrap
-    watcher :: WorkflowWatcher := (sup which: WorkflowWatcher) unwrap
+  initialize -> Nil =>
+    orch :: Orchestrator := (self which: Orchestrator) unwrap
+    watcher :: WorkflowWatcher := (self which: WorkflowWatcher) unwrap
     watcher onReload: [:config :prompt |
       orch reloadConfig: config prompt: prompt
     ]
