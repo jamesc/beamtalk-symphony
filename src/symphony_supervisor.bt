@@ -14,24 +14,21 @@ typed Supervisor subclass: SymphonySupervisor
   /// This is the only method that reads .env and WORKFLOW.md. The runtime sends
   /// each setting separately (ADR 0135), so do not read the files again in
   /// `strategy` or `initialize`.
+  ///
+  /// A missing or unparseable WORKFLOW.md, or a config that fails validation,
+  /// raises an Error naming the cause, so `supervise` fails with
+  /// `#supervisor_start_failed` carrying that message. Returning no children
+  /// instead would make `initialize` fail on `which:` and hide the cause.
   childSpecs -> List(SupervisionSpec) =>
     DotEnv load: File cwd ++ "/.env"
 
-    wfResult := WorkflowLoader load: "./WORKFLOW.md"
-    wfResult isError
-      ifTrue: [
-        Logger error: "failed to load WORKFLOW.md"
-        ^#()
+    wf := (WorkflowLoader load: "./WORKFLOW.md") valueOrDo: [:e |
+      Error signal: "WORKFLOW.md: " ++ e displayString
+    ]
+    config := (Config resolve: (wf at: "config"))
+      valueOrDo: [:e |
+        Error signal: "WORKFLOW.md config invalid: " ++ (e at: "check") ++ " " ++ (e at: "reason")
       ]
-    wf := wfResult unwrap
-    rawConfig := wf at: "config"
-    configResult := Config resolve: rawConfig
-    configResult isError
-      ifTrue: [
-        Logger error: "config validation failed"
-        ^#()
-      ]
-    config := configResult unwrap
 
     promptTemplate := wf at: "prompt_template"
 
