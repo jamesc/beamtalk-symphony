@@ -1,8 +1,23 @@
-// Tests for SymphonySupervisor — configuration tests only.
-// Lifecycle tests require live OTP application context: starting the
-// supervisor reads WORKFLOW.md and starts the Orchestrator.
+// Tests for SymphonySupervisor: configuration, and start failures caused by
+// a missing or invalid WORKFLOW.md. A successful start needs a valid
+// WORKFLOW.md and starts the Orchestrator, so it is not covered here.
 
 TestCase subclass: SymphonySupervisorTest
+  field: tmpDir = File cwd ++ "/target/bt-test-tmp/symphony_supervisor"
+  field: origCwd = File cwd
+
+  // The start tests change the node's working directory, which other test
+  // classes resolve relative paths against, so run this class alone.
+  class serial -> Boolean => true
+
+  setUp =>
+    File mkdirAll: self.tmpDir
+    self
+
+  tearDown =>
+    Erlang file set_cwd: self.origCwd
+    File deleteAll: self.tmpDir
+    self
 
   // Configuration is instance-side (ADR 0135), and reading it needs a running
   // supervisor, so check that the instance-side methods are defined.
@@ -14,3 +29,23 @@ TestCase subclass: SymphonySupervisorTest
     self deny: (SymphonySupervisor class includesSelector: #initialize:)
 
   testIsSupervisor => self assert: SymphonySupervisor isSupervisor
+
+  // childSpecs reads ./WORKFLOW.md, so start from a directory without one.
+  testMissingWorkflowFailsStartWithCause =>
+    result := self superviseIn: self.tmpDir
+    self assert: result isError
+    self assert: result error kind equals: #supervisor_start_failed
+    self assert: result error hint equals: "WORKFLOW.md: WorkflowError(missing_file): ./WORKFLOW.md"
+
+  testInvalidConfigFailsStartWithCause =>
+    nl := String fromCodePoint: 10
+    workflow := #("---", "tracker:", "  kind: jira", "---", "prompt") join: nl
+    File writeAll: self.tmpDir ++ "/WORKFLOW.md" contents: workflow
+    result := self superviseIn: self.tmpDir
+    self assert: result isError
+    self assert: result error kind equals: #supervisor_start_failed
+    self assert: result error hint equals: "WORKFLOW.md config invalid: tracker.kind unsupported: jira"
+
+  superviseIn: dir :: String =>
+    Erlang file set_cwd: dir
+    [SymphonySupervisor supervise] ensure: [Erlang file set_cwd: self.origCwd]
