@@ -11,8 +11,9 @@ typed Supervisor subclass: SymphonySupervisor
   strategy -> Symbol => #oneForOne
 
   /// Builds the child spec list: loads .env, parses WORKFLOW.md, creates clients.
-  /// The only setting that reads files: the runtime sends each setting
-  /// separately, so other settings must not re-read them (ADR 0135).
+  /// This is the only method that reads .env and WORKFLOW.md. The runtime sends
+  /// each setting separately (ADR 0135), so do not read the files again in
+  /// `strategy` or `initialize`.
   childSpecs -> List(SupervisionSpec) =>
     DotEnv load: File cwd ++ "/.env"
 
