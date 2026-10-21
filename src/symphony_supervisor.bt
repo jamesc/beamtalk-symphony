@@ -50,10 +50,13 @@ typed Supervisor subclass: SymphonySupervisor
     specs add: httpSpec
 
   /// Wires the watcher's reload callback to the orchestrator after both start.
+  /// The callback looks the orchestrator up on each reload, so a reload
+  /// after the supervisor has restarted it reaches the new one.
   initialize -> Nil =>
-    orch :: Orchestrator := (self which: Orchestrator) unwrap
     watcher :: WorkflowWatcher := (self which: WorkflowWatcher) unwrap
-    watcher onReload: [:config :prompt |
-      orch reloadConfig: config prompt: prompt
-    ]
+    watcher
+      onReload: [:config :prompt |
+        orch :: Orchestrator := (self which: Orchestrator) unwrap
+        orch reloadConfig: config prompt: prompt
+      ]
     nil
