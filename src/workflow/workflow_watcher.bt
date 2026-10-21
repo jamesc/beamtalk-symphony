@@ -8,6 +8,7 @@ typed Actor subclass: WorkflowWatcher
   state: lastModified :: DateTime | Nil = nil
   state: pollIntervalMs :: Integer = 5000
   state: onReload :: Block(ResolvedConfig, String, Object) | Nil = nil
+  state: lastReloadError :: String | Nil = nil
 
   /// Starts polling the given path for changes, calling callback on reload.
   class start: path :: String onReload: callback :: Block(ResolvedConfig, String, Object) -> WorkflowWatcher =>
@@ -46,32 +47,59 @@ typed Actor subclass: WorkflowWatcher
 
     self schedulePoll!
 
+  /// Loads WORKFLOW.md and hands the result to `onReload`. Each failure
+  /// (load, validation, or the callback raising, e.g. because the
+  /// orchestrator is restarting) is logged and kept in `lastReloadError`
+  /// rather than raised: this runs from the `checkForChanges` cast, where an
+  /// error would crash the watcher (ADR 0134).
   doReload -> Nil =>
-    (WorkflowLoader load: self.path)
+    outcome := (WorkflowLoader load: self.path)
       ifOk: [:wf |
-        rawConfig := wf at: "config"
-        configResult := Config resolve: rawConfig
+        configResult := Config resolve: (wf at: "config")
         configResult isError
           ifTrue: [
             Logger error: "workflow reload validation failed" metadata: #{
               "path" => self.path,
               "error" => configResult error displayString
             }
-            ^nil
+            configResult error displayString
           ]
-        prompt := wf at: "prompt_template"
-        Logger info: "workflow reloaded" metadata: #{"path" => self.path}
-        self.onReload isNil ifFalse: [
-          self.onReload value: configResult unwrap value: prompt
-        ]
+          ifFalse: [
+            prompt := wf at: "prompt_template"
+            delivered := self.onReload isNil
+              ifTrue: [nil]
+              ifFalse: [
+                [
+                  self.onReload value: configResult unwrap value: prompt
+                  nil
+                ]
+                  on: Error
+                  do: [:e |
+                    Logger error: "workflow reload delivery failed" metadata: #{
+                      "path" => self.path,
+                      "error" => e message
+                    }
+                    e message
+                  ]
+              ]
+            delivered isNil ifTrue: [
+              Logger info: "workflow reloaded" metadata: #{"path" => self.path}
+            ]
+            delivered
+          ]
       ]
       ifError: [:e |
         Logger error: "workflow reload failed" metadata: #{
           "path" => self.path,
           "error" => e displayString
         }
+        e displayString
       ]
+    self.lastReloadError := outcome
     nil
+
+  /// Why the last reload failed, or nil if it succeeded (or none ran yet).
+  lastReloadError -> String | Nil => self.lastReloadError
 
   getModTime: filePath :: String -> DateTime | Nil =>
     // Returns modification time or nil

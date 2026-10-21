@@ -40,3 +40,38 @@ TestCase subclass: WorkflowWatcherTest
     // Missing file returns nil (File lastModified: returns error Result)
     watcher getModTime: self.tmpDir ++ "/missing.md"
     self assert: watcher stop equals: #ok
+
+  // A reload callback that raises (e.g. the orchestrator is restarting) is
+  // logged and recorded; the watcher keeps running (BT-3961, ADR 0134).
+  testRaisingReloadCallbackIsRecorded =>
+    path := self writeValidWorkflow
+    watcher := WorkflowWatcher
+      spawnWith: #{
+        #path => path,
+        #onReload => [:_config :_prompt | Error signal: "orchestrator gone"]
+      }
+    watcher doReload
+    self assert: watcher isAlive
+    self assert: watcher lastReloadError equals: "orchestrator gone"
+    self assert: watcher stop equals: #ok
+
+  testSuccessfulReloadClearsError =>
+    watcher := WorkflowWatcher
+      spawnWith: #{
+        #path => self.tmpDir ++ "/WORKFLOW.md",
+        #onReload => [:_config :_prompt | nil]
+      }
+    // No file yet: the load fails and is recorded
+    watcher doReload
+    self deny: watcher lastReloadError isNil
+    self writeValidWorkflow
+    watcher doReload
+    self assert: watcher lastReloadError equals: nil
+    self assert: watcher stop equals: #ok
+
+  writeValidWorkflow =>
+    Erlang os putenv: "WATCHER_TEST_KEY" value: "test_key"
+    path := self.tmpDir ++ "/WORKFLOW.md"
+    nl := String fromCodePoint: 10
+    File writeAll: path contents: (#("---", "tracker:", "  kind: linear", "  api_key: $WATCHER_TEST_KEY", "  project_slug: test", "---", "prompt") join: nl)
+    path
