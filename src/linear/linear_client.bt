@@ -57,10 +57,7 @@ typed Value subclass: LinearClient
     (resp bodyAsJson mapError: [:e |
       LinearError unknownPayload: e displayString
     ])
-      andThen: [:v |
-        @expect type
-        jsonBody :: Dictionary := v
-
+      andThen: [:jsonBody |
         errors := jsonBody at: "errors" ifAbsent: [nil]
         errors isNil
           ifFalse: [

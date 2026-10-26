@@ -7,7 +7,7 @@
 ///
 /// Uses helper methods (launch, sendRequest:params:, etc.) for protocol steps.
 typed Actor subclass: CodexClient
-  state: proc :: Subprocess | Nil = nil
+  late state: proc :: Subprocess
   state: nextId :: Integer
   state: workspacePath :: String
   state: config :: ResolvedConfig
@@ -64,11 +64,11 @@ typed Actor subclass: CodexClient
 
   stopProcess -> Nil =>
     Logger debug: "codex process stopping"
-    self.proc isNil
-      ifFalse: [
+    (self hasField: #proc)
+      ifTrue: [
         self.proc close
         self.proc stop
-        self.proc := nil
+        self clearField: #proc
       ]
     nil
 
