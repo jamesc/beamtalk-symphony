@@ -15,6 +15,33 @@ TestCase subclass: CodexClientTest
     self assert: client isAlive
     self assert: client stop equals: #ok
 
+  // --- stopProcess guards (late proc slot) ---
+  testStopProcessWithoutLaunch =>
+    config := ResolvedConfig new: #{
+      #codexCommand => "echo hello",
+      #codexReadTimeoutMs => 1000
+    }
+    client := CodexClient
+      start: "/tmp"
+      config: config
+      onEvent: nil
+    self assert: client stopProcess equals: nil
+    self assert: client isAlive
+    self assert: client stop equals: #ok
+
+  testStopProcessIdempotent =>
+    config := ResolvedConfig new: #{
+      #codexCommand => "echo hello",
+      #codexReadTimeoutMs => 1000
+    }
+    client := CodexClient
+      start: "/tmp"
+      config: config
+      onEvent: nil
+    client stopProcess
+    self assert: client stopProcess equals: nil
+    self assert: client stop equals: #ok
+
   // --- Token extraction ---
   testExtractUsageFromTotalTokenUsage =>
     msg := #{

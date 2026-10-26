@@ -55,10 +55,7 @@ typed Value subclass: LinearClient
     (resp bodyAsJson mapError: [:e |
       LinearError unknownPayload: e displayString
     ])
-      andThen: [:v |
-        @expect type
-        jsonBody :: Dictionary := v
-
+      andThen: [:jsonBody |
         errors := jsonBody at: "errors" ifAbsent: [nil]
         errors isNil
           ifFalse: [
@@ -122,26 +119,7 @@ typed Value subclass: LinearClient
     vars
 
   candidateQuery -> String =>
-    "query($projectSlug: String!, $states: [String!]!, $first: Int!, $after: String) \{
-      issues(
-        filter: \{
-          project: \{ slugId: \{ eq: $projectSlug } },
-          state: \{ name: \{ in: $states } }
-        },
-        first: $first,
-        after: $after
-      ) \{
-        pageInfo \{ hasNextPage endCursor }
-        nodes \{
-          id identifier title description priority url
-          createdAt updatedAt
-          state \{ name }
-          labels \{ nodes \{ name } }
-          inverseRelations \{ nodes \{ type relatedIssue \{ id identifier state \{ name } } } }
-          branchName
-        }
-      }
-    }"
+    "query($projectSlug: String!, $states: [String!]!, $first: Int!, $after: String) \{\n      issues(\n        filter: \{\n          project: \{ slugId: \{ eq: $projectSlug } },\n          state: \{ name: \{ in: $states } }\n        },\n        first: $first,\n        after: $after\n      ) \{\n        pageInfo \{ hasNextPage endCursor }\n        nodes \{\n          id identifier title description priority url\n          createdAt updatedAt\n          state \{ name }\n          labels \{ nodes \{ name } }\n          inverseRelations \{ nodes \{ type relatedIssue \{ id identifier state \{ name } } } }\n          branchName\n        }\n      }\n    }"
 
   // --- Issue state refresh (BT-1377) ---
 
@@ -156,14 +134,7 @@ typed Value subclass: LinearClient
       ]
 
   stateRefreshQuery -> String =>
-    "query($ids: [ID!]!) \{
-      issues(filter: \{ id: \{ in: $ids } }) \{
-        nodes \{
-          id identifier
-          state \{ name }
-        }
-      }
-    }"
+    "query($ids: [ID!]!) \{\n      issues(filter: \{ id: \{ in: $ids } }) \{\n        nodes \{\n          id identifier\n          state \{ name }\n        }\n      }\n    }"
 
   // --- Terminal issues fetch (BT-1377) ---
 
@@ -182,17 +153,4 @@ typed Value subclass: LinearClient
       ]
 
   terminalQuery -> String =>
-    "query($projectSlug: String!, $states: [String!]!) \{
-      issues(
-        filter: \{
-          project: \{ slugId: \{ eq: $projectSlug } },
-          state: \{ name: \{ in: $states } }
-        },
-        first: 250
-      ) \{
-        nodes \{
-          id identifier title
-          state \{ name }
-        }
-      }
-    }"
+    "query($projectSlug: String!, $states: [String!]!) \{\n      issues(\n        filter: \{\n          project: \{ slugId: \{ eq: $projectSlug } },\n          state: \{ name: \{ in: $states } }\n        },\n        first: 250\n      ) \{\n        nodes \{\n          id identifier title\n          state \{ name }\n        }\n      }\n    }"
