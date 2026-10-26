@@ -149,7 +149,8 @@ typed Actor subclass: CodexClient
           ]
         ^self readUntilResponse: expectedId deadline: deadline
       ]
-    Logger debug: "codex << " ++ line
+    // BT-4172: readLine: answers bytes; convert for the log.
+    Logger debug: "codex << " ++ line asStringUnchecked
 
     ([Json parse: line] on: Error do: [:e | Result error: e message])
       ifOk: [:parsedMsg |
@@ -282,7 +283,8 @@ typed Actor subclass: CodexClient
           ]
         ^nil  // No data yet, caller should retry
       ]
-    Logger debug: "codex << " ++ line
+    // BT-4172: readLine: answers bytes; convert for the log.
+    Logger debug: "codex << " ++ line asStringUnchecked
 
     ([
       Json parse: line

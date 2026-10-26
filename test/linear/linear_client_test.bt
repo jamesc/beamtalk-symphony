@@ -36,6 +36,21 @@ TestCase subclass: LinearClientTest
     err := Result error: "simple string"
     self assert: (LinearClient errorKind: err) equals: "unknown"
 
+  // BT-4172: the error body arrives as raw response bytes; parseResponse
+  // records it as a String across the BT-4170 flip.
+  testParseResponseApiStatusConvertsBinaryBody =>
+    client := LinearClient new
+    resp := HTTPResponse new: #{
+      #status => 500,
+      #body => Binary fromBytes: #(69, 114, 114, 111, 114)
+    }
+    result := client parseResponse: resp
+    self assert: result isError
+    err := result error
+    self assert: err status equals: 500
+    self assert: err body equals: "Error"
+    self assert: (err body isKindOf: String)
+
   // --- Normalization ---
   testNormalizeIssue =>
     node := #{
