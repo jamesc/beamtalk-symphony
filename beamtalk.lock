@@ -3,19 +3,19 @@
 
 [[package]]
 name = "http"
-version = "0.1.10"
+version = "0.2.0"
 registry = "https://github.com/jamesc/beamtalk-registry"
 url = "https://github.com/jamesc/beamtalk-http.git"
-reference = "tag:v0.1.10"
-sha = "3905b53a899562c2081cc3d6ba14cae6fd6536b5"
+reference = "tag:v0.2.0"
+sha = "0c456038458acf52159db082a944dab219c8ac8c"
 
 [[package]]
 name = "yaml"
-version = "0.1.2"
+version = "0.2.0"
 registry = "https://github.com/jamesc/beamtalk-registry"
 url = "https://github.com/jamesc/beamtalk-yaml.git"
-reference = "tag:v0.1.2"
-sha = "b6f2218790ef0da584479017823bcf83a262b3b6"
+reference = "tag:v0.2.0"
+sha = "6f6e2739095904f806e57ecc0366d6647e6528f7"
 
 [[native_package]]
 name = "cowboy"
