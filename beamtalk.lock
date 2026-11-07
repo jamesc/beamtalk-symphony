@@ -50,16 +50,6 @@ reference = "tag:v0.2.0"
 sha = "6f6e2739095904f806e57ecc0366d6647e6528f7"
 
 [[native_package]]
-name = "cowlib"
-version = "2.13.0"
-sha = ""
-
-[[native_package]]
-name = "gun"
-version = "2.1.0"
-sha = ""
-
-[[native_package]]
 name = "yamerl"
 version = "0.10.0"
 sha = ""
