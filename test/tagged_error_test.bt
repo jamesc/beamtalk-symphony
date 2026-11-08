@@ -2,8 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Tests for TaggedError and the shared displayString it gives every
-// domain error (CodexError, LinearError, TemplateError, WorkflowError,
-// WorkspaceError) that subclasses it.
+// domain error (CodexError, TemplateError, WorkflowError, WorkspaceError)
+// that subclasses it. LinearError now lives in the `linear` registry
+// package with its own TaggedError copy; testLinearErrorDisplayString
+// pins the shared "ClassName(kind): detail" format symphony relies on
+// when logging tracker failures.
 
 TestCase subclass: TaggedErrorTest
 
