@@ -34,6 +34,14 @@ reference = "tag:v0.3.2"
 sha = "2f494a45df6f5033f7215acf084ac46889f8b6a6"
 
 [[package]]
+name = "linear"
+version = "0.1.0"
+registry = "https://github.com/jamesc/beamtalk-registry"
+url = "https://github.com/jamesc/beamtalk-linear.git"
+reference = "tag:v0.1.0"
+sha = "768a3a8653f78b40c1e4ae9e261d7186799d1c40"
+
+[[package]]
 name = "mint"
 version = "0.1.0"
 registry = "https://github.com/jamesc/beamtalk-registry"

@@ -18,7 +18,10 @@ typed Actor subclass: Orchestrator
   /// Used via `withClassMethod: #create:promptTemplate:` so fresh deps
   /// are built on every start/restart.
   class create: config :: ResolvedConfig promptTemplate: pt :: String -> Orchestrator =>
-    lc := LinearClient fromConfig: config
+    lc := LinearClient
+      endpoint: config trackerEndpoint
+      apiKey: config trackerApiKey
+      projectSlug: config trackerProjectSlug
     wm := WorkspaceManager fromConfig: config
     deps := OrchestratorDeps
       new: #{

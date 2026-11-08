@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /// TaggedError — shared base for this app's kind/detail-tagged error values
-/// (CodexError, LinearError, TemplateError, WorkflowError, WorkspaceError).
+/// (CodexError, TemplateError, WorkflowError, WorkspaceError).
+/// LinearError lives in the `linear` registry package with its own copy.
 /// Provides the common "ClassName(kind): detail" displayString so each
 /// subclass only needs to declare its own extra fields and factories.
 typed Value subclass: TaggedError

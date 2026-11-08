@@ -12,7 +12,6 @@ symphony/
 │   ├── tagged_error.bt    # Shared base for domain *_error.bt classes
 │   ├── config/            # Config loading/validation, .env
 │   ├── codex/             # Codex subprocess client + agent runner
-│   ├── linear/            # Linear GraphQL client + Issue model
 │   ├── workflow/          # WORKFLOW.md loading/watching, prompt templating
 │   ├── workspace/         # Git worktree / workspace management
 │   ├── dispatch/          # Orchestrator decision logic (candidates, retry, reconciliation)
@@ -50,7 +49,8 @@ just ci              # fmt + lint + build + test, as CI runs it
 
 Dependencies: `beamtalk deps add <name>` (registry), `--git <url>` or
 `--path <dir>`. For example, `HTTPClient`/`HTTPServer` come from the `http`
-package and `Yaml` from `yaml`; they are not in the standard library.
+package, `Yaml` from `yaml`, and `LinearClient`/`Issue`/`IssueRef`/`LinearError`
+from `linear`; they are not in the standard library.
 
 ## Beamtalk Syntax Basics
 
