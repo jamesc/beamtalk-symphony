@@ -43,3 +43,27 @@ TestCase subclass: AgentRunnerTest
       issue: issue
       attempt: 2
     self assert: (self assertOk: result) equals: "Work on it"
+
+  // --- Backend selection (BT-4155) ---
+  testBackendDefaultsToCodex =>
+    config := ResolvedConfig new: #{}
+    backend := AgentRunner
+      backendFor: config
+      workspacePath: "/tmp"
+      onEvent: nil
+    self assert: (backend isKindOf: CodexClient)
+    self assert: backend stop equals: #ok
+
+  testBackendSelectsClaude =>
+    config := ResolvedConfig
+      new: #{
+        #agentBackend => "claude",
+        #claudeCommand => "echo hello",
+        #claudePermissionMode => "dontAsk"
+      }
+    backend := AgentRunner
+      backendFor: config
+      workspacePath: "/tmp"
+      onEvent: nil
+    self assert: (backend isKindOf: ClaudeBackend)
+    self assert: backend stop equals: #ok

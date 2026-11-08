@@ -1,0 +1,419 @@
+// Copyright 2026 James Casey
+// SPDX-License-Identifier: Apache-2.0
+
+/// ClaudeBackend — manages a `claude` CLI subprocess over stream-JSON.
+/// Speaks the Agent SDK wire protocol: NDJSON events on stdout
+/// (`system`/`assistant`/`user`/`result`), user messages on stdin, and
+/// permission prompts over the stdio control channel (`can_use_tool`).
+///
+/// Spawn shape (verified live against claude 2.1.312):
+/// `claude --input-format stream-json --output-format stream-json
+/// --verbose --permission-prompt-tool stdio [--permission-mode MODE]
+/// [--allowedTools a,b] [--disallowedTools c] [--resume SESSION]`.
+/// `--permission-prompt-tool stdio` is mandatory: without it, tools that
+/// resolve to "ask" are auto-denied and no prompt ever reaches us.
+///
+/// Session timing (measured, not from docs): the CLI emits
+/// SessionStart hooks on boot but `system/init` — which carries the
+/// session id — only AFTER the first user message is written to
+/// stdin. So `startSession` handshakes on the first stdout event
+/// (proving boot) and the real id is recorded when `streamStep`
+/// sees init.
+///
+/// Permission policy is configuration, not hardcoded: `mode` selects the
+/// CLI `--permission-mode`; `allowedTools`/`disallowedTools` scope it; the
+/// control handler denies anything disallowed, allows what the mode or the
+/// allow-list permits, and denies the rest (safe default — denials feed
+/// back to the model as tool errors, so the turn continues).
+/// AskUserQuestion needs a human, so it denies and ends the turn with
+/// `turnInputRequired` (mirroring CodexClient).
+///
+/// Config is a plain Dictionary (no ResolvedConfig coupling, so this file
+/// moves to the `claude` registry package unchanged). Keys, all optional
+/// except through `fromConfig:` defaults: "command", "permissionMode",
+/// "allowedTools", "disallowedTools", "readTimeoutMs",
+/// "resumeSessionId".
+typed Actor subclass: ClaudeBackend
+  late state: proc :: Subprocess
+  state: workspacePath :: String
+  state: command :: String = "claude"
+  state: permissionMode :: String = "acceptEdits"
+  state: allowedTools :: List(String) = #()
+  state: disallowedTools :: List(String) = #()
+  state: readTimeoutMs :: Integer = 5000
+  state: onEvent :: Block(Dictionary, Object) | Nil = nil
+  state: sessionId :: String | Nil = nil
+  state: resumeSessionId :: String | Nil = nil
+
+  /// Spawns a new ClaudeBackend actor bound to the given workspace directory.
+  class start: workspacePath :: String config: config :: Dictionary onEvent: callback :: Block(Dictionary, Object) | Nil -> ClaudeBackend =>
+    self
+      spawnWith: #{
+        #workspacePath => workspacePath,
+        #command => (config at: "command" ifAbsent: ["claude"]),
+        #permissionMode => (config at: "permissionMode" ifAbsent: [
+          "acceptEdits"
+        ]),
+        #allowedTools => (config at: "allowedTools" ifAbsent: [#()]),
+        #disallowedTools => (config at: "disallowedTools" ifAbsent: [#()]),
+        #readTimeoutMs => (config at: "readTimeoutMs" ifAbsent: [5000]),
+        #onEvent => callback,
+        #resumeSessionId => (config at: "resumeSessionId" ifAbsent: [nil])
+      }
+
+  // --- Launch ---
+
+  /// The CLI argv for a session (pure: no process started). The resume
+  /// flag is included only when a session id is given.
+  class launchArgs: config :: Dictionary resumeSessionId: sid :: String | Nil -> List(String) =>
+    args := #("--input-format", "stream-json", "--output-format", "stream-json", "--verbose", "--permission-prompt-tool", "stdio", "--permission-mode", (config at: "permissionMode" ifAbsent: [
+      "acceptEdits"
+    ]))
+    allowed :: List(String) := config at: "allowedTools" ifAbsent: [#()]
+    allowed isEmpty ifFalse: [
+      args := args ++ #("--allowedTools", (allowed join: ","))
+    ]
+    disallowed :: List(String) := config at: "disallowedTools" ifAbsent: [#()]
+    disallowed isEmpty ifFalse: [
+      args := args ++ #("--disallowedTools", (disallowed join: ","))
+    ]
+    sid isNil ifFalse: [args := args ++ #("--resume", sid)]
+    args
+
+  /// Pure permission decision: deny wins over everything, an explicit
+  /// allow-list beats the mode, `bypassPermissions` allows the rest,
+  /// and anything left is denied (safe default — denials feed back to
+  /// the model as tool errors, so the turn continues).
+  class decidePermission: toolName :: String input: _input :: Dictionary mode: mode :: String allowed: allowed :: List(String) disallowed: disallowed :: List(String) -> Symbol =>
+    (disallowed includes: toolName) ifTrue: [^#deny]
+    mode =:= "bypassPermissions" ifTrue: [^#allow]
+    (allowed includes: toolName) ifTrue: [^#allow]
+    #deny
+
+  /// `control_response` allowing a `can_use_tool` ask. `updatedInput`
+  /// is required (a bare allow is rejected), so the input echoes back.
+  class allowResponse: requestId :: String input: input :: Dictionary -> Dictionary =>
+    #{
+      "type" => "control_response",
+      "response" => #{
+        "subtype" => "success",
+        "request_id" => requestId,
+        "response" => #{"behavior" => "allow", "updatedInput" => input}
+      }
+    }
+
+  /// `control_response` denying a `can_use_tool` ask (`message` required).
+  class denyResponse: requestId :: String message: message :: String -> Dictionary =>
+    #{
+      "type" => "control_response",
+      "response" => #{
+        "subtype" => "success",
+        "request_id" => requestId,
+        "response" => #{"behavior" => "deny", "message" => message}
+      }
+    }
+
+  /// `control_response` for an unknown control subtype.
+  class errorResponse: requestId :: String message: message :: String -> Dictionary =>
+    #{
+      "type" => "control_response",
+      "response" => #{
+        "subtype" => "error",
+        "request_id" => requestId,
+        "error" => message
+      }
+    }
+
+  // --- Usage extraction ---
+
+  /// Extracts token usage counters from a stream message, or nil.
+  /// Carried on `result` (and `assistant`) messages as
+  /// `{"input_tokens", "output_tokens"}`; `total` is their sum.
+  class extractUsage: msg :: Dictionary -> Dictionary | Nil =>
+    usage := msg at: "usage" ifAbsent: [nil]
+    usage isNil
+      ifTrue: [
+        inner := msg at: "message" ifAbsent: [nil]
+        usage := inner match: [
+          d :: Dictionary -> (d at: "usage" ifAbsent: [nil]);
+          _ -> nil
+        ]
+      ]
+    usage isNil ifTrue: [^nil]
+    (usage isKindOf: Dictionary) ifFalse: [^nil]
+    input := usage at: "input_tokens" ifAbsent: [0]
+    output := usage at: "output_tokens" ifAbsent: [0]
+    #{
+      "input" => input,
+      "output" => output,
+      "total" => (usage at: "total_tokens" ifAbsent: [input + output])
+    }
+
+  /// Opens the `claude` subprocess and sets self.proc.
+  launch -> Result(Nil, ClaudeError) =>
+    args := ClaudeBackend
+      launchArgs: #{
+        "permissionMode" => self.permissionMode,
+        "allowedTools" => self.allowedTools,
+        "disallowedTools" => self.disallowedTools
+      }
+      resumeSessionId: self.resumeSessionId
+    procResult := [
+      Subprocess
+        open: self.command
+        args: args
+        dir: self.workspacePath
+    ]
+      on: Error
+      do: [:e |
+        Logger error: "claude launch failed" metadata: #{"error" => e message}
+        ^Result error: (ClaudeError notFound: e message)
+      ]
+    procResult isError
+      ifTrue: [
+        Logger error: "claude launch error" metadata: #{
+          "error" => procResult error displayString
+        }
+        ^Result error: (ClaudeError notFound: procResult error displayString)
+      ]
+    self.proc := procResult unwrap
+    Logger info: "claude process launched"
+    Result ok: nil
+
+  // --- JSON transport helpers ---
+
+  /// Writes a stream-JSON message to the subprocess.
+  sendJson: msg :: Dictionary -> Nil =>
+    line := Json generate: msg
+    self.proc writeLine: line
+
+  /// Reads one parsed stream event, skipping non-JSON lines. Answers
+  /// nil on timeout with the process still alive (or on a parsed
+  /// non-object, which the wire never emits); a dead process
+  /// answers a portExit error (callers surface it directly).
+  readEvent: timeoutMs :: Integer -> Result(Dictionary, ClaudeError) | Nil =>
+    line := self.proc readLine: timeoutMs
+    line isNil
+      ifTrue: [
+        exitCode := self.proc exitCode
+        exitCode isNil ifTrue: [
+          ^nil
+        ] ifFalse: [^Result error: (ClaudeError portExit: exitCode)]
+      ]
+    Logger debug: "claude << " ++ line asStringUnchecked
+    parsed := [Json parse: line asStringUnchecked] on: Error do: [:_e | nil]
+    parsed isNil ifTrue: [^nil]
+    ((parsed unwrap) isKindOf: Dictionary) ifFalse: [^nil]
+    parsed
+
+  // --- Session startup handshake ---
+
+  /// Launches the subprocess and waits for its first stdout event
+  /// (usually SessionStart hooks), proving the CLI booted. Answers
+  /// `{"threadId" => id}` — but the CLI only emits `system/init`
+  /// (which carries the session id) after the first user message, so
+  /// a fresh session answers "" here and the real id is recorded
+  /// (and emitted) when `streamStep` sees init. With
+  /// `resumeSessionId` configured, that id is answered directly.
+  startSession -> Result(Dictionary, TaggedError) =>
+    Logger info: "claude session starting" metadata: #{
+      "workspace" => self.workspacePath,
+      "command" => self.command
+    }
+    launchResult := self launch
+    launchResult isError ifTrue: [^launchResult]
+    deadline := (DateTime now asTimestamp * 1000) + self.readTimeoutMs
+    self awaitFirstEvent: deadline
+
+  awaitFirstEvent: deadline :: Integer -> Result(Dictionary, ClaudeError) =>
+    remaining := deadline - (DateTime now asTimestamp * 1000)
+    remaining <= 0
+      ifTrue: [
+        Logger warn: "claude boot timeout"
+        self stopProcess
+        ^Result error: (ClaudeError startupFailed: "boot" detail: (ClaudeError responseTimeout: "boot"))
+      ]
+    readTimeout := remaining > 1000 ifTrue: [1000] ifFalse: [remaining]
+    event := self readEvent: readTimeout
+    event isNil ifTrue: [^self awaitFirstEvent: deadline]
+    event isError
+      ifTrue: [
+        self stopProcess
+        ^Result error: (ClaudeError startupFailed: "boot" detail: event error)
+      ]
+    msg := event unwrap
+    ((msg at: "type" ifAbsent: [nil]) =:= "control_request")
+      ifTrue: [
+        // A prompt before any turn is unexpected, but the protocol
+        // demands an answer to every control request or the turn
+        // stalls.
+        self handleControl: msg
+        ^self awaitFirstEvent: deadline
+      ]
+    ((msg at: "type" ifAbsent: [nil]) =:= "system")
+      ifTrue: [
+        ((msg at: "subtype" ifAbsent: [nil]) =:= "init")
+          ifTrue: [
+            // A future CLI may emit init on boot — take the real id.
+            sid := msg at: "session_id" ifAbsent: [nil]
+            self.sessionId := sid
+            Logger info: "claude session ready" metadata: #{
+              "sessionId" => sid displayString
+            }
+            self emitEvent: msg
+            ^Result ok: #{"threadId" => sid}
+          ]
+      ]
+    self emitEvent: msg
+    Result ok: #{"threadId" => self bootThreadId}
+
+  /// Session handle until init arrives: the resume id when resuming
+  /// (it IS the session handle), else "" — the real id is recorded
+  /// when `streamStep` sees the post-prompt init.
+  bootThreadId -> String =>
+    self.resumeSessionId isNil ifTrue: [""] ifFalse: [self.resumeSessionId]
+
+  // --- Turn management ---
+
+  /// Sends one user message (a turn) and returns immediately; the
+  /// caller pumps `streamStep` until the `result` message ends it.
+  /// `title` is advisory (the wire has no per-turn titles) and is only
+  /// logged. Answers the session id for the runner's session slot.
+  startTurn: _sessionId :: String prompt: prompt :: String title: title :: String -> Result(Dictionary, TaggedError) =>
+    Logger info: "claude turn starting" metadata: #{"title" => title}
+    self sendJson: #{
+      "type" => "user",
+      "message" => #{"role" => "user", "content" => prompt}
+    }
+    Result ok: #{"sessionId" => self.sessionId}
+
+  /// Reads and processes the next stream event. Returns nil if no
+  /// terminal event yet (caller should call again), a Result ok on the
+  /// `result` success message, or a Result error on failure/timeout.
+  streamStep -> Result(Dictionary, TaggedError) | Nil =>
+    event := self readEvent: 1000
+    event isNil ifTrue: [^nil]
+    event isError ifTrue: [^event]
+    self handleMessage: event unwrap
+
+  handleMessage: msg :: Dictionary -> Result(Dictionary, TaggedError) | Nil =>
+    type := msg at: "type" ifAbsent: [nil]
+    type =:= "control_request" ifTrue: [^self handleControl: msg]
+    type =:= "result" ifTrue: [^self handleResult: msg]
+    // init arrives after the first user message (see startSession):
+    // record the real session id, keep streaming.
+    ((type =:= "system") and: [(msg at: "subtype" ifAbsent: [nil]) =:= "init"])
+      ifTrue: [
+        sid := msg at: "session_id" ifAbsent: [nil]
+        sid isNil ifFalse: [self.sessionId := sid]
+        Logger info: "claude session ready" metadata: #{
+          "sessionId" => sid displayString
+        }
+      ]
+    // system/assistant/user/stream_event and anything else:
+    // observable, never terminal.
+    self emitEvent: msg
+    nil
+
+  handleResult: msg :: Dictionary -> Result(Dictionary, TaggedError) =>
+    subtype := msg at: "subtype" ifAbsent: ["success"]
+    self emitEvent: msg
+    subtype =:= "success"
+      ifTrue: [
+        Logger info: "claude turn completed"
+        ^Result ok: #{"status" => "completed", "message" => msg}
+      ]
+      ifFalse: [
+        Logger error: "claude turn failed" metadata: #{
+          "subtype" => subtype displayString
+        }
+        ^Result error: (ClaudeError turnFailed: msg)
+      ]
+
+  // --- Control channel (permission prompts) ---
+
+  /// Answers one inbound `control_request`. Every control request must
+  /// get a response or the turn stalls. Unknown subtypes are answered
+  /// with an error (still counts as answering).
+  handleControl: msg :: Dictionary -> Result(Dictionary, TaggedError) | Nil =>
+    request := msg at: "request" ifAbsent: [#{}]
+    requestId := msg at: "request_id" ifAbsent: [nil]
+    subtype := request at: "subtype" ifAbsent: [nil]
+    requestId isNil
+      ifTrue: [
+        Logger warn: "claude control request without id, dropping" metadata: #{
+          "subtype" => subtype displayString
+        }
+        ^nil
+      ]
+    subtype =:= "can_use_tool"
+      ifTrue: [^self handlePermissionAsk: request requestId: requestId]
+      ifFalse: [
+        Logger warn: "claude unknown control request" metadata: #{
+          "subtype" => subtype displayString
+        }
+        self sendJson: (ClaudeBackend errorResponse: requestId message: "Unsupported control request")
+        ^nil
+      ]
+
+  /// Answers a `can_use_tool` prompt per the configured policy, then
+  /// continues streaming (nil) — except AskUserQuestion, which needs a
+  /// human: deny it and end the turn like CodexClient does.
+  handlePermissionAsk: request :: Dictionary requestId: requestId :: String -> Result(Dictionary, TaggedError) | Nil =>
+    toolName := request at: "tool_name" ifAbsent: ["unknown"]
+    input := request at: "input" ifAbsent: [#{}]
+    toolName =:= "AskUserQuestion"
+      ifTrue: [
+        Logger warn: "claude requires user input, failing turn"
+        self sendJson: (ClaudeBackend denyResponse: requestId message: "No user available to answer questions.")
+        self emitEvent: request
+        ^Result error: (ClaudeError turnInputRequired: request)
+      ]
+    decision := ClaudeBackend
+      decidePermission: toolName
+      input: input
+      mode: self.permissionMode
+      allowed: self.allowedTools
+      disallowed: self.disallowedTools
+    decision =:= #allow
+      ifTrue: [
+        Logger debug: "claude auto-approving: " ++ toolName displayString
+        self sendJson: (ClaudeBackend allowResponse: requestId input: input)
+      ]
+      ifFalse: [
+        Logger debug: "claude denying: " ++ toolName displayString
+        self sendJson: (ClaudeBackend denyResponse: requestId message: "Denied by policy.")
+      ]
+    nil
+
+  // --- Event emission ---
+  emitEvent: msg :: Dictionary -> Nil =>
+    self.onEvent isNil
+      ifFalse: [
+        event := #{
+          "raw" => msg,
+          "method" => (msg at: "type" ifAbsent: [nil]),
+          "usage" => (ClaudeBackend extractUsage: msg),
+          "rateLimits" => nil,
+          "timestamp" => (DateTime now asTimestamp * 1000)
+        }
+        self.onEvent value: event
+      ]
+    nil
+
+  // --- Subprocess lifecycle ---
+
+  /// Timeout error in this backend's taxonomy (AgentBackend seam).
+  turnTimeout -> TaggedError => ClaudeError turnTimeout
+
+  terminate: _reason :: Object -> Nil => self stopProcess
+
+  stopProcess -> Nil =>
+    Logger debug: "claude process stopping"
+    (self hasField: #proc)
+      ifTrue: [
+        self.proc close
+        self.proc stop
+        self clearField: #proc
+      ]
+    nil

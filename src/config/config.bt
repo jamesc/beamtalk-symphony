@@ -48,6 +48,13 @@ typed Value subclass: Config
     fields := fields at: #codexTurnTimeoutMs put: config codexTurnTimeoutMs
     fields := fields at: #codexReadTimeoutMs put: config codexReadTimeoutMs
     fields := fields at: #codexStallTimeoutMs put: config codexStallTimeoutMs
+    fields := fields at: #agentBackend put: config agentBackend
+    fields := fields at: #claudeCommand put: config claudeCommand
+    fields := fields at: #claudePermissionMode put: config claudePermissionMode
+    fields := fields at: #claudeAllowedTools put: config claudeAllowedTools
+    fields := fields at: #claudeDisallowedTools put: config claudeDisallowedTools
+    fields := fields at: #claudeTurnTimeoutMs put: config claudeTurnTimeoutMs
+    fields := fields at: #claudeReadTimeoutMs put: config claudeReadTimeoutMs
     fields := fields at: #hooksAfterCreate put: hookAC
     fields := fields at: #hooksBeforeRun put: hookBR
     fields := fields at: #hooksAfterRun put: hookAR
@@ -237,6 +244,57 @@ typed Value subclass: Config
       key: "stall_timeout_ms"
       default: 300000
     (self coerceInt: val default: 300000) ifNil: [300000]
+
+  // --- Agent backend (BT-4155) ---
+  agentBackend -> String =>
+    val := self
+      nested: "agent"
+      key: "backend"
+      default: "codex"
+    self coerceString: val default: "codex"
+
+  // --- Claude ---
+  claudeCommand -> String =>
+    val := self
+      nested: "claude"
+      key: "command"
+      default: "claude"
+    self coerceString: val default: "claude"
+
+  claudePermissionMode -> String =>
+    val := self
+      nested: "claude"
+      key: "permission_mode"
+      default: "acceptEdits"
+    self coerceString: val default: "acceptEdits"
+
+  claudeAllowedTools -> List(String) =>
+    val := self
+      nested: "claude"
+      key: "allowed_tools"
+      default: #()
+    self coerceStringList: val default: #()
+
+  claudeDisallowedTools -> List(String) =>
+    val := self
+      nested: "claude"
+      key: "disallowed_tools"
+      default: #()
+    self coerceStringList: val default: #()
+
+  claudeTurnTimeoutMs -> Integer =>
+    val := self
+      nested: "claude"
+      key: "turn_timeout_ms"
+      default: 3600000
+    (self coerceInt: val default: 3600000) ifNil: [3600000]
+
+  claudeReadTimeoutMs -> Integer =>
+    val := self
+      nested: "claude"
+      key: "read_timeout_ms"
+      default: 5000
+    (self coerceInt: val default: 5000) ifNil: [5000]
 
   // --- Hooks ---
   hooksAfterCreate -> String | Nil =>

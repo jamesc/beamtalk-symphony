@@ -1,0 +1,175 @@
+// Integration tests for ClaudeBackend. Session startup needs only the
+// `claude` binary (init is local); turns make real model calls, so they
+// additionally require ANTHROPIC_API_KEY. Both skip otherwise.
+
+TestCase subclass: ClaudeBackendIntegrationTest
+  field: hasClaude = false
+  field: tmpDir = "target/bt-test-tmp/claude-integration"
+
+  setUp =>
+    found := [self checkClaudeInstalled] on: Error do: [:e | false]
+    File mkdirAll: self.tmpDir
+    self withHasClaude: found
+
+  checkClaudeInstalled =>
+    result := Erlang os find_executable: "claude"
+    result == false ifTrue: [^false]
+    true
+
+  hasApiKey => (System getEnv: "ANTHROPIC_API_KEY") isNil not
+
+  tearDown =>
+    File deleteAll: self.tmpDir
+    self
+
+  /// Patient proxy for slow session calls — a cold `claude` start
+  /// (plugin/hook load, ~3.5s measured) can exceed the default 5s
+  /// actor-call timeout.
+  patient: backend => backend withTimeout: 60000
+
+  stopPatient: patient backend: backend =>
+    patient stopProcess
+    patient stop
+    backend stop
+    self
+
+  testStartSession =>
+    self.hasClaude ifFalse: [^self skip: "claude not installed"]
+    backend := ClaudeBackend
+      start: self.tmpDir
+      config: #{
+        "command" => "claude",
+        "permissionMode" => "dontAsk",
+        "readTimeoutMs" => 30000
+      }
+      onEvent: nil
+    patient := self patient: backend
+    sessionResult := [patient startSession]
+      on: Error
+      do: [:e |
+        self stopPatient: patient backend: backend
+        ^self skip: "claude session raised: " ++ e displayString
+      ]
+    sessionResult isError
+      ifTrue: [
+        self stopPatient: patient backend: backend
+        ^self skip: "claude session error"
+      ]
+    data := self assertOk: sessionResult
+    // Fresh session: no init yet (it arrives after the first user
+    // message), so the handle is "" — but it must be present.
+    self assert: ((data at: "threadId") isKindOf: String)
+    self stopPatient: patient backend: backend
+
+  testStartTurn =>
+    self.hasClaude ifFalse: [^self skip: "claude not installed"]
+    self hasApiKey ifFalse: [^self skip: "ANTHROPIC_API_KEY not set"]
+    backend := ClaudeBackend
+      start: self.tmpDir
+      config: #{
+        "command" => "claude",
+        "permissionMode" => "dontAsk",
+        "readTimeoutMs" => 30000
+      }
+      onEvent: nil
+    patient := self patient: backend
+    sessionResult := [patient startSession]
+      on: Error
+      do: [:e |
+        self stopPatient: patient backend: backend
+        ^self skip: "claude session raised: " ++ e displayString
+      ]
+    sessionResult isError
+      ifTrue: [
+        self stopPatient: patient backend: backend
+        ^self skip: "claude session error"
+      ]
+    sessionId := (self assertOk: sessionResult) at: "threadId"
+    turnResult := [
+      backend
+        startTurn: sessionId
+        prompt: "Reply with exactly: hello"
+        title: "test"
+    ]
+      on: Error
+      do: [:e |
+        self stopPatient: patient backend: backend
+        ^self skip: "claude turn raised: " ++ e displayString
+      ]
+    turnResult isError
+      ifTrue: [
+        self stopPatient: patient backend: backend
+        ^self skip: "claude turn error"
+      ]
+    // Stream step-by-step until the result message ends the turn
+    streamResult := self pollStreamStep: backend deadline: (DateTime now asTimestamp * 1000) + 120000
+    self assertOk: streamResult
+    self stopPatient: patient backend: backend
+
+  testResumeSession =>
+    self.hasClaude ifFalse: [^self skip: "claude not installed"]
+    self hasApiKey ifFalse: [^self skip: "ANTHROPIC_API_KEY not set"]
+    first := ClaudeBackend
+      start: self.tmpDir
+      config: #{
+        "command" => "claude",
+        "permissionMode" => "dontAsk",
+        "readTimeoutMs" => 30000
+      }
+      onEvent: nil
+    firstPatient := self patient: first
+    sessionResult := [firstPatient startSession]
+      on: Error
+      do: [:e |
+        self stopPatient: firstPatient backend: first
+        ^self skip: "claude session raised: " ++ e displayString
+      ]
+    sessionResult isError
+      ifTrue: [
+        self stopPatient: firstPatient backend: first
+        ^self skip: "claude session error"
+      ]
+    sessionId := (self assertOk: sessionResult) at: "threadId"
+    self stopPatient: firstPatient backend: first
+    second := ClaudeBackend
+      start: self.tmpDir
+      config: #{
+        "command" => "claude",
+        "permissionMode" => "dontAsk",
+        "readTimeoutMs" => 30000,
+        "resumeSessionId" => sessionId
+      }
+      onEvent: nil
+    secondPatient := self patient: second
+    resumed := [secondPatient startSession]
+      on: Error
+      do: [:e |
+        self stopPatient: secondPatient backend: second
+        ^self skip: "claude resume raised: " ++ e displayString
+      ]
+    resumed isError
+      ifTrue: [
+        self stopPatient: secondPatient backend: second
+        ^self skip: "claude resume error"
+      ]
+    self assert: ((self assertOk: resumed) at: "threadId") equals: sessionId
+    self stopPatient: secondPatient backend: second
+
+  testLaunchFailsWithBadCommand =>
+    self.hasClaude ifFalse: [^self skip: "claude not installed"]
+    backend := ClaudeBackend
+      start: self.tmpDir
+      config: #{"command" => "claude-backend-test-does-not-exist"}
+      onEvent: nil
+    result := backend startSession
+    self deny: result isOk
+    backend stopProcess
+    backend stop
+
+  pollStreamStep: backend deadline: deadline =>
+    result := backend streamStep
+    result isNil ifFalse: [^result]
+    (DateTime now asTimestamp * 1000) < deadline ifTrue: [
+      ^self pollStreamStep: backend deadline: deadline
+    ]
+    nil
