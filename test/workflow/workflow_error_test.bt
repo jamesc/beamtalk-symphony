@@ -1,0 +1,20 @@
+// Copyright 2026 James Casey
+// SPDX-License-Identifier: Apache-2.0
+
+// Pins WorkflowError's displayString, which overrides the agents
+// package AgentError base to fall back to `path` when there is
+// no `detail`.
+
+TestCase subclass: WorkflowErrorTest
+
+  testDisplayStringWithDetail =>
+    err := WorkflowError invalidFrontMatter: "not a map"
+    self assert: err displayString equals: "WorkflowError(invalid_front_matter): not a map"
+
+  testDisplayStringFallsBackToPath =>
+    err := WorkflowError missingFile: "WORKFLOW.md"
+    self assert: err displayString equals: "WorkflowError(missing_file): WORKFLOW.md"
+
+  testDisplayStringWithNeitherDetailNorPath =>
+    err := WorkflowError new: #{#kind => "unknown"}
+    self assert: err displayString equals: "WorkflowError(unknown)"

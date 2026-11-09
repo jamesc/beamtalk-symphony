@@ -1,0 +1,11 @@
+// Copyright 2026 James Casey
+// SPDX-License-Identifier: Apache-2.0
+
+// Pins WorkspaceError's log format, inherited from the agents
+// package AgentError base: "WorkspaceError(kind): detail".
+
+TestCase subclass: WorkspaceErrorTest
+
+  testCreateErrorDisplayString =>
+    err := WorkspaceError createError: "disk full"
+    self assert: err displayString equals: "WorkspaceError(create_error): disk full"
