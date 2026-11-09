@@ -29,6 +29,15 @@ typed Value subclass: ResolvedConfig
   field: codexTurnTimeoutMs :: Integer = 3600000
   field: codexReadTimeoutMs :: Integer = 5000
   field: codexStallTimeoutMs :: Integer = 300000
+  // --- Agent backend ("codex" or "claude"; BT-4155) ---
+  field: agentBackend :: String = "codex"
+  // --- Claude ---
+  field: claudeCommand :: String = "claude"
+  field: claudePermissionMode :: String = "acceptEdits"
+  field: claudeAllowedTools :: List(String) = #()
+  field: claudeDisallowedTools :: List(String) = #()
+  field: claudeTurnTimeoutMs :: Integer = 3600000
+  field: claudeReadTimeoutMs :: Integer = 5000
   // --- Hooks ---
   field: hooksAfterCreate :: String = ""
   field: hooksBeforeRun :: String = ""

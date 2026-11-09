@@ -1,0 +1,30 @@
+// Copyright 2026 James Casey
+// SPDX-License-Identifier: Apache-2.0
+
+/// AgentBackend — Protocol for coding-agent backends driven by AgentRunner.
+///
+/// Any backend that can open a session, run turns from prompts, and stream
+/// events structurally conforms (no explicit adoption needed; pinned by
+/// `conformsTo:` unit tests). CodexClient and ClaudeBackend both
+/// implement it. AgentRunner holds the backend as
+/// `CodexClient | ClaudeBackend` — a protocol-typed field rejects both
+/// today, so the union carries the seam until the checker accepts
+/// declared conformance — and picks the concrete class from config.
+///
+/// Seam contract (mirrors the CodexClient shapes the runner was built on):
+/// - `startSession` opens the backend and answers `{"threadId" => id}`
+///   (the backend's session handle under one key). A backend whose
+///   handle only exists after the first turn (Claude's init arrives
+///   post-prompt) may answer "" and publish the real id via init
+///   events instead.
+/// - `startTurn:sessionId:prompt:title:` sends one prompt and answers
+///   turn metadata (title is advisory; backends may ignore it).
+/// - `streamStep` reads the next event: nil means no terminal event yet
+///   (call again); a Result ends the turn.
+/// - `stopProcess` shuts the backend down; safe to call twice.
+Protocol define: AgentBackend
+  startSession -> Result(Dictionary, TaggedError)
+  startTurn: sessionId :: String prompt: prompt :: String title: title :: String -> Result(Dictionary, TaggedError)
+  streamStep -> Result(Dictionary, TaggedError) | Nil
+  turnTimeout -> TaggedError
+  stopProcess -> Nil

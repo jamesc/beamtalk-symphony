@@ -170,7 +170,7 @@ typed Actor subclass: CodexClient
   // --- Session startup handshake ---
 
   /// Launches the subprocess and performs the initialize/thread-start handshake.
-  startSession -> Result(Dictionary, CodexError) =>
+  startSession -> Result(Dictionary, TaggedError) =>
     Logger info: "codex session starting" metadata: #{
       "workspace" => self.workspacePath,
       "command" => self.config codexCommand
@@ -230,8 +230,11 @@ typed Actor subclass: CodexClient
 
   // --- Turn management ---
 
+  /// Timeout error in this backend's taxonomy (AgentBackend seam).
+  turnTimeout -> TaggedError => CodexError turnTimeout
+
   /// Sends a turn/start request with the given prompt and waits for acknowledgement.
-  startTurn: threadId :: String prompt: prompt :: String title: title :: String -> Result(Dictionary, CodexError) =>
+  startTurn: threadId :: String prompt: prompt :: String title: title :: String -> Result(Dictionary, TaggedError) =>
     Logger info: "codex turn starting" metadata: #{
       "title" => title,
       "prompt_length" => prompt length displayString
@@ -269,7 +272,7 @@ typed Actor subclass: CodexClient
   /// - nil if no event yet (caller should call again)
   /// - Result ok: ... if turn completed
   /// - Result error: ... if turn failed/timed out
-  streamStep -> Result(Dictionary, CodexError) | Nil =>
+  streamStep -> Result(Dictionary, TaggedError) | Nil =>
     line := self.proc readLine: 1000
     line isNil
       ifTrue: [

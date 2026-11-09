@@ -2,8 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /// AgentRunner — full worker lifecycle for a single issue attempt.
-/// Manages workspace creation, prompt rendering, codex session,
-/// multi-turn loop, hook execution, and event forwarding.
+/// Manages workspace creation, prompt rendering, agent backend session
+/// (Codex or Claude, selected by config), multi-turn loop, hook
+/// execution, and event forwarding.
 ///
 /// Uses helper methods for prompt building, turn management, and cleanup.
 typed Actor subclass: AgentRunner
@@ -14,7 +15,7 @@ typed Actor subclass: AgentRunner
   state: linearClient :: LinearClient
   state: promptTemplate :: String
   state: onEvent :: Block(Dictionary, Object)
-  late state: codexClient :: CodexClient
+  late state: backend :: CodexClient | ClaudeBackend
   late state: threadId :: String
   state: turnNumber :: Integer
 
@@ -34,10 +35,46 @@ typed Actor subclass: AgentRunner
     runner begin!
     runner
 
+  /// Builds the configured backend without launching a session (pure
+  /// constructor selection; the backend's process starts on startSession).
+  class backendFor: config :: ResolvedConfig workspacePath: wsPath :: String onEvent: callback :: Block(Dictionary, Object) | Nil -> CodexClient | ClaudeBackend =>
+    (config agentBackend) =:= "claude"
+      ifTrue: [
+        ^ClaudeBackend
+          start: wsPath
+          config: #{
+            "command" => config claudeCommand,
+            "permissionMode" => config claudePermissionMode,
+            "allowedTools" => config claudeAllowedTools,
+            "disallowedTools" => config claudeDisallowedTools,
+            "readTimeoutMs" => config claudeReadTimeoutMs
+          }
+          onEvent: callback
+      ]
+      ifFalse: [
+        ^CodexClient
+          start: wsPath
+          config: config
+          onEvent: callback
+      ]
+
   // --- Main lifecycle ---
   terminate: _reason :: Object -> Nil =>
-    (self hasField: #codexClient) ifTrue: [self.codexClient stopProcess]
+    (self hasField: #backend) ifTrue: [self.backend stopProcess]
     nil
+
+  /// Starts the backend session with an actor-call timeout above the
+  /// backend's read timeout. A cold `claude` start (plugin/hook load,
+  /// ~3.5s measured) can exceed the default 5s gen_server call
+  /// timeout; without the proxy the call raises and skips cleanup.
+  startBackendSession -> Result(Dictionary, Error) =>
+    timeoutMs := (self.config agentBackend) =:= "claude" ifTrue: [
+      self.config claudeReadTimeoutMs + 5000
+    ] ifFalse: [self.config codexReadTimeoutMs + 5000]
+    proxy := self.backend withTimeout: timeoutMs
+    result := [proxy startSession] on: Error do: [:e | Result error: e]
+    proxy stop
+    result
 
   begin -> AgentRunner =>
     identifier := self.issue identifier ifNil: [""]
@@ -70,16 +107,16 @@ typed Actor subclass: AgentRunner
     hookResult := self.workspaceManager runBeforeRun: wsPath
     hookResult isError ifTrue: [^hookResult]
 
-    // Step 3: Start codex session
-    self.codexClient := CodexClient
-      start: wsPath
-      config: self.config
+    // Step 3: Start backend session (Codex or Claude per config)
+    self.backend := AgentRunner
+      backendFor: self.config
+      workspacePath: wsPath
       onEvent: self.onEvent
-    sessionResult := self.codexClient startSession
+    sessionResult := self startBackendSession
     sessionResult isError
       ifTrue: [
         self.workspaceManager runAfterRun: wsPath
-        self.codexClient stopProcess
+        self.backend stopProcess
         ^sessionResult
       ]
 
@@ -92,7 +129,7 @@ typed Actor subclass: AgentRunner
     turnLoopResult := self runTurnLoop: wsPath maxTurns: maxTurns
 
     // Step 5: Cleanup
-    self.codexClient stopProcess
+    self.backend stopProcess
     self.workspaceManager runAfterRun: wsPath
 
     turnLoopResult
@@ -150,20 +187,20 @@ typed Actor subclass: AgentRunner
 
   // --- Stream loop (runs in AgentRunner's process) ---
 
-  /// Loops calling codexClient streamStep until turn completes or times out.
+  /// Loops calling backend streamStep until turn completes or times out.
   /// Each streamStep call is short (~1s), avoiding gen_server timeout.
-  streamUntilDone: turnTimeoutMs :: Integer -> Result(Dictionary, CodexError) =>
+  streamUntilDone: turnTimeoutMs :: Integer -> Result(Dictionary, TaggedError) =>
     deadline := (DateTime now asTimestamp * 1000) + turnTimeoutMs
     self streamLoop: deadline
 
-  streamLoop: deadline :: Integer -> Result(Dictionary, CodexError) =>
+  streamLoop: deadline :: Integer -> Result(Dictionary, TaggedError) =>
     remaining := deadline - (DateTime now asTimestamp * 1000)
     remaining <= 0
       ifTrue: [
-        Logger warn: "codex turn timed out"
-        ^Result error: CodexError turnTimeout
+        Logger warn: "backend turn timed out"
+        ^Result error: self.backend turnTimeout
       ]
-    stepResult := self.codexClient streamStep
+    stepResult := self.backend streamStep
     // nil means no terminal event yet — keep going
     stepResult isNil ifTrue: [^self streamLoop: deadline]
     // Got a Result (ok or error) — return it
@@ -183,14 +220,16 @@ typed Actor subclass: AgentRunner
     issueTitle := self.issue title ifNil: [""]
     title := issueIdentifier ++ ": " ++ issueTitle
 
-    turnResult := self.codexClient
+    turnResult := self.backend
       startTurn: self.threadId
       prompt: promptText
       title: title
     turnResult isError ifTrue: [^turnResult]
 
     // Stream events until turn completes (step-by-step to avoid gen_server timeout)
-    turnTimeoutMs := self.config codexTurnTimeoutMs
+    turnTimeoutMs := (self.config agentBackend) =:= "claude" ifTrue: [
+      self.config claudeTurnTimeoutMs
+    ] ifFalse: [self.config codexTurnTimeoutMs]
     streamResult := self streamUntilDone: turnTimeoutMs
     streamResult isError ifTrue: [^streamResult]
 

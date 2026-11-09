@@ -1,0 +1,176 @@
+// Tests for ClaudeBackend — protocol conformance, launch args,
+// permission policy, control responses, usage extraction and errors.
+// Integration tests require a real `claude` binary.
+
+TestCase subclass: ClaudeBackendTest
+
+  // --- Seam conformance ---
+  testBackendsConformToAgentBackend =>
+    self assert: (CodexClient conformsTo: #AgentBackend)
+    self assert: (ClaudeBackend conformsTo: #AgentBackend)
+
+  // --- Lifecycle (no subprocess launched) ---
+  testStartCreatesActor =>
+    backend := ClaudeBackend
+      start: "/tmp"
+      config: #{"command" => "echo hello"}
+      onEvent: nil
+    self assert: backend isAlive
+    self assert: backend stop equals: #ok
+
+  testStopProcessWithoutLaunch =>
+    backend := ClaudeBackend
+      start: "/tmp"
+      config: #{"command" => "echo hello"}
+      onEvent: nil
+    self assert: backend stopProcess equals: nil
+    self assert: backend isAlive
+    self assert: backend stop equals: #ok
+
+  testStopProcessIdempotent =>
+    backend := ClaudeBackend
+      start: "/tmp"
+      config: #{"command" => "echo hello"}
+      onEvent: nil
+    backend stopProcess
+    self assert: backend stopProcess equals: nil
+    self assert: backend stop equals: #ok
+
+  // --- Launch args ---
+  testLaunchArgsDefaults =>
+    args := ClaudeBackend launchArgs: #{} resumeSessionId: nil
+    self assert: args equals: #("--input-format", "stream-json", "--output-format", "stream-json", "--verbose", "--permission-prompt-tool", "stdio", "--permission-mode", "acceptEdits")
+
+  testLaunchArgsResumeAndTools =>
+    args := ClaudeBackend
+      launchArgs: #{
+        "permissionMode" => "dontAsk",
+        "allowedTools" => #("Bash", "Edit"),
+        "disallowedTools" => #("WebFetch")
+      }
+      resumeSessionId: "abc-123"
+    self assert: (args includes: "--resume")
+    self assert: (args includes: "abc-123")
+    self assert: (args includes: "--allowedTools")
+    self assert: (args includes: "Bash,Edit")
+    self assert: (args includes: "--disallowedTools")
+    self assert: (args includes: "WebFetch")
+
+  // --- Permission policy ---
+  testDisallowWinsOverEverything =>
+    decision := ClaudeBackend
+      decidePermission: "Bash"
+      input: #{}
+      mode: "bypassPermissions"
+      allowed: #("Bash")
+      disallowed: #("Bash")
+    self assert: decision equals: #deny
+
+  testBypassAllowsTheRest =>
+    decision := ClaudeBackend
+      decidePermission: "Bash"
+      input: #{}
+      mode: "bypassPermissions"
+      allowed: #()
+      disallowed: #()
+    self assert: decision equals: #allow
+
+  testAllowListAdmits =>
+    decision := ClaudeBackend
+      decidePermission: "Read"
+      input: #{}
+      mode: "acceptEdits"
+      allowed: #("Read")
+      disallowed: #()
+    self assert: decision equals: #allow
+
+  testDefaultIsDeny =>
+    decision := ClaudeBackend
+      decidePermission: "Bash"
+      input: #{}
+      mode: "acceptEdits"
+      allowed: #()
+      disallowed: #()
+    self assert: decision equals: #deny
+
+  testDontAskDenies =>
+    decision := ClaudeBackend
+      decidePermission: "Bash"
+      input: #{}
+      mode: "dontAsk"
+      allowed: #()
+      disallowed: #()
+    self assert: decision equals: #deny
+
+  // --- Control responses ---
+  testAllowResponseEchoesRequestIdAndInput =>
+    input := #{"command" => "ls"}
+    response := ClaudeBackend allowResponse: "req-1" input: input
+    inner := response at: "response"
+    self assert: (response at: "type") equals: "control_response"
+    self assert: (inner at: "subtype") equals: "success"
+    self assert: (inner at: "request_id") equals: "req-1"
+    self assert: ((inner at: "response") at: "behavior") equals: "allow"
+    self assert: ((inner at: "response") at: "updatedInput") equals: input
+
+  testDenyResponseCarriesMessage =>
+    response := ClaudeBackend denyResponse: "req-2" message: "Nope."
+    inner := (response at: "response") at: "response"
+    self assert: (inner at: "behavior") equals: "deny"
+    self assert: (inner at: "message") equals: "Nope."
+
+  testErrorResponseCarriesMessage =>
+    response := ClaudeBackend errorResponse: "req-3" message: "Unsupported."
+    inner := response at: "response"
+    self assert: (inner at: "subtype") equals: "error"
+    self assert: (inner at: "request_id") equals: "req-3"
+    self assert: (inner at: "error") equals: "Unsupported."
+
+  // --- Usage extraction ---
+  testExtractUsageFromResult =>
+    msg := #{
+      "type" => "result",
+      "usage" => #{"input_tokens" => 100, "output_tokens" => 50}
+    }
+    usage := ClaudeBackend extractUsage: msg
+    self deny: usage isNil
+    self assert: (usage at: "input") equals: 100
+    self assert: (usage at: "output") equals: 50
+    self assert: (usage at: "total") equals: 150
+
+  testExtractUsageUsesTotalWhenPresent =>
+    msg := #{
+      "type" => "result",
+      "usage" => #{
+        "input_tokens" => 100,
+        "output_tokens" => 50,
+        "total_tokens" => 200
+      }
+    }
+    usage := ClaudeBackend extractUsage: msg
+    self assert: (usage at: "total") equals: 200
+
+  testExtractUsageFromNestedAssistantMessage =>
+    msg := #{
+      "type" => "assistant",
+      "message" => #{"usage" => #{"input_tokens" => 7, "output_tokens" => 3}}
+    }
+    usage := ClaudeBackend extractUsage: msg
+    self assert: (usage at: "input") equals: 7
+    self assert: (usage at: "total") equals: 10
+
+  testExtractUsageMissingIsNil =>
+    self assert: (ClaudeBackend extractUsage: #{"type" => "assistant"}) isNil
+    self assert: (ClaudeBackend extractUsage: #{"usage" => "nope"}) isNil
+
+  // --- Errors ---
+  testErrorKinds =>
+    self assert: (ClaudeError notFound: "x") kind equals: "not_found"
+    self assert: (ClaudeError turnFailed: #{}) kind equals: "turn_failed"
+    self assert: (ClaudeError turnCancelled: #{}) kind equals: "turn_cancelled"
+    self assert: (ClaudeError turnTimeout) kind equals: "turn_timeout"
+    self assert: (ClaudeError turnInputRequired: #{}) kind equals: "turn_input_required"
+    self assert: (ClaudeError portExit: 1) kind equals: "port_exit"
+    self assert: (ClaudeError startupFailed: "init" detail: (ClaudeError responseTimeout: "y")) kind equals: "startup_failed"
+    self assert: (ClaudeError permissionDenied: "Bash") kind equals: "permission_denied"
+    self assert: (ClaudeError responseTimeout: "z") kind equals: "response_timeout"
