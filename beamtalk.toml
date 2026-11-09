@@ -17,4 +17,4 @@ http = "0.3.2"
 
 yaml = "0.2.0"
 linear = "0.1.0"
-agents = "0.1.0"
+agents = "0.1.1"

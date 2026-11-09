@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /// TemplateError — typed error for prompt template rendering failures.
-typed TaggedError subclass: TemplateError
+typed AgentError subclass: TemplateError
 
   class renderError: detail :: String -> TemplateError =>
     self new: #{#kind => "render_error", #detail => detail}

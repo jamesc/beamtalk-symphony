@@ -3,11 +3,11 @@
 
 [[package]]
 name = "agents"
-version = "0.1.0"
+version = "0.1.1"
 registry = "https://github.com/jamesc/beamtalk-registry"
 url = "https://github.com/jamesc/beamtalk-agents.git"
-reference = "tag:v0.1.0"
-sha = "a7b2d4280a1ccf9b4297cefab0a5530c212b32d5"
+reference = "tag:v0.1.1"
+sha = "87502bbecdbbbf36620e2dbd30344771b4d15872"
 
 [[package]]
 name = "buccaneer"
