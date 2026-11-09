@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /// WorkspaceError — typed error for workspace management failures.
-typed TaggedError subclass: WorkspaceError
+typed AgentError subclass: WorkspaceError
   field: workspace :: String | Nil = nil
   field: root :: String | Nil = nil
   field: expected :: String | Nil = nil

@@ -1,0 +1,11 @@
+// Copyright 2026 James Casey
+// SPDX-License-Identifier: Apache-2.0
+
+// Pins TemplateError's log format, inherited from the agents
+// package AgentError base: "TemplateError(kind): detail".
+
+TestCase subclass: TemplateErrorTest
+
+  testRenderErrorDisplayString =>
+    err := TemplateError renderError: "bad var"
+    self assert: err displayString equals: "TemplateError(render_error): bad var"
