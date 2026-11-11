@@ -141,10 +141,18 @@ TestCase subclass: ConfigTest
     self assert: ((result error at: "reason") includesSubstring: "unsupported")
 
   testValidateMissingApiKey =>
-    config := Config fromMap: #{
-      "tracker" => #{"kind" => "linear", "project_slug" => "p"}
-    }
-    result := config validate
+    // Config falls back to $LINEAR_API_KEY, so isolate from the ambient env:
+    // save, unset, and restore even if the body fails.
+    saved := System getEnv: "LINEAR_API_KEY"
+    Erlang os unsetenv: "LINEAR_API_KEY"
+    result := [
+      config := Config fromMap: #{
+        "tracker" => #{"kind" => "linear", "project_slug" => "p"}
+      }
+      config validate
+    ] ensure: [
+      saved isNil ifFalse: [System setEnv: "LINEAR_API_KEY" value: saved]
+    ]
     self assert: result isError
     self assert: (result error at: "check") equals: "tracker.api_key"
 
