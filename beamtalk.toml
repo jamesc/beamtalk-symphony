@@ -18,3 +18,10 @@ http = "0.3.4"
 yaml = "0.2.0"
 linear = "0.1.2"
 agents = "0.1.1"
+
+[diagnostics]
+definite-assignment = "error"
+unguarded-late-read = "error"
+handleinfo-no-catch-all = "error"
+cascade-drops-update = "error"
+match-arm-block = "error"

@@ -370,7 +370,7 @@ typed Actor subclass: Orchestrator
       terminalStates: self.deps config trackerTerminalStates
       activeStates: self.deps config trackerActiveStates
 
-    (classification at: #terminal)
+    classification terminal
       do: [:issueId |
         entry := self runningEntryFor: issueId
         entry isNil
@@ -380,17 +380,21 @@ typed Actor subclass: Orchestrator
           ]
       ]
 
-    (classification at: #active)
+    classification active
       do: [:ref |
-        entry := self runningEntryFor: ref id
-        entry isNil
+        refId := ref id
+        refId isNil
           ifFalse: [
-            updatedIssue := entry issue withState: ref state
-            self.running := self.running at: ref id put: (entry withIssue: updatedIssue)
+            entry := self runningEntryFor: refId
+            entry isNil
+              ifFalse: [
+                updatedIssue := entry issue withState: ref state
+                self.running := self.running at: refId put: (entry withIssue: updatedIssue)
+              ]
           ]
       ]
 
-    (classification at: #dropped) do: [:issueId |
+    classification dropped do: [:issueId |
       self terminateWorker: issueId cleanup: false
     ]
 

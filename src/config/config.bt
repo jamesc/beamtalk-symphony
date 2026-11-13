@@ -95,11 +95,9 @@ typed Value subclass: Config
         ]
         ^nil
       ]
-    (raw isKindOf: String) ifTrue: [
-      (raw startsWith: "$") ifTrue: [^self resolveEnv: raw]
-    ]
-    result :: String := raw
-    result
+    (raw isKindOf: String) ifFalse: [^nil]
+    (raw startsWith: "$") ifTrue: [^self resolveEnv: raw]
+    raw
 
   trackerProjectSlug -> String | Nil =>
     raw := self
@@ -107,11 +105,9 @@ typed Value subclass: Config
       key: "project_slug"
       default: nil
     raw isNil ifTrue: [^nil]
-    (raw isKindOf: String) ifTrue: [
-      (raw startsWith: "$") ifTrue: [^self resolveEnv: raw]
-    ]
-    result :: String := raw
-    result
+    (raw isKindOf: String) ifFalse: [^nil]
+    (raw startsWith: "$") ifTrue: [^self resolveEnv: raw]
+    raw
 
   trackerActiveStates -> List(String) =>
     default := #("Todo", "In Progress")
