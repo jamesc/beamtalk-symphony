@@ -46,9 +46,7 @@ typed Actor subclass: Orchestrator
   /// Lifecycle hook — cancels timers and kills running workers on shutdown.
   terminate: _reason :: Object -> Nil =>
     self.pollTimerRef isNil ifFalse: [self.pollTimerRef cancel]
-    self.running do: [:entry |
-      entry workerPid isNil ifFalse: [entry workerPid kill]
-    ]
+    self.running do: [:entry | entry worker isNil ifFalse: [entry worker kill]]
     self.retryAttempts do: [:entry |
       entry timerRef isNil ifFalse: [entry timerRef cancel]
     ]
@@ -133,7 +131,7 @@ typed Actor subclass: Orchestrator
       forIssue: issue
       identifier: identifier
       startedAt: (DateTime now asTimestamp * 1000)
-    entry := entry withWorkerPid: runner
+    entry := entry withWorker: runner
 
     self.running := self.running at: issueId put: entry
     self.claimed := self.claimed add: issueId
@@ -399,7 +397,7 @@ typed Actor subclass: Orchestrator
     entry isNil ifTrue: [^nil]
 
     // Kill the worker process
-    entry workerPid isNil ifFalse: [entry workerPid kill]
+    entry worker isNil ifFalse: [entry worker kill]
 
     // Remove from running
     self.running := self.running removeKey: issueId
