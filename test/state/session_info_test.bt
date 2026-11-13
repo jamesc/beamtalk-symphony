@@ -12,11 +12,12 @@ TestCase subclass: SessionInfoTest
     s := ((SessionInfo new: #{
       #turnCount => 0
     }) withSessionId: "s1") withThreadId: "t1"
-    s := (s withTurnId: "u1") withCodexPid: "pid1"
+    pid := Pid current
+    s := (s withTurnId: "u1") withCodexPid: pid
     self assert: s sessionId equals: "s1"
     self assert: s threadId equals: "t1"
     self assert: s turnId equals: "u1"
-    self assert: s codexPid equals: "pid1"
+    self assert: s codexPid equals: pid
 
   testWithEvent =>
     s := ((SessionInfo new: #{
@@ -37,6 +38,6 @@ TestCase subclass: SessionInfoTest
 
   testImmutability =>
     s := SessionInfo new: #{#turnCount => 0}
-    s withSessionId: "changed"
+    _ := s withSessionId: "changed"
     // Original unchanged
     self assert: s sessionId equals: nil

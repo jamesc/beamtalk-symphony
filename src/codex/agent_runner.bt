@@ -192,11 +192,11 @@ typed Actor subclass: AgentRunner
 
   /// Loops calling backend streamStep until turn completes or times out.
   /// Each streamStep call is short (~1s), avoiding gen_server timeout.
-  streamUntilDone: turnTimeoutMs :: Integer -> Result(Dictionary, Error) =>
+  streamUntilDone: turnTimeoutMs :: Integer -> Result(Dictionary, AgentError) =>
     deadline := (DateTime now asTimestamp * 1000) + turnTimeoutMs
     self streamLoop: deadline
 
-  streamLoop: deadline :: Integer -> Result(Dictionary, Error) =>
+  streamLoop: deadline :: Integer -> Result(Dictionary, AgentError) =>
     remaining := deadline - (DateTime now asTimestamp * 1000)
     remaining <= 0
       ifTrue: [

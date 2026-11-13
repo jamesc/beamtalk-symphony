@@ -28,8 +28,10 @@ TestCase subclass: RetryAttemptTest
 
   testWithTimerRef =>
     entry := RetryAttempt new
-    updated := entry withTimerRef: #some_ref
-    self assert: updated timerRef equals: #some_ref
+    timer := Timer after: 60000 do: [nil]
+    updated := entry withTimerRef: timer
+    self assert: updated timerRef equals: timer
+    timer cancel
 
   testBackoffMs =>
     self assert: (RetryAttempt backoffMs: 1 maxMs: 300000) equals: 10000

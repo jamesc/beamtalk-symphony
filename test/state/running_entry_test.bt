@@ -59,6 +59,6 @@ TestCase subclass: RunningEntryTest
       forIssue: (Issue new: #{#id => "x"})
       identifier: "BT-1"
       startedAt: 0
-    entry withIdentifier: "changed"
+    _ := entry withIdentifier: "changed"
     // Original unchanged
     self assert: entry identifier equals: "BT-1"
