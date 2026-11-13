@@ -21,15 +21,15 @@ typed Value subclass: Reconciler
       ]
 
   /// Classifies refreshed issue states into three buckets:
-  /// - #terminal — issue IDs whose state is now terminal (worker should
+  /// - terminal — issue IDs whose state is now terminal (worker should
   ///   stop and its workspace should be cleaned up)
-  /// - #active — IssueRefs still in an active state (issue's tracked
+  /// - active — IssueRefs still in an active state (issue's tracked
   ///   state should be updated to the refreshed value)
-  /// - #dropped — issue IDs neither terminal nor active (worker should
+  /// - dropped — issue IDs neither terminal nor active (worker should
   ///   stop without cleanup)
   /// Entries with a nil id or state are skipped, matching the source data's
   /// own guarantees rather than raising.
-  class classify: refreshed :: List(IssueRef) terminalStates: terminalStates :: List(String) activeStates: activeStates :: List(String) -> Dictionary =>
+  class classify: refreshed :: List(IssueRef) terminalStates: terminalStates :: List(String) activeStates: activeStates :: List(String) -> Classification =>
     terminal := #()
     active := #()
     dropped := #()
@@ -51,4 +51,8 @@ typed Value subclass: Reconciler
               ]
           ]
       ]
-    #{#terminal => terminal, #active => active, #dropped => dropped}
+    Classification new: #{
+      #terminal => terminal,
+      #active => active,
+      #dropped => dropped
+    }

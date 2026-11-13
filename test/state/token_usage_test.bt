@@ -56,7 +56,7 @@ TestCase subclass: TokenUsageTest
 
   testImmutability =>
     t := TokenUsage new
-    t
+    _ := t
       applyAbsolute: 999
       output: 999
       total: 999

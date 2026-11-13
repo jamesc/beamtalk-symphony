@@ -53,10 +53,15 @@ typed Supervisor subclass: SymphonySupervisor
   /// The callback looks the orchestrator up on each reload, so a reload
   /// after the supervisor has restarted it reaches the new one.
   initialize -> Nil =>
-    watcher :: WorkflowWatcher := (self which: WorkflowWatcher) unwrap
+    watcher := (self which: WorkflowWatcher) unwrap
+    (watcher isKindOf: WorkflowWatcher) ifFalse: [
+      Error signal: "WorkflowWatcher child is not running"
+    ]
     watcher
       onReload: [:config :prompt |
-        orch :: Orchestrator := (self which: Orchestrator) unwrap
-        orch reloadConfig: config prompt: prompt
+        orch := (self which: Orchestrator) unwrap
+        (orch isKindOf: Orchestrator) ifTrue: [
+          orch reloadConfig: config prompt: prompt
+        ] ifFalse: [Logger warn: "orchestrator not running; skipping reload"]
       ]
     nil

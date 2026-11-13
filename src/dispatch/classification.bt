@@ -1,0 +1,14 @@
+// Copyright 2026 James Casey
+// SPDX-License-Identifier: Apache-2.0
+
+/// Classification — the outcome of `Reconciler classify:`: refreshed issues
+/// split by what the orchestrator should do with their workers.
+///
+/// - `terminal` — issue IDs in a terminal state (stop the worker and clean
+///   up its workspace)
+/// - `active` — IssueRefs still in an active state (update the tracked state)
+/// - `dropped` — issue IDs neither terminal nor active (stop without cleanup)
+typed Value subclass: Classification
+  field: terminal :: List(String) = #()
+  field: active :: List(IssueRef) = #()
+  field: dropped :: List(String) = #()

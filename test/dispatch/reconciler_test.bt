@@ -59,9 +59,9 @@ TestCase subclass: ReconcilerTest
       classify: #(ref)
       terminalStates: #("Done", "Cancelled")
       activeStates: #("Todo", "In Progress")
-    self assert: (result at: #terminal) equals: #("1")
-    self assert: (result at: #active) isEmpty
-    self assert: (result at: #dropped) isEmpty
+    self assert: result terminal equals: #("1")
+    self assert: result active isEmpty
+    self assert: result dropped isEmpty
 
   testClassifyActiveState =>
     ref := IssueRef new: #{
@@ -73,10 +73,10 @@ TestCase subclass: ReconcilerTest
       classify: #(ref)
       terminalStates: #("Done")
       activeStates: #("Todo", "In Progress")
-    self assert: (result at: #terminal) isEmpty
-    self assert: (result at: #active) size equals: 1
-    self assert: (result at: #active) first id equals: "1"
-    self assert: (result at: #dropped) isEmpty
+    self assert: result terminal isEmpty
+    self assert: result active size equals: 1
+    self assert: result active first id equals: "1"
+    self assert: result dropped isEmpty
 
   testClassifyDroppedState =>
     ref := IssueRef new: #{
@@ -88,9 +88,9 @@ TestCase subclass: ReconcilerTest
       classify: #(ref)
       terminalStates: #("Done")
       activeStates: #("Todo", "In Progress")
-    self assert: (result at: #terminal) isEmpty
-    self assert: (result at: #active) isEmpty
-    self assert: (result at: #dropped) equals: #("1")
+    self assert: result terminal isEmpty
+    self assert: result active isEmpty
+    self assert: result dropped equals: #("1")
 
   testClassifyStateMatchIsCaseInsensitive =>
     ref := IssueRef new: #{#id => "1", #identifier => "X-1", #state => "done"}
@@ -98,7 +98,7 @@ TestCase subclass: ReconcilerTest
       classify: #(ref)
       terminalStates: #("Done")
       activeStates: #("Todo")
-    self assert: (result at: #terminal) equals: #("1")
+    self assert: result terminal equals: #("1")
 
   testClassifySkipsEntriesWithNilIdOrState =>
     noId := IssueRef new: #{#identifier => "X-1", #state => "Todo"}
@@ -107,6 +107,6 @@ TestCase subclass: ReconcilerTest
       classify: #(noId, noState)
       terminalStates: #("Done")
       activeStates: #("Todo")
-    self assert: (result at: #terminal) isEmpty
-    self assert: (result at: #active) isEmpty
-    self assert: (result at: #dropped) isEmpty
+    self assert: result terminal isEmpty
+    self assert: result active isEmpty
+    self assert: result dropped isEmpty
