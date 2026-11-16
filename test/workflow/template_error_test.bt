@@ -31,3 +31,12 @@ TestCase subclass: TemplateErrorTest
     self assert: parsed isError
     self assert: parsed error kind equals: #nesting
     self assert: (TemplateError fromLiquid: parsed error) kind equals: "parse_error"
+
+  testTokenLimitIsParseError =>
+    many := "\{\{ x"
+      ++ ((1 to: 600) inject: "" into: [:acc :_i | acc ++ " | upcase"])
+      ++ " }}"
+    parsed := Liquid parse: many
+    self assert: parsed isError
+    self assert: parsed error kind equals: #limit
+    self assert: (TemplateError fromLiquid: parsed error) kind equals: "parse_error"
