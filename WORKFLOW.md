@@ -37,7 +37,7 @@ You are an AI coding agent working on a software task from Linear.
 
 {{issue.description}}
 
-{% if attempt %}
+{% if attempt > 0 %}
 This is retry attempt #{{ attempt }}. Resume from the current workspace state.
 {% endif %}
 

@@ -6,3 +6,9 @@ typed AgentError subclass: TemplateError
 
   class renderError: detail :: String -> TemplateError =>
     self new: #{#kind => "render_error", #detail => detail}
+
+  /// Maps a `liquid` LiquidError (parse or render failure) to a TemplateError.
+  /// Every accumulated error is reported, each as "kind at line:column: detail".
+  class fromLiquid: error :: LiquidError -> TemplateError =>
+    messages := error errors collect: [:each :: LiquidError | each message]
+    self renderError: (messages join: "; ")
