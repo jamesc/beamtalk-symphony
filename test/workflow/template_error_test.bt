@@ -24,3 +24,10 @@ TestCase subclass: TemplateErrorTest
     }
     self assert: rendered isError
     self assert: (TemplateError fromLiquid: rendered error) kind equals: "render_error"
+
+  testDeepNestingIsParseError =>
+    deep := ((1 to: 150) inject: "" into: [:acc :_i | acc ++ "\{% if true %}"])
+    parsed := Liquid parse: deep
+    self assert: parsed isError
+    self assert: parsed error kind equals: #nesting
+    self assert: (TemplateError fromLiquid: parsed error) kind equals: "parse_error"

@@ -11,14 +11,14 @@ typed AgentError subclass: TemplateError
     self new: #{#kind => "parse_error", #detail => detail}
 
   /// Maps a `liquid` LiquidError to a TemplateError. Malformed template source
-  /// (lex, parse, unclosed or unknown tag) is a "parse_error"; unknown filters,
+  /// (lex, parse, unclosed or unknown tag, nesting or token limit) is a "parse_error"; unknown filters,
   /// undefined variables and other render failures are a "render_error",
   /// following SPEC.md section 5.5. Every accumulated error is reported, each
   /// as "kind at line:column: detail".
   class fromLiquid: error :: LiquidError -> TemplateError =>
     messages := error errors collect: [:each :: LiquidError | each message]
     detail := messages join: "; "
-    isSource := #(#lex, #parse, #unclosed, #unknown_tag) includes: error kind
+    isSource := #(#lex, #parse, #unclosed, #unknown_tag, #nesting, #limit) includes: error kind
     isSource ifTrue: [
       self parseError: detail
     ] ifFalse: [self renderError: detail]
