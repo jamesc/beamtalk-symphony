@@ -9,3 +9,34 @@ TestCase subclass: TemplateErrorTest
   testRenderErrorDisplayString =>
     err := TemplateError renderError: "bad var"
     self assert: err displayString equals: "TemplateError(render_error): bad var"
+
+  testFromLiquidCarriesAllErrors =>
+    parsed := Liquid parse: "\{% bogus %} \{% if x %}"
+    self assert: parsed isError
+    err := TemplateError fromLiquid: parsed error
+    self assert: err kind equals: "parse_error"
+    self assert: (err displayString startsWith: "TemplateError(parse_error): ")
+    self assert: (err detail includesSubstring: "; ")
+
+  testFromLiquidUndefinedVariableIsRenderError =>
+    rendered := (Liquid parse: "\{\{ nope }}") unwrap render: #{} options: #{
+      #strictVariables => true
+    }
+    self assert: rendered isError
+    self assert: (TemplateError fromLiquid: rendered error) kind equals: "render_error"
+
+  testDeepNestingIsParseError =>
+    deep := ((1 to: 150) inject: "" into: [:acc :_i | acc ++ "\{% if true %}"])
+    parsed := Liquid parse: deep
+    self assert: parsed isError
+    self assert: parsed error kind equals: #nesting
+    self assert: (TemplateError fromLiquid: parsed error) kind equals: "parse_error"
+
+  testTokenLimitIsParseError =>
+    many := "\{\{ x"
+      ++ ((1 to: 600) inject: "" into: [:acc :_i | acc ++ " | upcase"])
+      ++ " }}"
+    parsed := Liquid parse: many
+    self assert: parsed isError
+    self assert: parsed error kind equals: #limit
+    self assert: (TemplateError fromLiquid: parsed error) kind equals: "parse_error"

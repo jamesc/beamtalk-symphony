@@ -114,3 +114,183 @@ TestCase subclass: PromptRendererTest
       issue: issue
       attempt: 2
     self assert: (self assertOk: result) equals: "X-1: Do it (2)"
+
+  // --- BT-4918: Liquid engine semantics ---
+  renderWith: template issue: issue =>
+    PromptRenderer
+      render: template
+      issue: issue
+      attempt: nil
+
+  testNestedIfInsideFor =>
+    template := (self forOpen: "label in issue.labels")
+      ++ (self ifOpen: "label")
+      ++ "["
+      ++ (self var: "label")
+      ++ "]"
+      ++ self ifClose
+      ++ self forClose
+    issue := Issue new: #{#labels => #("bug", "urgent")}
+    result := self renderWith: template issue: issue
+    self assert: (self assertOk: result) equals: "[bug][urgent]"
+
+  testNestedForLoops =>
+    template := (self forOpen: "a in issue.labels")
+      ++ (self forOpen: "b in issue.labels")
+      ++ (self var: "a")
+      ++ (self var: "b")
+      ++ " "
+      ++ self forClose
+      ++ self forClose
+    issue := Issue new: #{#labels => #("x", "y")}
+    result := self renderWith: template issue: issue
+    self assert: (self assertOk: result) equals: "xx xy yx yy "
+
+  testNestedIfBlocks =>
+    template := (self ifOpen: "issue.title")
+      ++ "A"
+      ++ (self ifOpen: "issue.description")
+      ++ "B"
+      ++ self ifClose
+      ++ "C"
+      ++ self ifClose
+    issue := Issue new: #{#title => "t", #description => "d"}
+    result := self renderWith: template issue: issue
+    self assert: (self assertOk: result) equals: "ABC"
+
+  testValueContainingTemplateSyntaxRendersLiterally =>
+    template := "T: " ++ (self var: "issue.title") ++ "|" ++ (self var: "issue.description")
+    issue := Issue new: #{
+      #title => "\{\{ issue.description }}",
+      #description => "secret"
+    }
+    result := self renderWith: template issue: issue
+    self assert: (self assertOk: result) equals: "T: \{\{ issue.description }}|secret"
+
+  testSelfReferencingValueDoesNotLoop =>
+    template := self var: "issue.title"
+    issue := Issue new: #{#title => "\{\{ issue.title }}"}
+    result := self renderWith: template issue: issue
+    self assert: (self assertOk: result) equals: "\{\{ issue.title }}"
+
+  testValueContainingTagSyntaxRendersLiterally =>
+    template := self var: "issue.title"
+    issue := Issue new: #{#title => "\{% if issue.title %}x\{% endif %}"}
+    result := self renderWith: template issue: issue
+    self assert: (self assertOk: result) equals: "\{% if issue.title %}x\{% endif %}"
+
+  testStrictVariablesRejectsTypo =>
+    template := "Hi " ++ (self var: "issue.titel")
+    result := self renderWith: template issue: (Issue new: #{#title => "t"})
+    self assert: result isError
+    self assert: (result error isKindOf: TemplateError)
+
+  testStrictVariablesRejectsUnknownTopLevel =>
+    result := self renderWith: (self var: "attemp") issue: (Issue new: #{
+      #id => "x"
+    })
+    self assert: result isError
+
+  testNilFieldIsStillDefinedInStrictMode =>
+    // Issue asJson always carries every key, so an unset description is
+    // nil (defined), not undefined.
+    result := self renderWith: "d=" ++ (self var: "issue.description") issue: (Issue new: #{
+      #id => "x"
+    })
+    self assert: (self assertOk: result) equals: "d="
+
+  testZeroIsTruthy =>
+    template := (self ifOpen: "attempt") ++ "yes" ++ self ifClose
+    result := PromptRenderer
+      render: template
+      issue: (Issue new: #{#id => "x"})
+      attempt: 0
+    self assert: (self assertOk: result) equals: "yes"
+
+  testEmptyStringIsTruthy =>
+    template := (self ifOpen: "issue.title") ++ "yes" ++ self ifClose
+    result := self renderWith: template issue: (Issue new: #{#title => ""})
+    self assert: (self assertOk: result) equals: "yes"
+
+  testComparisonCondition =>
+    template := "\{% if attempt > 0 %}retry\{% else %}first\{% endif %}"
+    issue := Issue new: #{#id => "x"}
+    first := PromptRenderer
+      render: template
+      issue: issue
+      attempt: 0
+    retry := PromptRenderer
+      render: template
+      issue: issue
+      attempt: 2
+    nilAttempt := PromptRenderer
+      render: template
+      issue: issue
+      attempt: nil
+    self assert: (self assertOk: first) equals: "first"
+    self assert: (self assertOk: retry) equals: "retry"
+    self assert: (self assertOk: nilAttempt) equals: "first"
+
+  testElseBranch =>
+    template := (self ifOpen: "issue.title") ++ "has" ++ "\{% else %}none" ++ self ifClose
+    result := self renderWith: template issue: (Issue new: #{#id => "x"})
+    self assert: (self assertOk: result) equals: "none"
+
+  testFilterApplied =>
+    template := "\{\{ issue.title | upcase }}"
+    result := self renderWith: template issue: (Issue new: #{#title => "abc"})
+    self assert: (self assertOk: result) equals: "ABC"
+
+  testUnknownFilterIsError =>
+    template := "\{\{ issue.title | nosuchfilter }}"
+    result := self renderWith: template issue: (Issue new: #{#title => "abc"})
+    self assert: result isError
+    self assert: (result error isKindOf: TemplateError)
+    self assert: result error kind equals: "render_error"
+
+  testMalformedTemplateIsError =>
+    result := self renderWith: (self ifOpen: "issue.title") ++ "never closed" issue: (Issue new: #{
+      #title => "t"
+    })
+    self assert: result isError
+
+  testWhitespaceOnlyTemplateUsesDefault =>
+    result := self renderWith: "  \n " issue: (Issue new: #{#id => "x"})
+    self assert: (self assertOk: result) equals: "You are working on an issue from Linear."
+
+  testErrorMessageCarriesPosition =>
+    result := self renderWith: "ab\n\{\{ issue.nope }}" issue: (Issue new: #{
+      #id => "x"
+    })
+    self assert: result isError
+    self assert: (result error detail includesSubstring: "nope")
+
+  // The shipped WORKFLOW.md prompt must render under strict, truthy-0 semantics.
+  workflowTemplate =>
+    ((WorkflowLoader load: "WORKFLOW.md") unwrap) at: "prompt_template"
+
+  testShippedWorkflowOmitsRetryNoteOnFirstDispatch =>
+    issue := Issue new: #{
+      #identifier => "BT-1",
+      #title => "T",
+      #description => "D"
+    }
+    result := PromptRenderer
+      render: self workflowTemplate
+      issue: issue
+      attempt: 0
+    rendered := self assertOk: result
+    self assert: (rendered includesSubstring: "BT-1: T")
+    self deny: (rendered includesSubstring: "retry attempt")
+
+  testShippedWorkflowShowsRetryNoteOnRetry =>
+    issue := Issue new: #{
+      #identifier => "BT-1",
+      #title => "T",
+      #description => "D"
+    }
+    result := PromptRenderer
+      render: self workflowTemplate
+      issue: issue
+      attempt: 2
+    self assert: ((self assertOk: result) includesSubstring: "retry attempt #2")

@@ -18,6 +18,7 @@ http = "0.3.4"
 yaml = "0.2.0"
 linear = "0.1.2"
 agents = "0.1.1"
+liquid = { git = "https://github.com/jamesc/beamtalk-liquid", rev = "3d714091656cdcacc65d2aa01ac3d55c22b39177" }
 
 [diagnostics]
 definite-assignment = "error"

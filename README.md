@@ -40,6 +40,21 @@ beamtalk repl
 > Main run
 ```
 
+## Prompt templates
+
+The prompt in `WORKFLOW.md` is a [Liquid](https://shopify.github.io/liquid/) template rendered by the [`liquid`](https://github.com/jamesc/beamtalk-liquid) package. Two variables are available: `issue` (the Linear issue's fields, e.g. `{{ issue.identifier }}`, `{{ issue.labels }}`) and `attempt` (`0` on the first dispatch, `1`+ on retries, `nil` if unknown). See the package README for the supported tags, filters and divergences from Liquid.
+
+### Migrating an existing WORKFLOW.md (BT-4918)
+
+The old renderer rewrote substrings; the new one parses the template. Behaviour changes:
+
+- **Truthiness:** only `nil` and `false` are falsy. `0` and `""` are now truthy, so `{% if attempt %}` is true on the first dispatch (`attempt` is `0`). Write `{% if attempt > 0 %}` instead.
+- **Strict variables:** a variable that does not exist (`{{ issue.titel }}`) is now an error that fails the dispatch, instead of rendering as empty text. A field that exists but is `nil` (e.g. an issue with no description) still renders empty.
+- **Template errors:** unclosed or unknown tags and a bare `|` are errors instead of passing through silently (logged as `parse_error`). Unknown filters are also rejected, before any output is produced, and are logged as `render_error` along with undefined variables.
+- **Limits:** templates nest at most 100 levels deep (error kind `nesting`), and a single `{{ }}` or `{% %}` may hold at most 1000 tokens (`limit`); exceeding either is a parse error.
+- **Values are literal:** issue text containing `{{ ... }}` or `{% ... %}` is emitted as-is and never expanded.
+- **New:** `if`/`for` blocks nest; `elsif`, `else`, `unless`, comparisons (`== != < > <= >= contains and or`), filters (`{{ issue.title | upcase }}`), `comment`/`raw` and `{%-`/`-%}` whitespace control are supported.
+
 ## Architecture
 
 | Component | Role |
