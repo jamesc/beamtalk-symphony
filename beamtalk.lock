@@ -52,7 +52,7 @@ sha = "cf1fbadfeacf5a956813a8f676ff64ffaa7cdc23"
 [[package]]
 name = "liquid"
 url = "https://github.com/jamesc/beamtalk-liquid"
-reference = "rev:3d714091656cdcacc65d2aa01ac3d55c22b39177"
+reference = "tag:v0.1.0"
 sha = "3d714091656cdcacc65d2aa01ac3d55c22b39177"
 
 [[package]]
