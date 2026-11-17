@@ -246,6 +246,7 @@ TestCase subclass: PromptRendererTest
     result := self renderWith: template issue: (Issue new: #{#title => "abc"})
     self assert: result isError
     self assert: (result error isKindOf: TemplateError)
+    self assert: result error kind equals: "render_error"
 
   testMalformedTemplateIsError =>
     result := self renderWith: (self ifOpen: "issue.title") ++ "never closed" issue: (Issue new: #{
