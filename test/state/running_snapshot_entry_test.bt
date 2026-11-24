@@ -1,0 +1,43 @@
+// Tests for RunningSnapshotEntry wire-format JSON.
+
+TestCase subclass: RunningSnapshotEntryTest
+
+  testJsonWireFormat =>
+    entry := RunningSnapshotEntry
+      new: #{
+        #issueId => "id-1",
+        #issueIdentifier => "BT-1",
+        #state => "In Progress",
+        #sessionId => "s1",
+        #lastEvent => "turn",
+        #lastMessage => "hi",
+        #turnCount => 3,
+        #startedAt => 1000,
+        #lastEventAt => 2000,
+        #tokens => (TokenUsage new
+          applyAbsolute: 1
+          output: 2
+          total: 3)
+      }
+    json := entry asJson
+    self assert: json size equals: 10
+    self assert: (json at: "issue_id") equals: "id-1"
+    self assert: (json at: "issue_identifier") equals: "BT-1"
+    self assert: (json at: "state") equals: "In Progress"
+    self assert: (json at: "session_id") equals: "s1"
+    self assert: (json at: "turn_count") equals: 3
+    self assert: (json at: "last_event") equals: "turn"
+    self assert: (json at: "last_message") equals: "hi"
+    self assert: (json at: "started_at") equals: 1000
+    self assert: (json at: "last_event_at") equals: 2000
+    self assert: ((Json parse: (Json generate: entry)) unwrap at: "tokens") equals: #{
+      "input_tokens" => 1,
+      "output_tokens" => 2,
+      "total_tokens" => 3
+    }
+
+  testJsonNilFields =>
+    json := RunningSnapshotEntry new asJson
+    self assert: (json at: "session_id") equals: nil
+    self assert: (json at: "last_event_at") equals: nil
+    self assert: (json at: "turn_count") equals: 0

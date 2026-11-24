@@ -94,3 +94,10 @@ TestCase subclass: TokenUsageTest
     self assert: updated input equals: 1000
     self assert: updated output equals: 500
     self assert: updated total equals: 1500
+
+  testJsonWireFormat =>
+    t := TokenUsage new
+      applyAbsolute: 100
+      output: 50
+      total: 150
+    self assert: (Json generate: t) equals: "\{""input_tokens"":100,""output_tokens"":50,""total_tokens"":150}"

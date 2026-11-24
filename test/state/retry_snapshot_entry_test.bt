@@ -1,0 +1,25 @@
+// Tests for RetrySnapshotEntry wire-format JSON.
+
+TestCase subclass: RetrySnapshotEntryTest
+
+  testJsonWireFormat =>
+    entry := RetrySnapshotEntry
+      new: #{
+        #issueId => "id-1",
+        #issueIdentifier => "BT-1",
+        #attempt => 2,
+        #dueAtMs => 5000,
+        #error => "boom"
+      }
+    json := entry asJson
+    self assert: json size equals: 5
+    self assert: (json at: "issue_id") equals: "id-1"
+    self assert: (json at: "issue_identifier") equals: "BT-1"
+    self assert: (json at: "attempt") equals: 2
+    self assert: (json at: "due_at_ms") equals: 5000
+    self assert: (json at: "error") equals: "boom"
+
+  testJsonNilError =>
+    json := RetrySnapshotEntry new asJson
+    self assert: (json at: "error") equals: nil
+    self assert: (json at: "attempt") equals: 1

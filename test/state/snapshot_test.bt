@@ -1,0 +1,23 @@
+// Tests for Snapshot wire-format JSON (hand-written asJson: nested counts).
+
+TestCase subclass: SnapshotTest
+
+  testEmptyJsonWireFormat =>
+    json := Snapshot empty asJson
+    self assert: (json at: "counts") equals: #{"running" => 0, "retrying" => 0}
+    self assert: (json at: "running") equals: #()
+    self assert: (json at: "retrying") equals: #()
+    self assert: (json at: "rate_limits") equals: nil
+    self assert: (json at: "codex_totals") equals: TokenUsage new
+
+  testGeneratedJsonRoundTrips =>
+    parsed := (Json parse: (Json generate: Snapshot empty)) unwrap
+    self assert: (parsed at: "counts") equals: #{
+      "running" => 0,
+      "retrying" => 0
+    }
+    self assert: (parsed at: "codex_totals") equals: #{
+      "input_tokens" => 0,
+      "output_tokens" => 0,
+      "total_tokens" => 0
+    }

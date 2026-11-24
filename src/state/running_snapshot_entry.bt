@@ -4,6 +4,7 @@
 /// RunningSnapshotEntry — the projection of a RunningEntry exposed in the
 /// orchestrator's runtime snapshot (dashboard + HTTP API).
 typed Value subclass: RunningSnapshotEntry
+  uses: JsonMappable
   field: issueId :: String = ""
   field: issueIdentifier :: String = ""
   field: state :: String = ""
@@ -33,17 +34,17 @@ typed Value subclass: RunningSnapshotEntry
         #tokens => entry tokens
       }
 
-  /// Wire-format JSON representation (JsonRepresentable, ADR 0068).
-  asJson -> Dictionary =>
-    #{
-      "issue_id" => self.issueId,
-      "issue_identifier" => self.issueIdentifier,
-      "state" => self.state,
-      "session_id" => self.sessionId,
-      "turn_count" => self.turnCount,
-      "last_event" => self.lastEvent,
-      "last_message" => self.lastMessage,
-      "started_at" => self.startedAt,
-      "last_event_at" => self.lastEventAt,
-      "tokens" => self.tokens
-    }
+  /// Wire-format JSON schema (JsonMappable, BT-2819). `tokens` is a mapped
+  /// TokenUsage and is encoded recursively.
+  class jsonMapping -> JsonMapping =>
+    JsonMapping new
+      |> mapField: #issueId to: "issue_id"
+      |> mapField: #issueIdentifier to: "issue_identifier"
+      |> mapField: #state
+      |> mapField: #sessionId to: "session_id"
+      |> mapField: #turnCount to: "turn_count"
+      |> mapField: #lastEvent to: "last_event"
+      |> mapField: #lastMessage to: "last_message"
+      |> mapField: #startedAt to: "started_at"
+      |> mapField: #lastEventAt to: "last_event_at"
+      |> mapField: #tokens
