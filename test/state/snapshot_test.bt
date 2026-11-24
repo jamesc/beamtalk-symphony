@@ -11,7 +11,7 @@ TestCase subclass: SnapshotTest
     self assert: (json at: "codex_totals") equals: TokenUsage new
 
   testGeneratedJsonRoundTrips =>
-    parsed := (Json parse: (Json generate: Snapshot empty)) unwrap
+    parsed :: Dictionary := (Json parse: (Json generate: Snapshot empty)) unwrap
     self assert: (parsed at: "counts") equals: #{
       "running" => 0,
       "retrying" => 0

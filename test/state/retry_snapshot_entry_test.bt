@@ -11,7 +11,7 @@ TestCase subclass: RetrySnapshotEntryTest
         #dueAtMs => 5000,
         #error => "boom"
       }
-    json := entry asJson
+    json :: Dictionary := entry asJson
     self assert: json size equals: 5
     self assert: (json at: "issue_id") equals: "id-1"
     self assert: (json at: "issue_identifier") equals: "BT-1"
@@ -20,6 +20,6 @@ TestCase subclass: RetrySnapshotEntryTest
     self assert: (json at: "error") equals: "boom"
 
   testJsonNilError =>
-    json := RetrySnapshotEntry new asJson
+    json :: Dictionary := RetrySnapshotEntry new asJson
     self assert: (json at: "error") equals: nil
     self assert: (json at: "attempt") equals: 1
