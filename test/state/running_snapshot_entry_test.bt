@@ -19,7 +19,7 @@ TestCase subclass: RunningSnapshotEntryTest
           output: 2
           total: 3)
       }
-    json :: Dictionary := entry asJson
+    json := entry asJson
     self assert: json size equals: 10
     self assert: (json at: "issue_id") equals: "id-1"
     self assert: (json at: "issue_identifier") equals: "BT-1"
@@ -38,7 +38,7 @@ TestCase subclass: RunningSnapshotEntryTest
     }
 
   testJsonNilFields =>
-    json :: Dictionary := RunningSnapshotEntry new asJson
+    json := RunningSnapshotEntry new asJson
     self assert: (json at: "session_id") equals: nil
     self assert: (json at: "last_event_at") equals: nil
     self assert: (json at: "turn_count") equals: 0
