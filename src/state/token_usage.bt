@@ -4,12 +4,21 @@
 /// TokenUsage — immutable token counters (input/output/total) with delta
 /// tracking relative to last reported values.
 typed Value subclass: TokenUsage
+  uses: JsonMappable
   field: input :: Integer = 0
   field: output :: Integer = 0
   field: total :: Integer = 0
   field: lastReportedInput :: Integer = 0
   field: lastReportedOutput :: Integer = 0
   field: lastReportedTotal :: Integer = 0
+
+  /// Wire-format JSON schema (JsonMappable, BT-2819). Only the current
+  /// counters go on the wire, not the delta-tracking baselines.
+  class jsonMapping -> JsonMapping =>
+    JsonMapping new
+      |> mapField: #input to: "input_tokens"
+      |> mapField: #output to: "output_tokens"
+      |> mapField: #total to: "total_tokens"
 
   /// Applies absolute token totals from a codex event, replacing current values.
   applyAbsolute: newInput :: Integer output: newOutput :: Integer total: newTotal :: Integer -> TokenUsage =>
@@ -33,11 +42,3 @@ typed Value subclass: TokenUsage
       applyAbsolute: self input + (newTokens input - oldTokens input)
       output: self output + (newTokens output - oldTokens output)
       total: self total + (newTokens total - oldTokens total)
-
-  /// Wire-format JSON representation (JsonRepresentable, ADR 0068).
-  asJson -> Dictionary =>
-    #{
-      "input_tokens" => self.input,
-      "output_tokens" => self.output,
-      "total_tokens" => self.total
-    }

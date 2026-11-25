@@ -4,6 +4,7 @@
 /// RetrySnapshotEntry — the projection of a RetryAttempt exposed in the
 /// orchestrator's runtime snapshot.
 typed Value subclass: RetrySnapshotEntry
+  uses: JsonMappable
   field: issueId :: String = ""
   field: issueIdentifier :: String = ""
   field: attempt :: Integer = 1
@@ -20,12 +21,11 @@ typed Value subclass: RetrySnapshotEntry
         #error => r error
       }
 
-  /// Wire-format JSON representation (JsonRepresentable, ADR 0068).
-  asJson -> Dictionary =>
-    #{
-      "issue_id" => self.issueId,
-      "issue_identifier" => self.issueIdentifier,
-      "attempt" => self.attempt,
-      "due_at_ms" => self.dueAtMs,
-      "error" => self.error
-    }
+  /// Wire-format JSON schema (JsonMappable, BT-2819).
+  class jsonMapping -> JsonMapping =>
+    JsonMapping new
+      |> mapField: #issueId to: "issue_id"
+      |> mapField: #issueIdentifier to: "issue_identifier"
+      |> mapField: #attempt
+      |> mapField: #dueAtMs to: "due_at_ms"
+      |> mapField: #error
