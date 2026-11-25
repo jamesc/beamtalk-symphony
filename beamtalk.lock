@@ -65,6 +65,8 @@ sha = "5a645a3b6fef2da0611b358e0aebd18bd1f88042"
 
 [[package]]
 name = "yaml"
+version = "0.2.1"
+registry = "https://github.com/jamesc/beamtalk-registry"
 url = "https://github.com/jamesc/beamtalk-yaml"
 reference = "tag:v0.2.1"
 sha = "48aac7d89e71e4d38caba0976382d1e06c55ea72"
