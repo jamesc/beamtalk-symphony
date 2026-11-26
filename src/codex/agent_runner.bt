@@ -95,7 +95,11 @@ typed Actor subclass: AgentRunner
     ]
     self
 
-  doRun -> Result(Dictionary, Error) =>
+  /// The error side is a union of the real error classes: `AgentError`
+  /// (WorkspaceError, TemplateError and backend failures) and `LinearError`
+  /// are Value subclasses, not `Error`; `Error` covers the exception that
+  /// `startBackendSession` catches while starting the backend.
+  doRun -> Result(Dictionary, AgentError | LinearError | Error) =>
     identifier := self.issue identifier ifNil: [""]
     // Step 1: Create/reuse workspace
     wsResult := self.workspaceManager createForIssue: identifier
@@ -159,7 +163,7 @@ typed Actor subclass: AgentRunner
   // --- Turn continuation check ---
 
   /// Returns a Result if the loop should stop, or nil to continue.
-  shouldContinue: maxTurns :: Integer -> Result(Dictionary, Error) | Nil =>
+  shouldContinue: maxTurns :: Integer -> Result(Dictionary, LinearError) | Nil =>
     // Check if max turns reached
     self.turnNumber >= maxTurns ifTrue: [
       ^Result ok: #{"status" => "max_turns_reached"}
@@ -209,7 +213,7 @@ typed Actor subclass: AgentRunner
   // --- Turn loop ---
 
   /// Executes the prompt-send-stream cycle for the current turn, then recurses.
-  runTurnLoop: wsPath :: String maxTurns: maxTurns :: Integer -> Result(Dictionary, Error) =>
+  runTurnLoop: wsPath :: String maxTurns: maxTurns :: Integer -> Result(Dictionary, AgentError | LinearError) =>
     // Build prompt for this turn
     promptResult := self buildPrompt
     promptResult isError ifTrue: [^promptResult]
