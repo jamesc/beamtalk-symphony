@@ -82,14 +82,15 @@ typed Actor subclass: AgentRunner
   begin -> AgentRunner =>
     identifier := self.issue identifier ifNil: [""]
     Logger info: "agent run starting" metadata: #{"issue" => identifier}
-    self doRun match: [
+    result := self doRun
+    result match: [
       Result error: e -> Logger error: "agent run failed" metadata: #{
         "issue_identifier" => identifier,
         "error" => e displayString
       };
-      Result ok: r -> Logger info: "agent run completed" metadata: #{
+      Result ok: _ -> Logger info: "agent run completed" metadata: #{
         "issue_identifier" => identifier,
-        "result" => r displayString
+        "result" => result displayString
       }
     ]
     self
