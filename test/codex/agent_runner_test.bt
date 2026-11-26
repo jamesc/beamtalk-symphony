@@ -81,3 +81,88 @@ TestCase subclass: AgentRunnerTest
     self assert: result isError
     self assert: (result error isKindOf: AgentError)
     self deny: (result error isKindOf: Error)
+
+  // --- Cleanup when the turn loop raises (BT-5331) ---
+  // Drives doRun against a fake `claude` CLI that boots, then emits an
+  // assistant event on the first turn. The onEvent callback raises on
+  // that event, so the turn loop raises mid-run. The after_run hook must
+  // still run, the backend process must still be stopped, and the
+  // exception must still reach the caller.
+  testTurnLoopRaiseStillRunsAfterRunHookAndStopsBackend =>
+    tmpDir := "target/bt-test-tmp/agent_runner_cleanup"
+    File deleteAll: tmpDir
+    File mkdirAll: tmpDir
+    root := (File absolutePath: tmpDir) unwrap
+    nl := String fromCodePoint: 10
+    afterRunMarker := root ++ "/after_run.marker"
+    pidFile := root ++ "/backend.pid"
+    fakeClaude := root ++ "/fake_claude.sh"
+    File
+      writeAll: fakeClaude
+      contents: "#!/bin/sh"
+        ++ nl
+        ++ "echo $$ > "
+        ++ pidFile
+        ++ nl
+        ++ "echo '\{""type"":""system"",""subtype"":""hook_started""}'"
+        ++ nl
+        ++ "read -r line"
+        ++ nl
+        ++ "echo '\{""type"":""assistant"",""message"":""boom""}'"
+        ++ nl
+        ++ "cat > /dev/null"
+        ++ nl
+        ++ nl
+    (Erlang file) change_mode: fakeClaude mode: 8r755
+    config := ResolvedConfig
+      new: #{
+        #agentBackend => "claude",
+        #claudeCommand => fakeClaude,
+        #claudeReadTimeoutMs => 5000,
+        #workspaceRoot => root ++ "/workspaces",
+        #hooksAfterRun => "touch " ++ afterRunMarker
+      }
+    File mkdirAll: root ++ "/workspaces"
+    runner := AgentRunner
+      spawnWith: #{
+        #issue => (Issue new: #{
+          #identifier => "BT-1",
+          #title => "T",
+          #id => "x"
+        }),
+        #attempt => 1,
+        #config => config,
+        #workspaceManager => (WorkspaceManager fromConfig: config),
+        #linearClient => LinearClient new,
+        #promptTemplate => "Work on it",
+        #onEvent => [:event |
+          (event at: "method" ifAbsent: [
+            nil
+          ]) =:= "assistant" ifTrue: [self error: "turn loop boom"]
+        ],
+        #turnNumber => 0
+      }
+    raised := ""
+    [runner doRun] on: Error do: [:e | raised := e displayString]
+    // The original exception still propagates.
+    self assert: raised equals: "turn loop boom"
+    // after_run hook ran despite the raise.
+    self assert: (File exists: afterRunMarker)
+    // The backend subprocess was stopped, not left running.
+    self assert: (self waitForExit: pidFile)
+    File deleteAll: tmpDir
+
+  /// True once the process whose pid is in `pidFile` is gone (polls up to 5s).
+  waitForExit: pidFile :: String -> Boolean =>
+    pid := ((File readAll: pidFile) unwrap) trim
+    attempts := 0
+    [(self isAlive: pid) and: [attempts < 50]]
+      whileTrue: [
+        Erlang timer sleep: 100
+        attempts := attempts + 1
+      ]
+    (self isAlive: pid) not
+
+  isAlive: pid :: String -> Boolean =>
+    probe := "kill -0 " ++ pid ++ " 2>/dev/null && echo alive || echo dead"
+    (Erlang os cmd: probe) displayString includesSubstring: "alive"

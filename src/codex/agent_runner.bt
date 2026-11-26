@@ -127,16 +127,16 @@ typed Actor subclass: AgentRunner
     sessionData := sessionResult unwrap
     self.threadId := sessionData at: "threadId"
 
-    // Step 4: Multi-turn loop
+    // Step 4: Multi-turn loop, with Step 5 cleanup guaranteed by ensure:
+    // so a raising turn loop still stops the backend and runs after_run
+    // (the exception itself still propagates to the caller).
     self.turnNumber := 1
     maxTurns := self.config maxTurns
-    turnLoopResult := self runTurnLoop: wsPath maxTurns: maxTurns
-
-    // Step 5: Cleanup
-    self.backend stopProcess
-    self.workspaceManager runAfterRun: wsPath
-
-    turnLoopResult
+    [self runTurnLoop: wsPath maxTurns: maxTurns]
+      ensure: [
+        self.backend stopProcess
+        self.workspaceManager runAfterRun: wsPath
+      ]
 
   // --- Prompt helpers ---
 
