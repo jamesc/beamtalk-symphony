@@ -116,27 +116,30 @@ typed Actor subclass: AgentRunner
       backendFor: self.config
       workspacePath: wsPath
       onEvent: self.onEvent
+    // Everything after the backend exists runs under ensure:, so a raise
+    // anywhere (session start, turn loop) still stops the backend and runs
+    // after_run. The exception itself still propagates to the caller.
+    [self runSession: wsPath] ensure: [self cleanup: wsPath]
+
+  /// Starts the backend session and runs the multi-turn loop. Cleanup is
+  /// the caller's ensure: block, so this just returns or raises.
+  runSession: wsPath :: String -> Result(Dictionary, AgentError | LinearError | Error) =>
     sessionResult := self startBackendSession
-    sessionResult isError
-      ifTrue: [
-        self.workspaceManager runAfterRun: wsPath
-        self.backend stopProcess
-        ^sessionResult
-      ]
+    sessionResult isError ifTrue: [^sessionResult]
 
     sessionData := sessionResult unwrap
     self.threadId := sessionData at: "threadId"
 
-    // Step 4: Multi-turn loop
     self.turnNumber := 1
-    maxTurns := self.config maxTurns
-    turnLoopResult := self runTurnLoop: wsPath maxTurns: maxTurns
+    self runTurnLoop: wsPath maxTurns: self.config maxTurns
 
-    // Step 5: Cleanup
-    self.backend stopProcess
-    self.workspaceManager runAfterRun: wsPath
-
-    turnLoopResult
+  /// Stops the backend, then runs after_run. The hook runs even if the
+  /// backend stop raises.
+  cleanup: wsPath :: String -> Nil =>
+    [
+      self.backend stopProcess
+    ] ensure: [self.workspaceManager runAfterRun: wsPath]
+    nil
 
   // --- Prompt helpers ---
 
