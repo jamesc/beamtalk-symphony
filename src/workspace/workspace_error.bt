@@ -18,10 +18,10 @@ typed AgentError subclass: WorkspaceError
       #root => root
     }
 
-  class createError: detail :: Printable -> WorkspaceError =>
+  class createError: detail :: Object -> WorkspaceError =>
     self new: #{#kind => "create_error", #detail => detail}
 
-  class hookFailed: detail :: Printable phase: phase :: String -> WorkspaceError =>
+  class hookFailed: detail :: Object phase: phase :: String -> WorkspaceError =>
     self new: #{#kind => "hook_" ++ phase, #detail => detail}
 
   class hookError: detail :: String exitCode: exitCode :: Integer output: output :: String -> WorkspaceError =>
@@ -40,5 +40,5 @@ typed AgentError subclass: WorkspaceError
       #actual => actual
     }
 
-  class pathResolutionFailed: detail :: Printable -> WorkspaceError =>
+  class pathResolutionFailed: detail :: Object -> WorkspaceError =>
     self new: #{#kind => "path_resolution_failed", #detail => detail}
