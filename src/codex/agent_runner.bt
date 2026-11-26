@@ -70,7 +70,7 @@ typed Actor subclass: AgentRunner
   /// backend's read timeout. A cold `claude` start (plugin/hook load,
   /// ~3.5s measured) can exceed the default 5s gen_server call
   /// timeout; without the proxy the call raises and skips cleanup.
-  startBackendSession -> Result(Dictionary, Error) =>
+  startBackendSession -> Result(Dictionary, AgentError | Error) =>
     timeoutMs := (self.config agentBackend) =:= "claude" ifTrue: [
       self.config claudeReadTimeoutMs + 5000
     ] ifFalse: [self.config codexReadTimeoutMs + 5000]
