@@ -67,3 +67,17 @@ TestCase subclass: AgentRunnerTest
       onEvent: nil
     self assert: (backend isKindOf: ClaudeBackend)
     self assert: backend stop equals: #ok
+
+  // --- Error types (BT-5330) ---
+  // Domain errors are Value subclasses, not Error, so the declared Result
+  // error types must name them rather than `Error`.
+  testTemplateErrorIsAgentErrorNotError =>
+    lb := "\{"
+    rb := "}"
+    result := PromptRenderer
+      render: lb ++ lb ++ " issue.nope.deeper " ++ rb ++ rb
+      issue: (Issue new: #{#identifier => "X-1", #title => "T", #id => "x"})
+      attempt: nil
+    self assert: result isError
+    self assert: (result error isKindOf: AgentError)
+    self deny: (result error isKindOf: Error)
