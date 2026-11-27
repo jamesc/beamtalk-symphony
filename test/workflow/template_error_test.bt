@@ -16,7 +16,7 @@ TestCase subclass: TemplateErrorTest
     err := TemplateError fromLiquid: parsed error
     self assert: err kind equals: "parse_error"
     self assert: (err displayString startsWith: "TemplateError(parse_error): ")
-    self assert: (err detail includesSubstring: "; ")
+    self assert: (err detail displayString includesSubstring: "; ")
 
   testFromLiquidUndefinedVariableIsRenderError =>
     rendered := (Liquid parse: "\{\{ nope }}") unwrap render: #{} options: #{

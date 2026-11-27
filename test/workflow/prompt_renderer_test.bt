@@ -263,7 +263,7 @@ TestCase subclass: PromptRendererTest
       #id => "x"
     })
     self assert: result isError
-    self assert: (result error detail includesSubstring: "nope")
+    self assert: (result error detail displayString includesSubstring: "nope")
 
   // The shipped WORKFLOW.md prompt must render under strict, truthy-0 semantics.
   workflowTemplate =>
